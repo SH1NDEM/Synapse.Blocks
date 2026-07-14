@@ -1,0 +1,29 @@
+@page "/guide"
+
+<PageTitle>Справка — Синапс C#</PageTitle>
+
+<section class="guide-page">
+    <header><small>СПРАВКА</small><h1>Команды универсальных блоков</h1><p>Блоки не привязаны к уровням. Уровень задаёт только входные данные, ожидаемые выходы и разрешённые типы.</p></header>
+    <div class="guide-grid">
+        @foreach (var kind in Enum.GetValues<BlockKind>())
+        {
+            <article class="guide-card kind-@kind.ToString().ToLowerInvariant()">
+                <small>@BlockCatalog.Kicker(kind)</small><h2>@BlockCatalog.Label(kind)</h2><p>@BlockCatalog.Description(kind)</p>
+                @if (kind == BlockKind.Operation)
+                {
+                    <p>Выберите действие в списке. Если команде нужен параметр, справа появится отдельное поле значения.</p>
+                    <div class="command-list"><code>+ 2</code><span>прибавить число</span><code>* 3</code><span>умножить</span><code>set готово</code><span>заменить значение</span><code>append -OK</code><span>добавить текст</span><code>count</code><span>посчитать элементы</span></div>
+                }
+                else if (kind == BlockKind.Condition)
+                {
+                    <div class="command-list"><code>&gt; 20</code><span>сравнить числа</span><code>== ключ</code><span>сравнить текст</span><code>contains ошибка</code><span>найти фрагмент</span></div>
+                }
+                else if (kind == BlockKind.Loop)
+                {
+                    <div class="command-list"><code>input</code><span>число повторов берётся со входа</span><code>20</code><span>своё число повторов</span></div>
+                }
+            </article>
+        }
+    </div>
+    <section class="engine-note"><span>КАК РАБОТАЕТ ПРОВЕРКА</span><p>Движок запускает одну схему отдельно на каждом тесте. В блок «Вход» поступает значение теста, блок «Выход» возвращает фактический результат. Никакой заранее заданной правильной цепочки нет.</p></section>
+</section>

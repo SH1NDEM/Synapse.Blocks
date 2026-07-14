@@ -1,0 +1,435 @@
+@page "/editor"
+@using System.Text
+@inject LevelStore LevelStore
+@inject IJSRuntime JS
+
+<PageTitle>Редактор уровней — Синапс C#</PageTitle>
+
+@if (_loading)
+{
+    <div class="page-loading"><span></span><p>Открываю редактор…</p></div>
+}
+else
+{
+    <div class="editor-shell">
+        <aside class="level-list-pane">
+            <div class="level-list-head">
+                <div><small>КАМПАНИЯ</small><strong>@_levels.Count уровней</strong></div>
+                <button type="button" @onclick="AddLevel" title="Добавить уровень">＋</button>
+            </div>
+            <div class="level-list-scroll">
+                @foreach (var item in _levels)
+                {
+                    <button type="button" class="level-row @(Selected?.Id == item.Id ? "active" : "")" @onclick="() => Select(item.Id)">
+                        <span>@item.Order.ToString("00")</span>
+                        <div><strong>@item.Title</strong><small>@item.Direction · @item.Tests.Count тестов</small></div>
+                    </button>
+                }
+            </div>
+            <div class="file-actions">
+                <a href="@ExportHref" download="synapse-levels.json">Экспорт JSON</a>
+                <label>Импорт JSON<InputFile OnChange="ImportFile" accept="application/json,.json" /></label>
+                <button type="button" @onclick="ResetLevels">Вернуть примеры</button>
+            </div>
+        </aside>
+
+        @if (Selected is LevelDefinition level)
+        {
+            <main class="level-form-pane">
+                <header class="form-header">
+                    <div><small>УРОВЕНЬ @level.Order.ToString("00")</small><h1>@level.Title</h1></div>
+                    <div>
+                        <button type="button" @onclick="MoveUp" disabled="@(level.Order == 1)">↑</button>
+                        <button type="button" @onclick="MoveDown" disabled="@(level.Order == _levels.Count)">↓</button>
+                        <button type="button" @onclick="DuplicateLevel">Создать копию</button>
+                        <button type="button" class="danger" @onclick="DeleteLevel" disabled="@(_levels.Count == 1)">Удалить</button>
+                    </div>
+                </header>
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div class="editor-message @(_messageIsError ? "error" : "ok")">@_message</div>
+                }
+
+                <section class="form-section">
+                    <div class="section-heading"><span>01</span><div><h2>Описание задания</h2><p>Текст, который увидит игрок слева от рабочего поля.</p></div></div>
+                    <div class="field-grid two">
+                        <label><span>Название уровня</span><input @bind="level.Title" @bind:event="oninput" /></label>
+                        <label><span>Направление</span><input @bind="level.Direction" @bind:event="oninput" list="directions" /><datalist id="directions"><option>Программирование</option><option>Кибербезопасность</option><option>Заказ клиента</option></datalist></label>
+                    </div>
+                    <div class="field-grid two">
+                        <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label>
+                        <label><span>Место действия</span><input @bind="level.Location" @bind:event="oninput" placeholder="Например: Лабораторный шлюз B-4" /></label>
+                    </div>
+                    <label class="wide-field"><span>Сюжет и контекст</span><textarea @bind="level.Description" @bind:event="oninput" rows="3"></textarea></label>
+                    <label class="wide-field"><span>Сюжет перед заданием</span><textarea @bind="level.StoryIntro" @bind:event="oninput" rows="3" placeholder="Что произошло и почему игроку нужна эта программа?"></textarea></label>
+                    <label class="wide-field"><span>Сюжет после успешного решения</span><textarea @bind="level.StorySuccess" @bind:event="oninput" rows="3" placeholder="Что изменилось в городе после прохождения?"></textarea></label>
+                    <label class="wide-field"><span>Что нужно сделать</span><textarea @bind="level.Objective" @bind:event="oninput" rows="2"></textarea></label>
+                    <div class="field-grid two">
+                        <label><span>Какие данные получает программа</span><textarea @bind="level.InputDescription" @bind:event="oninput" rows="3"></textarea></label>
+                        <label><span>Что программа должна вернуть</span><textarea @bind="level.OutputDescription" @bind:event="oninput" rows="3"></textarea></label>
+                    </div>
+                    <label class="wide-field"><span>Подсказка</span><textarea @bind="level.Hint" @bind:event="oninput" rows="2"></textarea></label>
+                </section>
+
+                <section class="form-section">
+                    <div class="section-heading"><span>02</span><div><h2>Доступные блоки</h2><p>«Вход» и «Выход» обязательны. Остальные типы можно включать для конкретного уровня.</p></div></div>
+                    <div class="block-toggle-grid">
+                        @foreach (var kind in Enum.GetValues<BlockKind>())
+                        {
+                            var required = kind is BlockKind.Input or BlockKind.Output;
+                            <label class="block-toggle kind-@kind.ToString().ToLowerInvariant()">
+                                <input type="checkbox" checked="@level.AllowedBlocks.Contains(kind)" disabled="@required" @onchange="e => ToggleBlock(kind, e.Value is true)" />
+                                <span><small>@BlockCatalog.Kicker(kind)</small><strong>@BlockCatalog.Label(kind)</strong><b>@(required ? "обязательный" : "доступен игроку")</b></span>
+                            </label>
+                        }
+                    </div>
+                </section>
+
+                <section class="form-section tests-section">
+                    <div class="section-heading with-action">
+                        <span>03</span>
+                        <div><h2>Тесты программы</h2><p>Один граф запускается @level.Tests.Count раз. Прохождение засчитывается, только если совпали все выходы.</p></div>
+                        <button type="button" @onclick="AddTest">＋ Добавить проверку</button>
+                    </div>
+
+                    <div class="test-table-head"><span>#</span><span>Название</span><span>Входные данные</span><span>Ожидаемый выход</span><span>Скрытый</span><span></span></div>
+                    <div class="test-editor-list">
+                        @for (var index = 0; index < level.Tests.Count; index++)
+                        {
+                            var test = level.Tests[index];
+                            var testIndex = index;
+                            <div class="test-editor-row">
+                                <b>@(index + 1)</b>
+                                <input @bind="test.Name" @bind:event="oninput" aria-label="Название теста" />
+                                <textarea @bind="test.Input" @bind:event="oninput" rows="2" aria-label="Входные данные"></textarea>
+                                <textarea @bind="test.ExpectedOutput" @bind:event="oninput" rows="2" aria-label="Ожидаемый результат"></textarea>
+                                <label class="hidden-switch"><input type="checkbox" @bind="test.Hidden" /><span></span></label>
+                                <button type="button" class="row-delete" @onclick="() => RemoveTest(testIndex)" aria-label="Удалить тест">×</button>
+                            </div>
+                        }
+                    </div>
+                    @if (level.Tests.Count == 0)
+                    {
+                        <div class="no-tests">Добавьте хотя бы одну проверку с входными данными и ожидаемым результатом.</div>
+                    }
+                    <div class="format-note"><b>Форматы данных:</b> числа — <code>20</code>, текст — <code>blocked</code>, логические значения — <code>true</code>, массивы и объекты — обычный JSON.</div>
+                </section>
+
+                <section class="form-section intro-editor-section">
+                    <div class="section-heading with-action">
+                        <span>04</span>
+                        <div><h2>Вступительные окна</h2><p>Показываются по порядку перед уровнем. Можно вставить пример поля и подсветить нужную часть настоящего интерфейса.</p></div>
+                        <button type="button" @onclick="AddIntroStep">＋ Добавить окно</button>
+                    </div>
+
+                    @if (level.IntroSteps.Count == 0)
+                    {
+                        <div class="no-tests">Вступление отключено. Добавьте окно, если перед заданием нужно что-то пояснить.</div>
+                    }
+                    else
+                    {
+                        <div class="intro-step-editor-list">
+                            @for (var index = 0; index < level.IntroSteps.Count; index++)
+                            {
+                                var intro = level.IntroSteps[index];
+                                var introIndex = index;
+                                <article class="intro-step-editor-card">
+                                    <header>
+                                        <div><small>ОКНО</small><b>@(index + 1) / @level.IntroSteps.Count</b></div>
+                                        <div>
+                                            <button type="button" @onclick="() => MoveIntroStep(introIndex, -1)" disabled="@(introIndex == 0)" aria-label="Поднять окно">↑</button>
+                                            <button type="button" @onclick="() => MoveIntroStep(introIndex, 1)" disabled="@(introIndex == level.IntroSteps.Count - 1)" aria-label="Опустить окно">↓</button>
+                                            <button type="button" class="row-delete" @onclick="() => RemoveIntroStep(introIndex)" aria-label="Удалить окно">×</button>
+                                        </div>
+                                    </header>
+
+                                    <div class="field-grid two">
+                                        <label><span>Заголовок</span><input @bind="intro.Title" @bind:event="oninput" /></label>
+                                        <label><span>Что подсветить в игре</span>
+                                            <select @bind="intro.HighlightTarget">
+                                                @foreach (var target in Enum.GetValues<IntroHighlightTarget>())
+                                                {
+                                                    <option value="@target">@IntroTargetLabel(target)</option>
+                                                }
+                                            </select>
+                                        </label>
+                                    </div>
+                                    <label class="wide-field"><span>Текст пояснения</span><textarea @bind="intro.Body" @bind:event="oninput" rows="3"></textarea></label>
+                                    <div class="field-grid two intro-field-settings">
+                                        <label><span>Поле внутри окна</span>
+                                            <select @bind="intro.FieldKind">
+                                                @foreach (var kind in Enum.GetValues<IntroFieldKind>())
+                                                {
+                                                    <option value="@kind">@IntroFieldLabel(kind)</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label><span>Значение или пример</span><input @bind="intro.FieldValue" @bind:event="oninput" disabled="@(intro.FieldKind == IntroFieldKind.None)" placeholder="Например: > 20 или blocked" /></label>
+                                    </div>
+
+                                    @if (intro.FieldKind != IntroFieldKind.None)
+                                    {
+                                        <div class="intro-field-preview field-@intro.FieldKind.ToString().ToLowerInvariant()">
+                                            <small>@IntroFieldLabel(intro.FieldKind)</small>
+                                            <code>@(string.IsNullOrWhiteSpace(intro.FieldValue) ? "пустое поле" : intro.FieldValue)</code>
+                                        </div>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </section>
+
+                <footer class="editor-savebar">
+                    <div><strong>@level.Tests.Count тестов</strong><span> · @level.IntroSteps.Count вступительных окон · @level.AllowedBlocks.Count типов блоков · данные хранятся в этом браузере</span></div>
+                    <button type="button" class="save-button" @onclick="Save">Сохранить уровни</button>
+                </footer>
+            </main>
+        }
+    </div>
+}
+
+@code {
+    private List<LevelDefinition> _levels = [];
+    private Guid? _selectedId;
+    private bool _loading = true;
+    private string _message = "";
+    private bool _messageIsError;
+
+    private LevelDefinition? Selected => _levels.FirstOrDefault(level => level.Id == _selectedId) ?? _levels.FirstOrDefault();
+    private string ExportHref => $"data:application/json;charset=utf-8,{Uri.EscapeDataString(LevelStore.Export(_levels))}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _levels = await LevelStore.LoadAsync();
+        _selectedId = _levels.FirstOrDefault()?.Id;
+        _loading = false;
+    }
+
+    private void Select(Guid id)
+    {
+        _selectedId = id;
+        _message = "";
+    }
+
+    private void AddLevel()
+    {
+        var level = new LevelDefinition
+        {
+            Order = _levels.Count + 1,
+            Chapter = 1,
+            Title = $"Новый уровень {_levels.Count + 1}",
+            Location = "Новый сектор",
+            Description = "Опишите ситуацию, которую решает игрок.",
+            StoryIntro = "Опишите событие перед началом операции.",
+            StorySuccess = "Опишите последствия успешного решения.",
+            Objective = "Опишите требуемый результат программы.",
+            InputDescription = "Какие данные получит программа.",
+            OutputDescription = "Что должна вернуть программа.",
+            Hint = "Подсказка по сборке схемы.",
+            Tests = [new() { Name = "Основная проверка", Input = "0", ExpectedOutput = "0" }]
+        };
+        _levels.Add(level);
+        _selectedId = level.Id;
+        _message = "Новый уровень добавлен. Заполните поля и сохраните кампанию.";
+        _messageIsError = false;
+    }
+
+    private void DuplicateLevel()
+    {
+        if (Selected is not LevelDefinition source) return;
+        var copy = new LevelDefinition
+        {
+            Order = _levels.Count + 1,
+            Chapter = source.Chapter,
+            Title = $"{source.Title} — копия",
+            Direction = source.Direction,
+            Location = source.Location,
+            Description = source.Description,
+            StoryIntro = source.StoryIntro,
+            StorySuccess = source.StorySuccess,
+            Objective = source.Objective,
+            InputDescription = source.InputDescription,
+            OutputDescription = source.OutputDescription,
+            Hint = source.Hint,
+            AllowedBlocks = [.. source.AllowedBlocks],
+            IntroSteps = source.IntroSteps.Select(step => new LevelIntroStep
+            {
+                Title = step.Title,
+                Body = step.Body,
+                FieldKind = step.FieldKind,
+                FieldValue = step.FieldValue,
+                HighlightTarget = step.HighlightTarget
+            }).ToList(),
+            Tests = source.Tests.Select(test => new LevelTestCase
+            {
+                Name = test.Name,
+                Input = test.Input,
+                ExpectedOutput = test.ExpectedOutput,
+                Hidden = test.Hidden
+            }).ToList()
+        };
+        _levels.Add(copy);
+        _selectedId = copy.Id;
+    }
+
+    private async Task DeleteLevel()
+    {
+        if (Selected is not LevelDefinition level || _levels.Count == 1) return;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Удалить уровень «{level.Title}»?")) return;
+        _levels.Remove(level);
+        Renumber();
+        _selectedId = _levels.FirstOrDefault()?.Id;
+        await Save();
+    }
+
+    private void MoveUp()
+    {
+        if (Selected is not LevelDefinition level) return;
+        var index = _levels.IndexOf(level);
+        if (index <= 0) return;
+        (_levels[index - 1], _levels[index]) = (_levels[index], _levels[index - 1]);
+        Renumber();
+    }
+
+    private void MoveDown()
+    {
+        if (Selected is not LevelDefinition level) return;
+        var index = _levels.IndexOf(level);
+        if (index < 0 || index >= _levels.Count - 1) return;
+        (_levels[index + 1], _levels[index]) = (_levels[index], _levels[index + 1]);
+        Renumber();
+    }
+
+    private void ToggleBlock(BlockKind kind, bool enabled)
+    {
+        if (Selected is not LevelDefinition level || kind is BlockKind.Input or BlockKind.Output) return;
+        if (enabled && !level.AllowedBlocks.Contains(kind)) level.AllowedBlocks.Add(kind);
+        if (!enabled) level.AllowedBlocks.Remove(kind);
+    }
+
+    private void AddTest()
+    {
+        Selected?.Tests.Add(new LevelTestCase { Name = $"Проверка {(Selected?.Tests.Count ?? 0) + 1}" });
+    }
+
+    private void RemoveTest(int index)
+    {
+        if (Selected is null || index < 0 || index >= Selected.Tests.Count) return;
+        Selected.Tests.RemoveAt(index);
+    }
+
+    private void AddIntroStep()
+    {
+        if (Selected is not LevelDefinition level) return;
+        level.IntroSteps.Add(new LevelIntroStep
+        {
+            Title = $"Пояснение {level.IntroSteps.Count + 1}",
+            Body = "Объясните, на что игроку нужно обратить внимание."
+        });
+    }
+
+    private void RemoveIntroStep(int index)
+    {
+        if (Selected is null || index < 0 || index >= Selected.IntroSteps.Count) return;
+        Selected.IntroSteps.RemoveAt(index);
+    }
+
+    private void MoveIntroStep(int index, int direction)
+    {
+        if (Selected is null) return;
+        var next = index + direction;
+        if (index < 0 || index >= Selected.IntroSteps.Count || next < 0 || next >= Selected.IntroSteps.Count) return;
+        (Selected.IntroSteps[index], Selected.IntroSteps[next]) = (Selected.IntroSteps[next], Selected.IntroSteps[index]);
+    }
+
+    private static string IntroFieldLabel(IntroFieldKind kind) => kind switch
+    {
+        IntroFieldKind.None => "Без поля",
+        IntroFieldKind.Input => "Входные данные",
+        IntroFieldKind.Output => "Ожидаемый выход",
+        IntroFieldKind.Operation => "Поле операции",
+        IntroFieldKind.Condition => "Поле условия",
+        IntroFieldKind.Loop => "Поле цикла",
+        _ => kind.ToString()
+    };
+
+    private static string IntroTargetLabel(IntroHighlightTarget target) => target switch
+    {
+        IntroHighlightTarget.None => "Ничего не подсвечивать",
+        IntroHighlightTarget.Mission => "Описание задания",
+        IntroHighlightTarget.Objective => "Цель уровня",
+        IntroHighlightTarget.InputData => "Описание входа",
+        IntroHighlightTarget.OutputData => "Описание выхода",
+        IntroHighlightTarget.Tests => "Открытые тесты",
+        IntroHighlightTarget.Workspace => "Рабочее поле",
+        IntroHighlightTarget.BlockLibrary => "Панель блоков",
+        IntroHighlightTarget.RunPanel => "Панель запуска",
+        _ => target.ToString()
+    };
+
+    private async Task Save()
+    {
+        _message = "";
+        if (_levels.Any(level => string.IsNullOrWhiteSpace(level.Title)))
+        {
+            ShowError("У каждого уровня должно быть название.");
+            return;
+        }
+        if (_levels.Any(level => level.Tests.Count == 0))
+        {
+            ShowError("У каждого уровня должна быть хотя бы одна проверка.");
+            return;
+        }
+        if (_levels.SelectMany(level => level.Tests).Any(test => string.IsNullOrWhiteSpace(test.ExpectedOutput)))
+        {
+            ShowError("Заполните ожидаемый выход во всех проверках.");
+            return;
+        }
+        Renumber();
+        await LevelStore.SaveAsync(_levels);
+        _message = "Сохранено. Игра уже использует обновлённые уровни.";
+        _messageIsError = false;
+    }
+
+    private async Task ImportFile(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            await using var stream = args.File.OpenReadStream(2 * 1024 * 1024);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            var json = await reader.ReadToEndAsync();
+            _levels = LevelStore.Import(json);
+            _selectedId = _levels.First().Id;
+            await LevelStore.SaveAsync(_levels);
+            _message = $"Импортировано уровней: {_levels.Count}.";
+            _messageIsError = false;
+        }
+        catch (Exception exception)
+        {
+            ShowError($"Не удалось импортировать файл: {exception.Message}");
+        }
+    }
+
+    private async Task ResetLevels()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Заменить текущие уровни тремя примерами?")) return;
+        await LevelStore.ResetAsync();
+        _levels = await LevelStore.LoadAsync();
+        _selectedId = _levels.First().Id;
+        _message = "Примеры восстановлены.";
+        _messageIsError = false;
+    }
+
+    private void Renumber()
+    {
+        for (var index = 0; index < _levels.Count; index++) _levels[index].Order = index + 1;
+    }
+
+    private void ShowError(string message)
+    {
+        _message = message;
+        _messageIsError = true;
+    }
+}

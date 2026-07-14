@@ -1,0 +1,66 @@
+@using System.Globalization
+
+<div class="library-node-stage stage-@Kind.ToString().ToLowerInvariant()" style="@StageStyle">
+    <article class="node-card preview-node node-@Kind.ToString().ToLowerInvariant()" style="@NodeStyle">
+        @if (Kind != BlockKind.Input)
+        {
+            <span class="node-port input-port"><i></i><span>@(Kind == BlockKind.Loop ? "данные" : "вход")</span></span>
+        }
+        <div class="node-drag">
+            <small>@BlockCatalog.Kicker(Kind)</small>
+            <strong>@BlockCatalog.Label(Kind)</strong>
+            <span>@BlockCatalog.Description(Kind)</span>
+        </div>
+        @if (Kind == BlockKind.Input)
+        {
+            <div class="node-config readonly"><span>ПОЛУЧАЕТ</span><b>данные теста</b></div>
+        }
+        else if (Kind == BlockKind.Output)
+        {
+            <div class="node-config readonly"><span>ВОЗВРАЩАЕТ</span><b>текущее значение</b></div>
+        }
+        else if (Kind == BlockKind.Operation)
+        {
+            <div class="node-config operation-config has-value"><span>ДЕЙСТВИЕ</span><select><option>Умножить</option></select><input value="2" readonly /></div>
+        }
+        else
+        {
+            <div class="node-config"><span>@(Kind == BlockKind.Condition ? "ПРОВЕРКА" : "ПОВТОРЫ")</span><input value="@(Kind == BlockKind.Condition ? "> 20" : "input")" readonly /></div>
+        }
+
+        @if (Kind == BlockKind.Condition)
+        {
+            <span class="node-port output-port true-port"><span>усл. вып.</span><i></i></span>
+            <span class="node-port output-port false-port"><span>усл. не вып.</span><i></i></span>
+        }
+        else if (Kind == BlockKind.Loop)
+        {
+            <span class="node-port output-port done-port"><span>выход</span><i></i></span>
+            <span class="node-port output-port repeat-port"><span>повтор</span><i></i></span>
+            <span class="node-port loop-return-port"><i></i><span>возврат</span></span>
+        }
+        else if (Kind != BlockKind.Output)
+        {
+            <span class="node-port output-port"><span>выход</span><i></i></span>
+        }
+
+        <button type="button" class="node-help-button" draggable="false" @onclick="ShowHelp" @onclick:stopPropagation="true" @onpointerdown:stopPropagation="true" aria-label="Справка по блоку">?</button>
+        <span class="preview-grip" aria-hidden="true">⠿</span>
+    </article>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BlockKind Kind { get; set; }
+    [Parameter] public EventCallback<BlockKind> OnHelp { get; set; }
+
+    private const double Scale = .8;
+    private const double Width = 224;
+    // Высоты совпадают с редактором: миниатюра отличается только масштабом 80%.
+    private double Height => Kind switch { BlockKind.Condition => 150, BlockKind.Loop => 152, _ => 126 };
+    private double LeftExtent => Kind == BlockKind.Input ? 0 : 56;
+    private double RightExtent => Kind switch { BlockKind.Condition => 94, BlockKind.Loop => 82, BlockKind.Output => 0, _ => 56 };
+    private double BottomExtent => Kind == BlockKind.Loop ? 56 : 0;
+    private string StageStyle => FormattableString.Invariant($"width:{(Width + LeftExtent + RightExtent) * Scale}px;height:{(Height + BottomExtent) * Scale}px");
+    private string NodeStyle => FormattableString.Invariant($"left:{LeftExtent * Scale}px;top:0;width:{Width}px;height:{Height}px");
+    private Task ShowHelp() => OnHelp.InvokeAsync(Kind);
+}

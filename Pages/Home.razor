@@ -1,0 +1,1017 @@
+@page "/game"
+@using System.Globalization
+@inject LevelStore LevelStore
+@inject ProgressStore ProgressStore
+@inject BlockProgramRunner Runner
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Игра — Синапс C#</PageTitle>
+
+@if (_loading)
+{
+    <div class="page-loading"><span></span><p>Загружаю уровни…</p></div>
+}
+else if (ActiveLevel is null)
+{
+    <section class="empty-state">
+        <h1>Уровней пока нет</h1>
+        <p>Создайте первый уровень в редакторе.</p>
+        <a class="primary-link" href="editor">Открыть редактор</a>
+    </section>
+}
+else
+{
+    <section class="game-toolbar">
+        <div>
+            <small>ТЕКУЩАЯ ОПЕРАЦИЯ</small>
+            <select value="@ActiveLevel.Id" @onchange="SelectLevel">
+                @foreach (var level in _levels)
+                {
+                    <option value="@level.Id">@(_completed.Contains(level.Id) ? "✓" : "○") @level.Order.ToString("00") · @level.Title</option>
+                }
+            </select>
+        </div>
+        <div class="toolbar-stats">
+            <span><b>@_levels.Count</b> уровней</span>
+            <span><b>@ActiveLevel.Tests.Count</b> тестов</span>
+            @if (ActiveLevel.IntroSteps.Count > 0)
+            {
+                <button type="button" @onclick="ShowLevelIntro">Пояснение</button>
+            }
+            <button type="button" @onclick="ClearProgram" disabled="@(!_program.Nodes.Any())">Очистить поле</button>
+        </div>
+    </section>
+
+    <div class="game-layout">
+        <aside class="mission-pane @IntroHighlightClass(IntroHighlightTarget.Mission)">
+            <div class="mission-scroll">
+                <span class="direction-pill">@ActiveLevel.Direction</span>
+                <p class="operation-number">ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00")</p>
+                <h1>@ActiveLevel.Title</h1>
+                <p class="mission-description">@ActiveLevel.Description</p>
+
+                <div class="story-card">
+                    <small>@ActiveLevel.Location</small>
+                    <p>@ActiveLevel.StoryIntro</p>
+                </div>
+
+                <div class="objective-card @IntroHighlightClass(IntroHighlightTarget.Objective)">
+                    <small>ЦЕЛЬ</small>
+                    <strong>@ActiveLevel.Objective</strong>
+                </div>
+
+                <dl class="data-contract">
+                    <div class="@IntroHighlightClass(IntroHighlightTarget.InputData)"><dt>Вход</dt><dd>@ActiveLevel.InputDescription</dd></div>
+                    <div class="@IntroHighlightClass(IntroHighlightTarget.OutputData)"><dt>Выход</dt><dd>@ActiveLevel.OutputDescription</dd></div>
+                </dl>
+
+                <div class="test-list-head"><span>ОТКРЫТЫЕ ТЕСТЫ</span><b>@ActiveLevel.Tests.Count(test => !test.Hidden)</b></div>
+                <div class="test-list @IntroHighlightClass(IntroHighlightTarget.Tests)">
+                    @foreach (var test in ActiveLevel.Tests.Where(test => !test.Hidden))
+                    {
+                        <article>
+                            <small>@test.Name</small>
+                            <div><code>@test.Input</code><span>→</span><code>@test.ExpectedOutput</code></div>
+                        </article>
+                    }
+                    @if (ActiveLevel.Tests.Any(test => test.Hidden))
+                    {
+                        <article class="hidden-tests"><small>СКРЫТЫЕ ПРОВЕРКИ</small><strong>+@ActiveLevel.Tests.Count(test => test.Hidden)</strong></article>
+                    }
+                </div>
+
+                <details class="hint-box">
+                    <summary>Показать подсказку</summary>
+                    <p>@ActiveLevel.Hint</p>
+                </details>
+            </div>
+        </aside>
+
+        <section class="workspace-pane @IntroHighlightClass(IntroHighlightTarget.Workspace)">
+            <div class="canvas-head">
+                <div><i></i><span>РАБОЧЕЕ ПОЛЕ</span><small>@_program.Nodes.Count блоков · @_program.Connections.Count связей · буфер камеры: 1 экран</small></div>
+                <div class="zoom-controls">
+                    <button type="button" @onclick="ZoomOut" aria-label="Уменьшить">−</button>
+                    <span>@Math.Round(_zoom * 100)%</span>
+                    <button type="button" @onclick="ZoomIn" aria-label="Увеличить">+</button>
+                </div>
+            </div>
+
+            <div class="node-canvas @(_connectingNodeId is not null ? "is-connecting" : "") @(_draggingNodeId is not null ? "is-node-dragging" : "")"
+                 @ref="_canvasElement"
+                 data-has-content="@(_program.Nodes.Count > 0 ? "true" : "false")"
+                 data-content-min-x="@CanvasNumber(CanvasMinX)"
+                 data-content-min-y="@CanvasNumber(CanvasMinY)"
+                 data-content-max-x="@CanvasNumber(CanvasMaxX)"
+                 data-content-max-y="@CanvasNumber(CanvasMaxY)"
+                 data-origin-x="@CanvasNumber(CanvasOffsetX)"
+                 data-origin-y="@CanvasNumber(CanvasOffsetY)"
+                 data-zoom="@CanvasNumber(_zoom)"
+                 @onpointerdown="CancelExecutionVisuals"
+                 @onpointermove="MovePointer"
+                 @onpointerup="CancelPointer"
+                 @ondragover:preventDefault="true"
+                 @ondrop="DropTemplate">
+                <div class="port-legend" aria-label="Легенда портов">
+                    <span class="legend-flow"><i></i>поток</span>
+                    <span class="legend-true"><i></i>условие да</span>
+                    <span class="legend-false"><i></i>условие нет</span>
+                    <span class="legend-return"><i></i>возврат</span>
+                </div>
+                <div class="node-world" style="@WorldStyle">
+                    <svg class="wire-layer" width="@CanvasNumber(CanvasWorldWidth)" height="@CanvasNumber(CanvasWorldHeight)" viewBox="@CanvasViewBox" aria-hidden="true">
+                        @foreach (var edge in _program.Connections)
+                        {
+                            var from = _program.Nodes.FirstOrDefault(node => node.Id == edge.FromNodeId);
+                            var to = _program.Nodes.FirstOrDefault(node => node.Id == edge.ToNodeId);
+                            if (from is not null && to is not null)
+                            {
+                                var wirePath = ConnectionPath(from, to, edge);
+                                <path class="wire-hit" d="@wirePath" @onclick="() => RemoveConnection(edge.Id)" />
+                                <path class="wire-line port-@edge.Port.ToString().ToLowerInvariant() @WireExecutionClass(edge)" d="@wirePath" />
+                                @if (IsWireActive(edge))
+                                {
+                                    <circle class="wire-particle" r="4">
+                                        <animateMotion dur="0.38s" repeatCount="indefinite" path="@wirePath" />
+                                    </circle>
+                                }
+                            }
+                        }
+                        @if (_connectingNodeId is Guid sourceId)
+                        {
+                            var source = _program.Nodes.FirstOrDefault(node => node.Id == sourceId);
+                            if (source is not null)
+                            {
+                                <path class="wire-line wire-preview port-@_connectingPort.ToString().ToLowerInvariant()" d="@PreviewPath(source)" />
+                            }
+                        }
+                    </svg>
+
+                    @foreach (var node in _program.Nodes)
+                    {
+                        <article class="node-card node-@node.Kind.ToString().ToLowerInvariant() @ResultClass(node.Id)"
+                                 style="@NodeStyle(node)">
+                            @if (node.Kind != BlockKind.Input)
+                            {
+                                <button type="button" class="node-port input-port" title="Вход" aria-label="Вход" @onpointerup="() => FinishConnection(node.Id, TargetPort.Main)" @onpointerup:stopPropagation="true"><i></i><span>@(node.Kind == BlockKind.Loop ? "данные" : "вход")</span></button>
+                            }
+
+                            <div class="node-drag" @onpointerdown="(e) => StartNodeDrag(node, e)" @onpointerdown:stopPropagation="true">
+                                <small>@BlockCatalog.Kicker(node.Kind)</small>
+                                <strong>@BlockCatalog.Label(node.Kind)</strong>
+                                <span>@BlockCatalog.Description(node.Kind)</span>
+                            </div>
+
+                            @if (node.Kind == BlockKind.Input)
+                            {
+                                <div class="node-config readonly"><span>ПОЛУЧАЕТ</span><b>данные теста</b></div>
+                            }
+                            else if (node.Kind == BlockKind.Output)
+                            {
+                                <div class="node-config readonly @(_hasDebugExpectation ? "has-expected" : "")">
+                                    <span>@(_hasDebugExpectation ? "ОЖИДАЕТСЯ" : "ВОЗВРАЩАЕТ")</span>
+                                    <b title="@(_hasDebugExpectation ? _debugExpected : "")">@(_hasDebugExpectation ? RuntimeDisplay(_debugExpected) : "текущее значение")</b>
+                                </div>
+                            }
+                            else if (node.Kind == BlockKind.Operation)
+                            {
+                                <div class="node-config operation-config @(OperationNeedsValue(node.Config) ? "has-value" : "")" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <span>ДЕЙСТВИЕ</span>
+                                    <select value="@OperationMode(node.Config)" @onchange="e => ChangeOperationMode(node, e)">
+                                        @foreach (var action in OperationActions)
+                                        {
+                                            <option value="@action.Id">@action.Label</option>
+                                        }
+                                    </select>
+                                    @if (OperationNeedsValue(node.Config))
+                                    {
+                                        <input value="@OperationValue(node.Config)" @oninput="e => ChangeOperationValue(node, e)" aria-label="Значение действия" />
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <label class="node-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <span>@ConfigLabel(node.Kind)</span>
+                                    <input @bind="node.Config" @bind:event="oninput" placeholder="@BlockCatalog.Placeholder(node.Kind)" @onchange="() => ChangeConfig(node, node.Config)" />
+                                </label>
+                            }
+
+                            @if (node.Kind == BlockKind.Condition)
+                            {
+                                <button type="button" class="node-port output-port true-port" title="Условие выполнено" aria-label="Условие выполнено" @onpointerdown="e => StartConnection(node, OutputPort.True, e)" @onpointerdown:stopPropagation="true"><i></i><span>усл. вып.</span></button>
+                                <button type="button" class="node-port output-port false-port" title="Условие не выполнено" aria-label="Условие не выполнено" @onpointerdown="e => StartConnection(node, OutputPort.False, e)" @onpointerdown:stopPropagation="true"><i></i><span>усл. не вып.</span></button>
+                            }
+                            else if (node.Kind == BlockKind.Loop)
+                            {
+                                <button type="button" class="node-port output-port done-port" title="Выход из цикла" aria-label="Выход из цикла" @onpointerdown="e => StartConnection(node, OutputPort.Done, e)" @onpointerdown:stopPropagation="true"><i></i><span>выход</span></button>
+                                <button type="button" class="node-port output-port repeat-port" title="Повтор цикла" aria-label="Повтор цикла" @onpointerdown="e => StartConnection(node, OutputPort.Repeat, e)" @onpointerdown:stopPropagation="true"><i></i><span>повтор</span></button>
+                                <button type="button" class="node-port loop-return-port" title="Возврат в цикл" aria-label="Возврат в цикл" @onpointerup="() => FinishConnection(node.Id, TargetPort.Return)" @onpointerup:stopPropagation="true"><i></i><span>возврат</span></button>
+                            }
+                            else if (node.Kind != BlockKind.Output)
+                            {
+                                <button type="button" class="node-port output-port" title="Выход" aria-label="Выход" @onpointerdown="e => StartConnection(node, OutputPort.Next, e)" @onpointerdown:stopPropagation="true"><i></i><span>выход</span></button>
+                            }
+
+                            @if (_runtimeValues.TryGetValue(node.Id, out var runtimeValue))
+                            {
+                                <div class="node-runtime" title="Значение после блока"><span>@(node.Kind == BlockKind.Output ? "получено" : "данные")</span><b>@RuntimeDisplay(runtimeValue)</b></div>
+                            }
+
+                            <button type="button" class="node-help-button" @onclick="() => OpenHelp(node.Kind)" @onclick:stopPropagation="true" aria-label="Справка по блоку">?</button>
+                            <button type="button" class="delete-node" @onclick="() => RemoveNode(node.Id)" @onclick:stopPropagation="true" aria-label="Удалить блок">×</button>
+                        </article>
+                    }
+                </div>
+            </div>
+
+            <div class="test-console">
+                <div class="console-title">
+                    <span><i></i> ПРОВЕРКА ПРОГРАММЫ</span>
+                    @if (_results.Count > 0)
+                    {
+                        <strong class="@(_results.All(result => result.Passed) ? "passed" : "failed")">@_results.Count(result => result.Passed) / @_results.Count</strong>
+                    }
+                    else
+                    {
+                        <small>Ещё не запускалась</small>
+                    }
+                </div>
+                @if (_results.Count == 0)
+                {
+                    <p class="console-placeholder">Здесь появится результат каждого открытого и скрытого теста.</p>
+                }
+                else
+                {
+                    <div class="result-strip">
+                        @foreach (var result in _results)
+                        {
+                            <article class="@(result.Passed ? "pass" : "fail")">
+                                <b>@(result.Passed ? "✓" : "×")</b>
+                                <span><strong>@result.Name</strong><small>@(result.Passed ? $"получено: {result.Actual}" : (!string.IsNullOrWhiteSpace(result.Error) ? result.Error : $"ожидалось {result.Expected}, получено {result.Actual}"))</small></span>
+                            </article>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+
+        <aside class="library-pane">
+            <div class="library-head"><span>БЛОКИ</span><small>Можно использовать сколько угодно раз</small></div>
+            <div class="block-library @IntroHighlightClass(IntroHighlightTarget.BlockLibrary)">
+                @foreach (var kind in ActiveLevel.AllowedBlocks)
+                {
+                    <div class="library-node-entry kind-@kind.ToString().ToLowerInvariant()"
+                         draggable="true"
+                         @ondragstart="() => StartTemplateDrag(kind)"
+                         @onclick="() => AddNode(kind)">
+                        <LibraryNodePreview Kind="kind" OnHelp="OpenHelp" />
+                    </div>
+                }
+            </div>
+            <div class="run-panel @IntroHighlightClass(IntroHighlightTarget.RunPanel)">
+                <div class="run-summary"><span>ТЕСТОВ</span><b>@ActiveLevel.Tests.Count</b></div>
+                <section class="debug-readout" aria-label="Текущее состояние программы">
+                    <header><span>СОСТОЯНИЕ</span><b>@DebugStepLabel</b></header>
+                    <div><span>Вход</span><code>@RuntimeDisplay(_debugInput)</code></div>
+                    <div><span>Сейчас</span><code>@RuntimeDisplay(_debugValue)</code></div>
+                    <div class="expected-row"><span>Ожидается</span><code>@RuntimeDisplay(_debugExpected)</code></div>
+                    <p>@_debugMessage</p>
+                </section>
+                <button type="button" class="run-button" @onclick="RunTests" disabled="@(ActiveLevel.Tests.Count == 0 || _program.Nodes.Count == 0 || _running)">
+                    <span>@(_running ? "Выполняю программу…" : "Запустить все тесты")</span><b>@(_running ? "●" : "▶")</b>
+                </button>
+                <button type="button" class="step-button" @onclick="StepDebug" disabled="@(!CanStepProgram)">@StepButtonLabel</button>
+                <small>Программа получит новые входные данные для каждой проверки</small>
+            </div>
+        </aside>
+    </div>
+
+    @if (ActiveIntroStep is LevelIntroStep introStep)
+    {
+        <div class="level-intro-backdrop" role="presentation">
+            <section class="level-intro-modal intro-field-@introStep.FieldKind.ToString().ToLowerInvariant() intro-target-@introStep.HighlightTarget.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
+                <div class="intro-progress" aria-label="Шаг пояснения">
+                    @for (var index = 0; index < ActiveLevel.IntroSteps.Count; index++)
+                    {
+                        <i class="@(index == _introStepIndex ? "active" : index < _introStepIndex ? "complete" : "")"></i>
+                    }
+                </div>
+                <small>ПЕРЕД НАЧАЛОМ · @(_introStepIndex.GetValueOrDefault() + 1) / @ActiveLevel.IntroSteps.Count</small>
+                <h2 id="level-intro-title">@introStep.Title</h2>
+                <p>@introStep.Body</p>
+
+                @if (introStep.FieldKind != IntroFieldKind.None)
+                {
+                    <div class="intro-demo-field field-@introStep.FieldKind.ToString().ToLowerInvariant()">
+                        <span>@IntroFieldKicker(introStep.FieldKind)</span>
+                        <code>@IntroFieldDisplay(introStep)</code>
+                    </div>
+                }
+
+                <div class="level-intro-actions">
+                    <button type="button" class="intro-skip" @onclick="CloseLevelIntro">Пропустить</button>
+                    <div>
+                        @if (_introStepIndex > 0)
+                        {
+                            <button type="button" class="intro-back" @onclick="PreviousIntroStep">← Назад</button>
+                        }
+                        <button type="button" class="intro-next" @onclick="NextIntroStep">@(_introStepIndex == ActiveLevel.IntroSteps.Count - 1 ? "Начать уровень" : "Далее →")</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_showSuccess)
+    {
+        <div class="level-complete-backdrop" role="presentation">
+            <section class="level-complete-modal" role="dialog" aria-modal="true" aria-labelledby="complete-title">
+                <div class="complete-signal"><i></i><i></i><i></i></div>
+                <small>ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00") ЗАВЕРШЕНА</small>
+                <h2 id="complete-title">@ActiveLevel.Title</h2>
+                <p>@ActiveLevel.StorySuccess</p>
+                <div class="complete-stats"><span><b>@_results.Count</b> тестов пройдено</span><span><b>@_program.Nodes.Count</b> блоков в решении</span></div>
+                <div class="complete-actions">
+                    <button type="button" class="secondary" @onclick="CloseSuccess">Посмотреть схему</button>
+                    <button type="button" class="primary" @onclick="GoToNextLevel">@(HasNextLevel ? "Следующий уровень →" : "Вернуться в город →")</button>
+                </div>
+            </section>
+        </div>
+    }
+
+    @if (_helpKind is BlockKind helpKind)
+    {
+        <div class="block-help-backdrop" role="presentation" @onclick="CloseHelp">
+            <section class="block-help-modal help-@helpKind.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" @onclick:stopPropagation="true">
+                <button type="button" class="help-close" @onclick="CloseHelp" aria-label="Закрыть">×</button>
+                <div class="help-preview"><LibraryNodePreview Kind="helpKind" OnHelp="OpenHelp" /></div>
+                <div class="help-content">
+                    <small>@BlockCatalog.Kicker(helpKind)</small>
+                    <h2>@BlockCatalog.Label(helpKind)</h2>
+                    <p>@HelpSummary(helpKind)</p>
+                    <div class="help-ports"><span><b>Вход</b>@HelpInput(helpKind)</span><span><b>Выход</b>@HelpOutput(helpKind)</span></div>
+                    <h3>Как использовать</h3>
+                    <ol>
+                        @foreach (var step in HelpSteps(helpKind))
+                        {
+                            <li>@step</li>
+                        }
+                    </ol>
+                </div>
+            </section>
+        </div>
+    }
+}
+
+@code {
+    // Геометрия блока едина для разметки, портов и расчёта кривых связей.
+    private const double NodeWidth = 224;
+    private const double CanvasOriginX = 520;
+    private const double CanvasOriginY = 300;
+    private const double CanvasLeadX = 1600;
+    private const double CanvasLeadY = 1200;
+    [SupplyParameterFromQuery(Name = "level")]
+    public Guid? RequestedLevel { get; set; }
+
+    // Текущая схема существует независимо от уровня: уровень задаёт только данные и тесты.
+    private readonly BlockProgram _program = new();
+    private List<LevelDefinition> _levels = [];
+    private List<TestRunResult> _results = [];
+    private Guid? _activeLevelId;
+    private Guid? _draggingNodeId;
+    private double _dragStartClientX;
+    private double _dragStartClientY;
+    private double _dragStartX;
+    private double _dragStartY;
+    // Во время протягивания связи сохраняем источник и порт, а конец линии следует за мышью.
+    private Guid? _connectingNodeId;
+    private OutputPort _connectingPort = OutputPort.Next;
+    private double _pointerX = 300;
+    private double _pointerY = 200;
+    private BlockKind? _dragTemplate;
+    private double _zoom = 1;
+    private bool _loading = true;
+    private bool _showSuccess;
+    private bool _running;
+    private BlockKind? _helpKind;
+    private int? _introStepIndex;
+    // Эти три значения управляют быстрой визуализацией пути выполнения программы.
+    private Guid? _activeExecutionNode;
+    private Guid? _previousExecutionNode;
+    private Guid? _executionErrorNode;
+    private HashSet<Guid> _executedNodes = [];
+    private Dictionary<Guid, string> _runtimeValues = [];
+    private List<ExecutionStep> _debugSteps = [];
+    private int _debugStepIndex = -1;
+    private bool _debugging;
+    private bool _stepSessionFinished;
+    private bool _hasDebugExpectation;
+    private string _debugInput = "—";
+    private string _debugValue = "—";
+    private string _debugExpected = "—";
+    private string _debugMessage = "Ожидает запуска";
+    private string _debugFinalError = "";
+    private int _executionGeneration;
+    private HashSet<Guid> _completed = [];
+    private double _connectionStartClientX;
+    private double _connectionStartClientY;
+    private double _connectionStartWorldX;
+    private double _connectionStartWorldY;
+    private ElementReference _canvasElement;
+    private bool _canvasCentered;
+    private bool _canvasNeedsRefresh;
+
+    private static readonly (string Id, string Label)[] OperationActions =
+    [
+        ("noop", "Не изменять"),
+        ("add", "Прибавить"),
+        ("subtract", "Вычесть"),
+        ("multiply", "Умножить"),
+        ("divide", "Разделить"),
+        ("set", "Задать значение"),
+        ("append", "Добавить текст"),
+        ("count", "Посчитать элементы")
+    ];
+
+    private LevelDefinition? ActiveLevel => _levels.FirstOrDefault(level => level.Id == _activeLevelId) ?? _levels.FirstOrDefault();
+    private LevelIntroStep? ActiveIntroStep => ActiveLevel is { } level && _introStepIndex is int index && index >= 0 && index < level.IntroSteps.Count
+        ? level.IntroSteps[index]
+        : null;
+    private bool HasNextLevel => ActiveLevel is not null && _levels.IndexOf(ActiveLevel) < _levels.Count - 1;
+    private bool CanStepProgram => ActiveLevel is not null && ActiveLevel.Tests.Count > 0 && _program.Nodes.Count > 0 && !_running && !_stepSessionFinished;
+    private string StepButtonLabel => _stepSessionFinished
+        ? (string.IsNullOrWhiteSpace(_debugFinalError) ? "Тест завершён" : "Ошибка в блоке")
+        : (_debugging ? "Следующий блок →" : "Выполнить один блок →");
+    private string DebugStepLabel => _debugSteps.Count == 0 ? "—" : $"{Math.Max(0, _debugStepIndex + 1)}/{_debugSteps.Count}";
+    private double CanvasLogicalMinX => _program.Nodes.Count == 0 ? 0 : _program.Nodes.Min(node => node.X - NodeLeftExtent(node.Kind));
+    private double CanvasLogicalMinY => _program.Nodes.Count == 0 ? 0 : _program.Nodes.Min(node => node.Y);
+    private double CanvasLogicalMaxX => _program.Nodes.Count == 0 ? 0 : _program.Nodes.Max(node => node.X + NodeWidth + NodeRightExtent(node.Kind));
+    private double CanvasLogicalMaxY => _program.Nodes.Count == 0 ? 0 : _program.Nodes.Max(node => node.Y + NodeHeight(node.Kind) + NodeBottomExtent(node.Kind));
+    // При уходе в отрицательные координаты начало мира смещается, сохраняя запас слева и сверху.
+    private double CanvasOffsetX => CanvasLeadX - Math.Min(0, CanvasLogicalMinX);
+    private double CanvasOffsetY => CanvasLeadY - Math.Min(0, CanvasLogicalMinY);
+    private double CanvasMinX => CanvasLogicalMinX + CanvasOffsetX;
+    private double CanvasMinY => CanvasLogicalMinY + CanvasOffsetY;
+    private double CanvasMaxX => CanvasLogicalMaxX + CanvasOffsetX;
+    private double CanvasMaxY => CanvasLogicalMaxY + CanvasOffsetY;
+    // Запас после содержимого нужен только браузеру для центрирования; камера всё равно ограничена CanvasMin/Max.
+    private double CanvasWorldWidth => Math.Max(CanvasLeadX + 1800, CanvasMaxX + 1200);
+    private double CanvasWorldHeight => Math.Max(CanvasLeadY + 1100, CanvasMaxY + 800);
+    private string CanvasViewBox => $"0 0 {CanvasNumber(CanvasWorldWidth)} {CanvasNumber(CanvasWorldHeight)}";
+    private string WorldStyle => $"width:{CanvasNumber(CanvasWorldWidth)}px;height:{CanvasNumber(CanvasWorldHeight)}px;transform:scale({CanvasNumber(_zoom)});";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _levels = await LevelStore.LoadAsync();
+        _completed = await ProgressStore.LoadAsync();
+        _activeLevelId = RequestedLevel is Guid requested && _levels.Any(level => level.Id == requested)
+            ? requested
+            : _levels.FirstOrDefault(level => !_completed.Contains(level.Id))?.Id ?? _levels.FirstOrDefault()?.Id;
+        _loading = false;
+        ShowLevelIntro();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loading || ActiveLevel is null) return;
+
+        if (!_canvasCentered)
+        {
+            // Запас пустого пространства слева и сверху позволяет тянуть поле во все четыре стороны.
+            _canvasCentered = true;
+            await JS.InvokeVoidAsync("synapseCanvas.center", _canvasElement, CanvasOffsetX + CanvasOriginX - 100, CanvasOffsetY + CanvasOriginY - 100);
+        }
+
+        if (_canvasNeedsRefresh)
+        {
+            // После удаления DOM уже содержит новые границы, поэтому камера пересчитывается здесь.
+            _canvasNeedsRefresh = false;
+            await JS.InvokeVoidAsync("synapseCanvas.refresh", _canvasElement, CanvasOffsetX + CanvasOriginX - 100, CanvasOffsetY + CanvasOriginY - 100);
+        }
+    }
+
+    private void SelectLevel(ChangeEventArgs args)
+    {
+        if (Guid.TryParse(args.Value?.ToString(), out var id))
+        {
+            _activeLevelId = id;
+            ClearProgram();
+            _showSuccess = false;
+            ShowLevelIntro();
+        }
+    }
+
+    private void AddNode(BlockKind kind, double? x = null, double? y = null)
+    {
+        var index = _program.Nodes.Count;
+        var nodeX = x ?? CanvasOriginX + 80 + index % 3 * 280;
+        var nodeY = y ?? CanvasOriginY + 70 + index / 3 * 220;
+        _program.Nodes.Add(new BlockNode
+        {
+            Kind = kind,
+            Config = kind switch
+            {
+                BlockKind.Operation => "noop",
+                BlockKind.Condition => "> 0",
+                BlockKind.Loop => "input",
+                _ => ""
+            },
+            X = nodeX,
+            Y = nodeY
+        });
+        ResetExecution();
+    }
+
+    private void StartTemplateDrag(BlockKind kind) => _dragTemplate = kind;
+
+    private async Task DropTemplate(DragEventArgs args)
+    {
+        if (_dragTemplate is not BlockKind kind) return;
+        // Client-координаты переводятся в координаты мира с учётом прокрутки и масштаба.
+        var point = await JS.InvokeAsync<double[]>("synapseCanvas.worldPoint", _canvasElement, args.ClientX, args.ClientY, _zoom);
+        AddNode(kind, point[0] - CanvasOffsetX - NodeWidth / 2, point[1] - CanvasOffsetY - NodeHeight(kind) / 2);
+        _dragTemplate = null;
+    }
+
+    private void StartNodeDrag(BlockNode node, PointerEventArgs args)
+    {
+        CancelExecutionVisuals();
+        // Запоминаем начальную позицию, чтобы движение не зависело от частоты pointermove.
+        _draggingNodeId = node.Id;
+        _dragStartClientX = args.ClientX;
+        _dragStartClientY = args.ClientY;
+        _dragStartX = node.X;
+        _dragStartY = node.Y;
+    }
+
+    private void MovePointer(PointerEventArgs args)
+    {
+        if (_draggingNodeId is Guid draggingId)
+        {
+            var node = _program.Nodes.FirstOrDefault(item => item.Id == draggingId);
+            if (node is not null)
+            {
+                // Ограничений нет ни по одной оси: отрицательные координаты расширяют мир влево и вверх.
+                node.X = _dragStartX + (args.ClientX - _dragStartClientX) / _zoom;
+                node.Y = _dragStartY + (args.ClientY - _dragStartClientY) / _zoom;
+            }
+        }
+        if (_connectingNodeId is not null)
+        {
+            _pointerX = _connectionStartWorldX + (args.ClientX - _connectionStartClientX) / _zoom;
+            _pointerY = _connectionStartWorldY + (args.ClientY - _connectionStartClientY) / _zoom;
+        }
+    }
+
+    private void CancelPointer()
+    {
+        if (_draggingNodeId is not null)
+            _canvasNeedsRefresh = true;
+        _draggingNodeId = null;
+        _connectingNodeId = null;
+    }
+
+    private void StartConnection(BlockNode node, OutputPort port, PointerEventArgs args)
+    {
+        CancelExecutionVisuals();
+        // Координаты Client нужны для стабильной линии даже при прокрутке и масштабировании поля.
+        _draggingNodeId = null;
+        _connectingNodeId = node.Id;
+        _connectingPort = port;
+        _connectionStartClientX = args.ClientX;
+        _connectionStartClientY = args.ClientY;
+        _connectionStartWorldX = node.X + CanvasOffsetX + NodeWidth;
+        _connectionStartWorldY = node.Y + CanvasOffsetY + PortOffset(node.Kind, port);
+        _pointerX = _connectionStartWorldX;
+        _pointerY = _connectionStartWorldY;
+    }
+
+    private void FinishConnection(Guid targetNodeId, TargetPort targetPort)
+    {
+        if (_connectingNodeId is not Guid sourceNodeId || sourceNodeId == targetNodeId) return;
+        _program.Connections.RemoveAll(edge => edge.FromNodeId == sourceNodeId && edge.Port == _connectingPort);
+        _program.Connections.Add(new BlockConnection { FromNodeId = sourceNodeId, ToNodeId = targetNodeId, Port = _connectingPort, TargetPort = targetPort });
+        _connectingNodeId = null;
+        ResetExecution();
+    }
+
+    private void RemoveConnection(Guid id)
+    {
+        _program.Connections.RemoveAll(edge => edge.Id == id);
+        ResetExecution();
+    }
+
+    private void RemoveNode(Guid id)
+    {
+        _program.Nodes.RemoveAll(node => node.Id == id);
+        _program.Connections.RemoveAll(edge => edge.FromNodeId == id || edge.ToNodeId == id);
+        _canvasNeedsRefresh = true;
+        ResetExecution();
+    }
+
+    private void ChangeConfig(BlockNode node, string value)
+    {
+        node.Config = value;
+        ResetExecution();
+    }
+
+    private static string OperationMode(string config)
+    {
+        var value = config.Trim();
+        if (value.StartsWith("+")) return "add";
+        if (value.StartsWith("-")) return "subtract";
+        if (value.StartsWith("*")) return "multiply";
+        if (value.StartsWith("/")) return "divide";
+        if (value.Equals("set", StringComparison.OrdinalIgnoreCase) || value.StartsWith("set ", StringComparison.OrdinalIgnoreCase)) return "set";
+        if (value.Equals("append", StringComparison.OrdinalIgnoreCase) || value.StartsWith("append ", StringComparison.OrdinalIgnoreCase)) return "append";
+        if (value.Equals("count", StringComparison.OrdinalIgnoreCase)) return "count";
+        return "noop";
+    }
+
+    private static bool OperationNeedsValue(string config)
+        => OperationMode(config) is not ("noop" or "count");
+
+    private static string OperationValue(string config)
+    {
+        var mode = OperationMode(config);
+        var value = config.Trim();
+        return mode switch
+        {
+            "set" => value.Length > 4 ? value[4..] : "",
+            "append" => value.Length > 7 ? value[7..] : "",
+            "add" or "subtract" or "multiply" or "divide" => value.Length > 1 ? value[1..].Trim() : "",
+            _ => ""
+        };
+    }
+
+    private void ChangeOperationMode(BlockNode node, ChangeEventArgs args)
+    {
+        var mode = args.Value?.ToString() ?? "noop";
+        node.Config = mode switch
+        {
+            "add" => "+ ",
+            "subtract" => "- ",
+            "multiply" => "* ",
+            "divide" => "/ ",
+            "set" => "set ",
+            "append" => "append ",
+            "count" => "count",
+            _ => "noop"
+        };
+        ResetExecution();
+    }
+
+    private void ChangeOperationValue(BlockNode node, ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString() ?? "";
+        node.Config = OperationMode(node.Config) switch
+        {
+            "add" => $"+ {value}",
+            "subtract" => $"- {value}",
+            "multiply" => $"* {value}",
+            "divide" => $"/ {value}",
+            "set" => $"set {value}",
+            "append" => $"append {value}",
+            _ => node.Config
+        };
+        ResetExecution();
+    }
+
+    private void ClearProgram()
+    {
+        _program.Nodes.Clear();
+        _program.Connections.Clear();
+        _canvasNeedsRefresh = true;
+        ResetExecution();
+        _connectingNodeId = null;
+        _draggingNodeId = null;
+    }
+
+    private void ResetExecution()
+    {
+        _executionGeneration++;
+        _running = false;
+        _results = [];
+        _activeExecutionNode = null;
+        _previousExecutionNode = null;
+        _executionErrorNode = null;
+        _executedNodes = [];
+        _runtimeValues = [];
+        _debugSteps = [];
+        _debugStepIndex = -1;
+        _debugging = false;
+        _stepSessionFinished = false;
+        _hasDebugExpectation = false;
+        _debugInput = "—";
+        _debugValue = "—";
+        _debugExpected = "—";
+        _debugMessage = "Ожидает запуска";
+        _debugFinalError = "";
+    }
+
+    private void CancelExecutionVisuals()
+    {
+        if (_running || _results.Count > 0 || _debugSteps.Count > 0 || _hasDebugExpectation || _stepSessionFinished || _activeExecutionNode is not null || _executionErrorNode is not null)
+            ResetExecution();
+    }
+
+    private bool PrepareStepRun()
+    {
+        if (!CanStepProgram || ActiveLevel is null) return false;
+        var test = ActiveLevel.Tests.FirstOrDefault(item => !item.Hidden) ?? ActiveLevel.Tests[0];
+        var execution = Runner.Run(_program, test.Input);
+        var testResult = Runner.RunAll(_program, ActiveLevel).FirstOrDefault(result => result.TestId == test.Id);
+
+        ResetExecution();
+        _debugSteps = execution.Steps.ToList();
+        _debugFinalError = execution.Error;
+        if (string.IsNullOrWhiteSpace(_debugFinalError) && testResult is { Passed: false })
+            _debugFinalError = $"Получено «{RuntimeDisplay(testResult.Actual)}», ожидалось «{RuntimeDisplay(testResult.Expected)}»";
+        _debugInput = test.Input;
+        _debugValue = test.Input;
+        _debugExpected = test.ExpectedOutput;
+        _hasDebugExpectation = true;
+        _debugMessage = _debugSteps.Count == 0
+            ? execution.Error
+            : $"Тест «{test.Name}» запущен по блокам";
+        _debugging = _debugSteps.Count > 0;
+        _stepSessionFinished = _debugSteps.Count == 0;
+        return _debugging;
+    }
+
+    private void StepDebug()
+    {
+        if (!CanStepProgram) return;
+        if (_debugSteps.Count == 0)
+        {
+            if (!PrepareStepRun()) return;
+        }
+        if (!_debugging || _debugStepIndex + 1 >= _debugSteps.Count) return;
+
+        _previousExecutionNode = _activeExecutionNode;
+        var step = _debugSteps[++_debugStepIndex];
+        _activeExecutionNode = step.NodeId;
+        _runtimeValues[step.NodeId] = step.Output;
+        _debugValue = step.Output;
+        _debugMessage = step.Detail;
+        _executedNodes.Add(step.NodeId);
+
+        if (_debugStepIndex == _debugSteps.Count - 1)
+        {
+            _debugging = false;
+            _stepSessionFinished = true;
+            if (!string.IsNullOrWhiteSpace(_debugFinalError))
+                _executionErrorNode = step.NodeId;
+            _debugMessage = string.IsNullOrWhiteSpace(_debugFinalError)
+                ? $"{step.Detail}. Пошаговый запуск завершён."
+                : $"{step.Detail}. Ошибка: {_debugFinalError}";
+        }
+    }
+
+    private async Task RunTests()
+    {
+        if (ActiveLevel is null || _running) return;
+        ResetExecution();
+        var executionGeneration = _executionGeneration;
+        _running = true;
+        _showSuccess = false;
+        // Сначала вычисляем все тесты, затем отдельно проигрываем короткую подсветку посещённых блоков.
+        var computed = Runner.RunAll(_program, ActiveLevel).ToList();
+        var animationTest = ActiveLevel.Tests.FirstOrDefault(item => !item.Hidden) ?? ActiveLevel.Tests[0];
+        var animation = Runner.Run(_program, animationTest.Input);
+        var animationResult = computed.FirstOrDefault(result => result.TestId == animationTest.Id);
+        _debugSteps = animation.Steps.Take(80).ToList();
+        _debugFinalError = animation.Error;
+        if (string.IsNullOrWhiteSpace(_debugFinalError) && animationResult is { Passed: false })
+            _debugFinalError = $"Получено «{RuntimeDisplay(animationResult.Actual)}», ожидалось «{RuntimeDisplay(animationResult.Expected)}»";
+        _debugInput = animationTest.Input;
+        _debugValue = animationTest.Input;
+        _debugExpected = animationTest.ExpectedOutput;
+        _hasDebugExpectation = true;
+        for (var index = 0; index < _debugSteps.Count; index++)
+        {
+            if (executionGeneration != _executionGeneration) return;
+            var step = _debugSteps[index];
+            _previousExecutionNode = _activeExecutionNode;
+            _activeExecutionNode = step.NodeId;
+            _debugStepIndex = index;
+            _debugValue = step.Output;
+            _debugMessage = step.Detail;
+            _runtimeValues[step.NodeId] = step.Output;
+            StateHasChanged();
+            await Task.Delay(160);
+            if (executionGeneration != _executionGeneration) return;
+            _executedNodes.Add(step.NodeId);
+        }
+        if (executionGeneration != _executionGeneration) return;
+        _activeExecutionNode = null;
+        _previousExecutionNode = null;
+        _debugMessage = string.IsNullOrWhiteSpace(_debugFinalError) ? "Прогон завершён" : $"Ошибка: {_debugFinalError}";
+        var failed = computed.FirstOrDefault(result => !result.Passed);
+        _executionErrorNode = failed?.VisitedNodes.LastOrDefault();
+        _results = computed;
+        _running = false;
+        _stepSessionFinished = true;
+        if (_results.Count > 0 && _results.All(result => result.Passed))
+        {
+            _completed.Add(ActiveLevel.Id);
+            await ProgressStore.CompleteAsync(ActiveLevel.Id);
+            _showSuccess = true;
+        }
+    }
+
+    private void CloseSuccess() => _showSuccess = false;
+    private void OpenHelp(BlockKind kind) => _helpKind = kind;
+    private void CloseHelp() => _helpKind = null;
+    private void ShowLevelIntro() => _introStepIndex = ActiveLevel?.IntroSteps.Count > 0 ? 0 : null;
+    private void CloseLevelIntro() => _introStepIndex = null;
+    private void PreviousIntroStep()
+    {
+        if (_introStepIndex is > 0) _introStepIndex--;
+    }
+
+    private void NextIntroStep()
+    {
+        if (ActiveLevel is null || _introStepIndex is not int index) return;
+        _introStepIndex = index + 1 < ActiveLevel.IntroSteps.Count ? index + 1 : null;
+    }
+
+    private void GoToNextLevel()
+    {
+        if (ActiveLevel is null) return;
+        var index = _levels.IndexOf(ActiveLevel);
+        if (index >= 0 && index < _levels.Count - 1)
+        {
+            _activeLevelId = _levels[index + 1].Id;
+            ClearProgram();
+            _showSuccess = false;
+            ShowLevelIntro();
+            return;
+        }
+        Navigation.NavigateTo("/");
+    }
+
+    private void ZoomIn() => _zoom = Math.Min(1.3, _zoom + .1);
+    private void ZoomOut() => _zoom = Math.Max(.6, _zoom - .1);
+
+    private static double NodeHeight(BlockKind kind) => kind switch
+    {
+        BlockKind.Condition => 150,
+        BlockKind.Loop => 152,
+        _ => 126
+    };
+
+    private static double NodeLeftExtent(BlockKind kind) => kind == BlockKind.Input ? 0 : 56;
+
+    private static double NodeRightExtent(BlockKind kind) => kind switch
+    {
+        BlockKind.Condition => 94,
+        BlockKind.Loop => 82,
+        BlockKind.Output => 0,
+        _ => 56
+    };
+
+    private static double NodeBottomExtent(BlockKind kind) => kind == BlockKind.Loop ? 56 : 0;
+
+    private static string CanvasNumber(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    private static double PortOffset(BlockKind kind, OutputPort port) => (kind, port) switch
+    {
+        (BlockKind.Condition, OutputPort.True) => 44,
+        (BlockKind.Condition, OutputPort.False) => 103,
+        (BlockKind.Loop, OutputPort.Done) => 42,
+        (BlockKind.Loop, OutputPort.Repeat) => 105,
+        _ => NodeHeight(kind) / 2
+    };
+
+    private static string ConfigLabel(BlockKind kind) => kind switch
+    {
+        BlockKind.Condition => "ПРОВЕРКА",
+        BlockKind.Loop => "ПОВТОРЫ",
+        _ => "ОПЕРАЦИЯ"
+    };
+
+    private string IntroHighlightClass(IntroHighlightTarget target)
+        => ActiveIntroStep?.HighlightTarget == target ? "intro-highlighted" : "";
+
+    private static string IntroFieldKicker(IntroFieldKind kind) => kind switch
+    {
+        IntroFieldKind.Input => "ВХОДНЫЕ ДАННЫЕ",
+        IntroFieldKind.Output => "ОЖИДАЕМЫЙ ВЫХОД",
+        IntroFieldKind.Operation => "ДЕЙСТВИЕ",
+        IntroFieldKind.Condition => "ПРОВЕРКА",
+        IntroFieldKind.Loop => "ПОВТОРЫ",
+        _ => "ПРИМЕР"
+    };
+
+    private static string IntroFieldDisplay(LevelIntroStep step)
+    {
+        if (!string.IsNullOrWhiteSpace(step.FieldValue)) return step.FieldValue;
+
+        return step.FieldKind switch
+        {
+            IntroFieldKind.Input => "данные теста",
+            IntroFieldKind.Output => "результат",
+            IntroFieldKind.Operation => "Задать значение",
+            IntroFieldKind.Condition => "> 20",
+            IntroFieldKind.Loop => "input",
+            _ => ""
+        };
+    }
+
+    private string NodeStyle(BlockNode node)
+        => $"left:{CanvasNumber(node.X + CanvasOffsetX)}px;top:{CanvasNumber(node.Y + CanvasOffsetY)}px;width:{NodeWidth}px;height:{CanvasNumber(NodeHeight(node.Kind))}px;";
+
+    private string ConnectionPath(BlockNode from, BlockNode to, BlockConnection edge)
+    {
+        // У возврата цикла вход расположен снизу, у остальных блоков — слева.
+        var x1 = from.X + CanvasOffsetX + NodeWidth;
+        var y1 = from.Y + CanvasOffsetY + PortOffset(from.Kind, edge.Port);
+        var returnTarget = edge.TargetPort == TargetPort.Return;
+        var x2 = returnTarget ? to.X + CanvasOffsetX + NodeWidth / 2 : to.X + CanvasOffsetX;
+        var y2 = returnTarget ? to.Y + CanvasOffsetY + NodeHeight(to.Kind) : to.Y + CanvasOffsetY + NodeHeight(to.Kind) / 2;
+        if (returnTarget)
+        {
+            var vertical = Math.Clamp(Math.Abs(y2 - y1) * .35, 26, 82);
+            var horizontal = Math.Clamp(Math.Abs(x2 - x1) * .26, 18, 72);
+            return FormattableString.Invariant($"M {x1} {y1} C {x1 + horizontal} {y1}, {x2} {y2 + vertical}, {x2} {y2}");
+        }
+        return BezierPath(x1, y1, x2, y2);
+    }
+
+    private string PreviewPath(BlockNode from)
+    {
+        var x1 = from.X + CanvasOffsetX + NodeWidth;
+        var y1 = from.Y + CanvasOffsetY + PortOffset(from.Kind, _connectingPort);
+        return BezierPath(x1, y1, _pointerX, _pointerY);
+    }
+
+    private static string BezierPath(double x1, double y1, double x2, double y2)
+    {
+        // Ограниченные управляющие точки не дают короткой связи сделать большой крюк.
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        if (dx >= 0)
+        {
+            var pull = Math.Clamp(dx * .42, 8, 120);
+            return FormattableString.Invariant($"M {x1} {y1} C {x1 + pull} {y1}, {x2 - pull} {y2}, {x2} {y2}");
+        }
+
+        var outward = Math.Clamp(24 + Math.Abs(dy) * .12, 24, 64);
+        return FormattableString.Invariant($"M {x1} {y1} C {x1 + outward} {y1}, {x2 - outward} {y2}, {x2} {y2}");
+    }
+
+    private string ResultClass(Guid nodeId)
+    {
+        if (_executionErrorNode == nodeId) return "node-error";
+        if (_activeExecutionNode == nodeId) return "node-running";
+        if (_executedNodes.Contains(nodeId)) return "node-pass";
+        return "";
+    }
+
+    private string WireExecutionClass(BlockConnection edge)
+        => IsWireActive(edge) ? "wire-active" : "";
+
+    private bool IsWireActive(BlockConnection edge)
+        => _previousExecutionNode == edge.FromNodeId && _activeExecutionNode == edge.ToNodeId;
+
+    private static string RuntimeDisplay(string value)
+        => string.IsNullOrEmpty(value) ? "∅ пусто" : value;
+
+    private static string HelpSummary(BlockKind kind) => kind switch
+    {
+        BlockKind.Input => "Начало программы. На каждом тесте этот блок автоматически получает новые данные уровня.",
+        BlockKind.Operation => "Изменяет текущее значение. Действие выбирается из списка, а параметр вводится в отдельном поле.",
+        BlockKind.Condition => "Сравнивает входное значение и направляет выполнение по синей или красной ветке.",
+        BlockKind.Loop => "Повторяет подключённую цепочку заданное число раз и после каждого шага принимает возврат снизу.",
+        BlockKind.Output => "Завершает программу и отправляет фактический результат в систему тестов.",
+        _ => ""
+    };
+
+    private static string HelpInput(BlockKind kind) => kind switch
+    {
+        BlockKind.Input => "Данные выдаёт уровень — внешнего входа нет.",
+        BlockKind.Loop => "Слева — данные, снизу — возврат после повтора.",
+        _ => "Значение от предыдущего блока."
+    };
+
+    private static string HelpOutput(BlockKind kind) => kind switch
+    {
+        BlockKind.Output => "Выходов нет — программа завершена.",
+        BlockKind.Condition => "Синий — условие верно, красный — неверно.",
+        BlockKind.Loop => "Сверху — выход, ниже — следующий повтор.",
+        _ => "Одно значение для следующего блока."
+    };
+
+    private static string[] HelpSteps(BlockKind kind) => kind switch
+    {
+        BlockKind.Input => ["Поставьте блок в начало.", "Он получит данные очередного теста.", "Потяните выход к следующему блоку."],
+        BlockKind.Operation => ["Подключите вход.", "Выберите действие в меню.", "Если появилось поле — задайте значение.", "Передайте результат дальше."],
+        BlockKind.Condition => ["Подайте значение на вход.", "Напишите только проверку, например > 20.", "Подключите синюю и красную ветки."],
+        BlockKind.Loop => ["Подайте данные слева.", "Выберите input или своё число.", "Выход «повтор» соедините с действием.", "Верните действие в нижний порт.", "Верхний выход ведите дальше."],
+        BlockKind.Output => ["Поставьте блок в конце.", "Подключите итоговое значение.", "Запустите все тесты уровня."],
+        _ => []
+    };
+}
