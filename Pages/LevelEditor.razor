@@ -1,9 +1,10 @@
 @page "/editor"
+@layout AdminLayout
 @using System.Text
 @inject LevelStore LevelStore
 @inject IJSRuntime JS
 
-<PageTitle>Редактор уровней — Синапс C#</PageTitle>
+<PageTitle>Редактор уровней — Синапс</PageTitle>
 
 @if (_loading)
 {
@@ -27,7 +28,7 @@ else
                 }
             </div>
             <div class="file-actions">
-                <a href="@ExportHref" download="synapse-levels.json">Экспорт JSON</a>
+                <button type="button" @onclick="ExportLevels">Экспорт JSON</button>
                 <label>Импорт JSON<InputFile OnChange="ImportFile" accept="application/json,.json" /></label>
                 <button type="button" @onclick="ResetLevels">Вернуть примеры</button>
             </div>
@@ -54,22 +55,22 @@ else
                 <section class="form-section">
                     <div class="section-heading"><span>01</span><div><h2>Описание задания</h2><p>Текст, который увидит игрок слева от рабочего поля.</p></div></div>
                     <div class="field-grid two">
-                        <label><span>Название уровня</span><input @bind="level.Title" @bind:event="oninput" /></label>
-                        <label><span>Направление</span><input @bind="level.Direction" @bind:event="oninput" list="directions" /><datalist id="directions"><option>Программирование</option><option>Кибербезопасность</option><option>Заказ клиента</option></datalist></label>
+                        <label><span>Название уровня</span><input @bind="level.Title" /></label>
+                        <label><span>Направление</span><input @bind="level.Direction" list="directions" /><datalist id="directions"><option>Программирование</option><option>Кибербезопасность</option><option>Заказ клиента</option></datalist></label>
                     </div>
                     <div class="field-grid two">
                         <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label>
-                        <label><span>Место действия</span><input @bind="level.Location" @bind:event="oninput" placeholder="Например: Лабораторный шлюз B-4" /></label>
+                        <label><span>Место действия</span><input @bind="level.Location" placeholder="Например: Лабораторный шлюз B-4" /></label>
                     </div>
-                    <label class="wide-field"><span>Сюжет и контекст</span><textarea @bind="level.Description" @bind:event="oninput" rows="3"></textarea></label>
-                    <label class="wide-field"><span>Сюжет перед заданием</span><textarea @bind="level.StoryIntro" @bind:event="oninput" rows="3" placeholder="Что произошло и почему игроку нужна эта программа?"></textarea></label>
-                    <label class="wide-field"><span>Сюжет после успешного решения</span><textarea @bind="level.StorySuccess" @bind:event="oninput" rows="3" placeholder="Что изменилось в городе после прохождения?"></textarea></label>
-                    <label class="wide-field"><span>Что нужно сделать</span><textarea @bind="level.Objective" @bind:event="oninput" rows="2"></textarea></label>
+                    <label class="wide-field"><span>Сюжет и контекст</span><textarea @bind="level.Description" rows="3"></textarea></label>
+                    <label class="wide-field"><span>Сюжет перед заданием</span><textarea @bind="level.StoryIntro" rows="3" placeholder="Что произошло и почему игроку нужна эта программа?"></textarea></label>
+                    <label class="wide-field"><span>Сюжет после успешного решения</span><textarea @bind="level.StorySuccess" rows="3" placeholder="Что изменилось в городе после прохождения?"></textarea></label>
+                    <label class="wide-field"><span>Что нужно сделать</span><textarea @bind="level.Objective" rows="2"></textarea></label>
                     <div class="field-grid two">
-                        <label><span>Какие данные получает программа</span><textarea @bind="level.InputDescription" @bind:event="oninput" rows="3"></textarea></label>
-                        <label><span>Что программа должна вернуть</span><textarea @bind="level.OutputDescription" @bind:event="oninput" rows="3"></textarea></label>
+                        <label><span>Какие данные получает программа</span><textarea @bind="level.InputDescription" rows="3"></textarea></label>
+                        <label><span>Что программа должна вернуть</span><textarea @bind="level.OutputDescription" rows="3"></textarea></label>
                     </div>
-                    <label class="wide-field"><span>Подсказка</span><textarea @bind="level.Hint" @bind:event="oninput" rows="2"></textarea></label>
+                    <label class="wide-field"><span>Подсказка</span><textarea @bind="level.Hint" rows="2"></textarea></label>
                 </section>
 
                 <section class="form-section">
@@ -101,9 +102,9 @@ else
                             var testIndex = index;
                             <div class="test-editor-row">
                                 <b>@(index + 1)</b>
-                                <input @bind="test.Name" @bind:event="oninput" aria-label="Название теста" />
-                                <textarea @bind="test.Input" @bind:event="oninput" rows="2" aria-label="Входные данные"></textarea>
-                                <textarea @bind="test.ExpectedOutput" @bind:event="oninput" rows="2" aria-label="Ожидаемый результат"></textarea>
+                                <input @bind="test.Name" aria-label="Название теста" />
+                                <textarea @bind="test.Input" rows="2" aria-label="Входные данные"></textarea>
+                                <textarea @bind="test.ExpectedOutput" rows="2" aria-label="Ожидаемый результат"></textarea>
                                 <label class="hidden-switch"><input type="checkbox" @bind="test.Hidden" /><span></span></label>
                                 <button type="button" class="row-delete" @onclick="() => RemoveTest(testIndex)" aria-label="Удалить тест">×</button>
                             </div>
@@ -145,7 +146,7 @@ else
                                     </header>
 
                                     <div class="field-grid two">
-                                        <label><span>Заголовок</span><input @bind="intro.Title" @bind:event="oninput" /></label>
+                                        <label><span>Заголовок</span><input @bind="intro.Title" /></label>
                                         <label><span>Что подсветить в игре</span>
                                             <select @bind="intro.HighlightTarget">
                                                 @foreach (var target in Enum.GetValues<IntroHighlightTarget>())
@@ -155,7 +156,22 @@ else
                                             </select>
                                         </label>
                                     </div>
-                                    <label class="wide-field"><span>Текст пояснения</span><textarea @bind="intro.Body" @bind:event="oninput" rows="3"></textarea></label>
+                                    <label class="wide-field"><span>Текст пояснения</span><textarea @bind="intro.Body" rows="3"></textarea></label>
+
+                                    <div class="field-grid two intro-media-settings">
+                                        <label><span>Ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
+                                        <label><span>Или загрузить файл</span><InputFile OnChange="args => UploadIntroMedia(introIndex, args)" accept="image/gif,image/png,image/jpeg,image/webp" /></label>
+                                    </div>
+                                    <p class="intro-media-note">GIF лучше загружать по ссылке: файл попадёт в экспорт уровней. Загрузка в редакторе ограничена 4 МБ и хранится в этом браузере.</p>
+
+                                    @if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
+                                    {
+                                        <div class="intro-media-preview">
+                                            <img src="@intro.MediaUrl" alt="Предпросмотр анимации для пояснения" loading="lazy" decoding="async" />
+                                            <button type="button" @onclick="() => ClearIntroMedia(introIndex)">Убрать GIF</button>
+                                        </div>
+                                    }
+
                                     <div class="field-grid two intro-field-settings">
                                         <label><span>Поле внутри окна</span>
                                             <select @bind="intro.FieldKind">
@@ -165,7 +181,7 @@ else
                                                 }
                                             </select>
                                         </label>
-                                        <label><span>Значение или пример</span><input @bind="intro.FieldValue" @bind:event="oninput" disabled="@(intro.FieldKind == IntroFieldKind.None)" placeholder="Например: > 20 или blocked" /></label>
+                                        <label><span>Значение или пример</span><input @bind="intro.FieldValue" disabled="@(intro.FieldKind == IntroFieldKind.None)" placeholder="Например: > 20 или blocked" /></label>
                                     </div>
 
                                     @if (intro.FieldKind != IntroFieldKind.None)
@@ -198,7 +214,6 @@ else
     private bool _messageIsError;
 
     private LevelDefinition? Selected => _levels.FirstOrDefault(level => level.Id == _selectedId) ?? _levels.FirstOrDefault();
-    private string ExportHref => $"data:application/json;charset=utf-8,{Uri.EscapeDataString(LevelStore.Export(_levels))}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -211,6 +226,12 @@ else
     {
         _selectedId = id;
         _message = "";
+    }
+
+    private async Task ExportLevels()
+    {
+        var json = LevelStore.Export(_levels);
+        await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", json);
     }
 
     private void AddLevel()
@@ -258,6 +279,7 @@ else
             {
                 Title = step.Title,
                 Body = step.Body,
+                MediaUrl = step.MediaUrl,
                 FieldKind = step.FieldKind,
                 FieldValue = step.FieldValue,
                 HighlightTarget = step.HighlightTarget
@@ -328,6 +350,40 @@ else
             Title = $"Пояснение {level.IntroSteps.Count + 1}",
             Body = "Объясните, на что игроку нужно обратить внимание."
         });
+        _message = $"Добавлено вступительное окно {level.IntroSteps.Count}. Заполните его и сохраните уровни.";
+        _messageIsError = false;
+    }
+
+    private async Task UploadIntroMedia(int index, InputFileChangeEventArgs args)
+    {
+        if (Selected is not LevelDefinition level || index < 0 || index >= level.IntroSteps.Count) return;
+
+        try
+        {
+            var file = args.File;
+            if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                ShowError("Нужен GIF или другой файл изображения.");
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(4 * 1024 * 1024);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            level.IntroSteps[index].MediaUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
+            _message = $"Анимация «{file.Name}» добавлена в это пояснение.";
+            _messageIsError = false;
+        }
+        catch (Exception)
+        {
+            ShowError("Не удалось загрузить изображение. Выберите файл до 4 МБ.");
+        }
+    }
+
+    private void ClearIntroMedia(int index)
+    {
+        if (Selected is not LevelDefinition level || index < 0 || index >= level.IntroSteps.Count) return;
+        level.IntroSteps[index].MediaUrl = "";
     }
 
     private void RemoveIntroStep(int index)

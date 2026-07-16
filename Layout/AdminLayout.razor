@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell admin-shell">
+    <header class="app-header admin-header">
+        <a class="brand" href="admin">
+            <span class="brand-mark admin-mark" aria-hidden="true"></span>
+            <span><b>СИНАПС</b><small>ПАНЕЛЬ РАЗРАБОТЧИКА</small></span>
+        </a>
+        <nav class="main-nav admin-nav" aria-label="Навигация разработчика">
+            <NavLink href="admin" Match="NavLinkMatch.All"><span>01</span><b>Панель</b></NavLink>
+            <NavLink href="editor"><span>02</span><b>Редактор</b></NavLink>
+            <NavLink href="game"><span>03</span><b>Проверить</b></NavLink>
+        </nav>
+        <a class="runtime-badge developer-exit" href="">← Детская версия</a>
+    </header>
+    <main class="app-main">
+        @Body
+    </main>
+</div>

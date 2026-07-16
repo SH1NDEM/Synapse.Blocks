@@ -142,6 +142,24 @@
             }
         },
         constrain,
+        zoomAt(canvas, clientX, clientY, oldZoom, newZoom) {
+            const rect = canvas.getBoundingClientRect();
+            const localX = clientX - rect.left;
+            const localY = clientY - rect.top;
+            const safeOldZoom = Math.max(.01, oldZoom || 1);
+            const safeNewZoom = Math.max(.01, newZoom || 1);
+            const worldX = (canvas.scrollLeft + localX) / safeOldZoom;
+            const worldY = (canvas.scrollTop + localY) / safeOldZoom;
+            const desiredLeft = worldX * safeNewZoom - localX;
+            const desiredTop = worldY * safeNewZoom - localY;
+
+            if (canvas.dataset.hasContent === "true") {
+                constrain(canvas, desiredLeft, desiredTop);
+            } else {
+                canvas.scrollLeft = Math.max(0, desiredLeft);
+                canvas.scrollTop = Math.max(0, desiredTop);
+            }
+        },
         worldPoint(canvas, clientX, clientY, zoom) {
             const bounds = canvas.getBoundingClientRect();
             const scale = zoom || 1;
@@ -150,5 +168,19 @@
                 (clientY - bounds.top + canvas.scrollTop) / scale
             ];
         }
+    };
+
+    // Экспорт больших кампаний выполняется только по нажатию и не создаёт
+    // многомегабайтную data-ссылку при каждой перерисовке редактора.
+    window.synapseDownloadText = (fileName, content) => {
+        const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
     };
 })();

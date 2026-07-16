@@ -1,14 +1,32 @@
 @page "/guide"
 
-<PageTitle>Справка — Синапс C#</PageTitle>
+<PageTitle>Справка — Синапс</PageTitle>
 
 <section class="guide-page">
-    <header><small>СПРАВКА</small><h1>Команды универсальных блоков</h1><p>Блоки не привязаны к уровням. Уровень задаёт только входные данные, ожидаемые выходы и разрешённые типы.</p></header>
+    <header class="guide-hero">
+        <div>
+            <small>БАЗА ЗНАНИЙ / 01</small>
+            <h1>Соберите логику.<br /><em>Город проверит её.</em></h1>
+            <p>Блоки универсальны и не привязаны к конкретному заданию. Уровень сообщает входные данные и ожидаемый результат, а способ решения всегда выбирает игрок.</p>
+            <a href="game">Перейти к первой операции <span>→</span></a>
+        </div>
+        <div class="guide-flow" aria-label="Короткая схема работы">
+            <article><span>01</span><div><b>Прочитайте задачу</b><small>Узнайте, что поступает на вход и что нужно вернуть.</small></div></article>
+            <article><span>02</span><div><b>Соберите ноды</b><small>Перетащите блоки, настройте команды и протяните связи.</small></div></article>
+            <article><span>03</span><div><b>Запустите тесты</b><small>Проследите путь данных и исправьте место ошибки.</small></div></article>
+        </div>
+    </header>
+
+    <div class="guide-section-title">
+        <div><small>// КОНСТРУКТОР ПРОГРАММЫ</small><h2>Пять типов блоков</h2></div>
+        <p>Цвет и форма помогают быстро отличить данные, команды, ветвления и повторения.</p>
+    </div>
     <div class="guide-grid">
         @foreach (var kind in Enum.GetValues<BlockKind>())
         {
             <article class="guide-card kind-@kind.ToString().ToLowerInvariant()">
-                <small>@BlockCatalog.Kicker(kind)</small><h2>@BlockCatalog.Label(kind)</h2><p>@BlockCatalog.Description(kind)</p>
+                <div class="guide-card-head"><span class="guide-node-icon"><i></i><i></i></span><small>@BlockCatalog.Kicker(kind)</small></div>
+                <h2>@BlockCatalog.Label(kind)</h2><p>@BlockCatalog.Description(kind)</p>
                 @if (kind == BlockKind.Operation)
                 {
                     <p>Выберите действие в списке. Если команде нужен параметр, справа появится отдельное поле значения.</p>
@@ -25,5 +43,9 @@
             </article>
         }
     </div>
-    <section class="engine-note"><span>КАК РАБОТАЕТ ПРОВЕРКА</span><p>Движок запускает одну схему отдельно на каждом тесте. В блок «Вход» поступает значение теста, блок «Выход» возвращает фактический результат. Никакой заранее заданной правильной цепочки нет.</p></section>
+    <section class="engine-note">
+        <div><span>КАК РАБОТАЕТ ПРОВЕРКА</span><h2>Одна схема — разные данные</h2></div>
+        <p>Движок запускает собранную программу отдельно на каждом тесте. В блок «Вход» поступает новое значение, а блок «Выход» возвращает фактический результат. Заранее заданной правильной цепочки нет: важен только верный ответ на всех проверках.</p>
+        <div class="engine-route" aria-hidden="true"><span>ВХОД</span><i></i><span>ВАША СХЕМА</span><i></i><span>РЕЗУЛЬТАТ</span></div>
+    </section>
 </section>

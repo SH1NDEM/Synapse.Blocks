@@ -4,7 +4,52 @@ namespace Synapse.Blocks.Data;
 
 public static class SeedLevels
 {
-    public static List<LevelDefinition> Create() =>
+    public static List<LevelDefinition> Create()
+    {
+        // Пока публикуем короткую первую главу: знакомство, условие, строка и цикл.
+        var campaign = CreateCampaign();
+        var levels = new List<LevelDefinition>
+        {
+            campaign[0], // Числовая операция.
+            campaign[2], // Та же знакомая операция, но уже со строкой.
+            campaign[1], // После этого вводим первый новый блок — условие.
+            campaign[3]  // Затем вводим цикл.
+        };
+        for (var index = 0; index < levels.Count; index++)
+            levels[index].Order = index + 1;
+        levels[0].IntroSteps =
+        [
+            new LevelIntroStep
+            {
+                Title = "Сначала прочитайте входные данные",
+                Body = "Каждая проверка передаёт в блок «Вход» своё число. На этом уровне это сила сигнала, которую программа должна увеличить в два раза.",
+                FieldKind = IntroFieldKind.Input,
+                FieldValue = "6",
+                HighlightTarget = IntroHighlightTarget.InputData
+            },
+            new LevelIntroStep
+            {
+                Title = "Соберите программу сами",
+                Body = "Перетащите нужные блоки справа на рабочее поле и соедините их линиями. Готовой схемы нет: можно пробовать, ошибаться и менять решение.",
+                MediaUrl = "gifs/connect-nodes.gif",
+                FieldKind = IntroFieldKind.Operation,
+                FieldValue = "Умножить на 2",
+                HighlightTarget = IntroHighlightTarget.Workspace
+            },
+            new LevelIntroStep
+            {
+                Title = "Запустите все проверки",
+                Body = "После запуска город по очереди проверит программу на нескольких сигналах. Если результат неверный, подсветка покажет блок, на котором стоит ещё раз проверить логику.",
+                FieldKind = IntroFieldKind.Output,
+                FieldValue = "12",
+                HighlightTarget = IntroHighlightTarget.RunPanel
+            }
+        ];
+
+        return levels;
+    }
+
+    private static List<LevelDefinition> CreateCampaign() =>
     [
         // Глава 1: знакомство с линейными операциями, условиями и первым циклом.
         Level(1, 1, "Усилитель сигнала", "Программирование", "Ретранслятор A-17",

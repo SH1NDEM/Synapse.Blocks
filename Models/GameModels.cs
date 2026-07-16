@@ -77,6 +77,8 @@ public sealed class LevelIntroStep
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = "Новое пояснение";
     public string Body { get; set; } = "Объясните игроку важную часть задания.";
+    // Ссылка на GIF/картинку или data URL, полученный из загрузки в редакторе.
+    public string MediaUrl { get; set; } = "";
     public IntroFieldKind FieldKind { get; set; }
     public string FieldValue { get; set; } = "";
     public IntroHighlightTarget HighlightTarget { get; set; }

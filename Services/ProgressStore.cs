@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.JSInterop;
+using Synapse.Blocks.Serialization;
 
 namespace Synapse.Blocks.Services;
 
@@ -9,13 +10,13 @@ public sealed class ProgressStore(IJSRuntime js)
 
     public async Task<HashSet<Guid>> LoadAsync()
     {
-        var json = await js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
-        if (string.IsNullOrWhiteSpace(json)) return [];
         try
         {
-            return JsonSerializer.Deserialize<HashSet<Guid>>(json) ?? [];
+            var json = await js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            if (string.IsNullOrWhiteSpace(json)) return [];
+            return JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.HashSetGuid) ?? [];
         }
-        catch (JsonException)
+        catch (Exception)
         {
             return [];
         }
@@ -25,7 +26,17 @@ public sealed class ProgressStore(IJSRuntime js)
     {
         var completed = await LoadAsync();
         completed.Add(levelId);
-        await js.InvokeVoidAsync("localStorage.setItem", StorageKey, JsonSerializer.Serialize(completed));
+        try
+        {
+            await js.InvokeVoidAsync(
+                "localStorage.setItem",
+                StorageKey,
+                JsonSerializer.Serialize(completed, AppJsonSerializerContext.Default.HashSetGuid));
+        }
+        catch (JSException)
+        {
+            // Прогресс текущей сессии не должен останавливать игру при переполненном хранилище.
+        }
     }
 
     public async Task ResetAsync()
