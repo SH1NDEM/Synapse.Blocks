@@ -18,7 +18,7 @@ else
             <p>Сеть пережила аварию. Восстанавливайте районы, расследуйте следы взлома и создавайте программы для жителей — одна проверка за другой.</p>
             <div class="city-actions">
                 <a class="city-primary" href="game">@(_completed.Count > 0 ? "Продолжить кампанию" : "Начать кампанию") <span>→</span></a>
-                <a class="city-secondary" href="editor">Создать свой уровень</a>
+                <a class="city-secondary" href="guide">Как работают блоки</a>
             </div>
             <div class="campaign-summary">
                 <div><strong>@_levels.Count</strong><span>операций</span></div>
@@ -27,68 +27,38 @@ else
             </div>
         </div>
 
-        <div class="city-window" aria-label="Изометрическая карта Города Ноль">
-            <div class="city-window-head"><span><i></i><i></i><i></i></span><b>СЕКТОР 00 / LIVE MAP</b><small><i></i> СЕТЬ АКТИВНА</small></div>
-            <div class="iso-city">
-                <div class="city-map">
-                    <div class="city-road road-horizontal road-h-1"></div>
-                    <div class="city-road road-horizontal road-h-2"></div>
-                    <div class="city-road road-horizontal road-h-3"></div>
-                    <div class="city-road road-vertical road-v-1"></div>
-                    <div class="city-road road-vertical road-v-2"></div>
-                    <div class="city-road road-vertical road-v-3"></div>
-
-                    <span class="city-crossing crossing-1"></span><span class="city-crossing crossing-2"></span>
-                    <span class="city-crossing crossing-3"></span><span class="city-crossing crossing-4"></span>
-                    <span class="city-crossing crossing-5"></span><span class="city-crossing crossing-6"></span>
-                    <span class="city-crossing crossing-7"></span><span class="city-crossing crossing-8"></span>
-                    <span class="city-crossing crossing-9"></span>
-
-                    <div class="city-park park-a"><i></i><i></i><i></i><i></i><b>СКВЕР</b></div>
-                    <div class="city-park park-b"><i></i><i></i><i></i><b>САД</b></div>
-
-                    @foreach (var building in CityBuildings)
-                    {
-                        <div class="iso-building city-building" style="@building.Style">
-                            @if (building.Beacon)
-                            {
-                                <span class="roof-light"></span>
-                            }
-                            @if (building.Antenna)
-                            {
-                                <span class="antenna"></span>
-                            }
-                            <i></i><i></i><i></i><i></i><i></i><b>@building.Label</b>
-                        </div>
-                    }
-
-                    <span class="traffic-light traffic-1"><i></i><i></i><i></i></span>
-                    <span class="traffic-light traffic-2"><i></i><i></i><i></i></span>
-                    <span class="traffic-light traffic-3"><i></i><i></i><i></i></span>
-                    <span class="traffic-light traffic-4"><i></i><i></i><i></i></span>
-                    <span class="traffic-light traffic-5"><i></i><i></i><i></i></span>
-                    <span class="traffic-light traffic-6"><i></i><i></i><i></i></span>
-
-                    <span class="city-car car-1"></span><span class="city-car car-2"></span><span class="city-car car-3"></span>
-                    <span class="city-car car-4"></span><span class="city-car car-5"></span><span class="city-car car-6"></span>
-                    <span class="city-car car-7"></span><span class="city-car car-8"></span>
-
-                    @foreach (var person in CityPeople)
-                    {
-                        <span class="city-person" style="@person"></span>
-                    }
-
-                    <span class="street-light light-1"></span><span class="street-light light-2"></span><span class="street-light light-3"></span>
-                    <span class="street-light light-4"></span><span class="street-light light-5"></span><span class="street-light light-6"></span>
-                    <span class="street-light light-7"></span><span class="street-light light-8"></span><span class="street-light light-9"></span>
-                    <span class="street-light light-10"></span><span class="street-light light-11"></span><span class="street-light light-12"></span>
-                    <span class="data-pulse pulse-1"></span><span class="data-pulse pulse-2"></span><span class="data-pulse pulse-3"></span>
-                </div>
+        <div class="logic-window" aria-label="Пример программы из блоков">
+            <div class="logic-window-head">
+                <span><i></i><i></i><i></i></span>
+                <b>ПРОГРАММА / СИГНАЛ A-17</b>
+                <small><i></i> ГОТОВА К ЗАПУСКУ</small>
             </div>
-            <div class="city-readout">
-                <div><small>ЭНЕРГИЯ</small><strong>@Math.Max(12, ProgressPercent)%</strong></div>
-                <p><i></i> Ретрансляторы ожидают новые программы</p>
-                <span>@DateTime.Now.ToString("HH:mm")</span>
+            <div class="logic-board">
+                <div class="logic-board-grid" aria-hidden="true"></div>
+                <svg class="logic-wires" viewBox="0 0 760 350" aria-hidden="true">
+                    <path d="M 205 175 C 252 175, 255 105, 304 105" />
+                    <path d="M 472 105 C 522 105, 522 175, 570 175" />
+                    <path class="logic-flow" d="M 205 175 C 252 175, 255 105, 304 105 M 472 105 C 522 105, 522 175, 570 175" />
+                </svg>
+
+                <article class="logic-node logic-input">
+                    <span>ДАННЫЕ</span><h3>Вход</h3><p>Получить значение теста</p>
+                    <div><small>ПОЛУЧАЕТ</small><b>15</b></div><i class="logic-port out"></i>
+                </article>
+                <article class="logic-node logic-operation">
+                    <span>КОМАНДА</span><h3>Умножить</h3><p>Изменить текущее значение</p>
+                    <div><small>ЗНАЧЕНИЕ</small><b>× 2</b></div><i class="logic-port input"></i><i class="logic-port out"></i>
+                </article>
+                <article class="logic-node logic-output">
+                    <span>РЕЗУЛЬТАТ</span><h3>Выход</h3><p>Вернуть ответ программы</p>
+                    <div><small>РЕЗУЛЬТАТ</small><b>30</b></div><i class="logic-port input"></i>
+                </article>
+
+                <div class="logic-test-card"><span>ТЕСТ 01</span><b>15 → 30</b><small>ПРОЙДЕН</small></div>
+                <div class="logic-hint"><i></i><span>Данные проходят по связям между блоками</span></div>
+            </div>
+            <div class="logic-window-foot">
+                <span><i></i> 3 блока</span><span>2 связи</span><b>Результат совпал ✓</b>
             </div>
         </div>
     </section>
@@ -115,49 +85,17 @@ else
     private bool _loading = true;
     private int ProgressPercent => _levels.Count == 0 ? 0 : (int)Math.Round(_completed.Count * 100d / _levels.Count);
 
-    private static readonly CityBuilding[] CityBuildings =
-    [
-        new("A-17", "--x:44px;--y:22px;--w:62px;--h:118px;--building-accent:#79a98b", true, false),
-        new("A-12", "--x:125px;--y:53px;--w:48px;--h:76px;--building-accent:#88a8a0", false, false),
-        new("A-08", "--x:188px;--y:33px;--w:52px;--h:96px;--building-accent:#809e91", false, false),
-        new("B-04", "--x:310px;--y:18px;--w:58px;--h:126px;--building-accent:#7896bd", false, true),
-        new("B-11", "--x:385px;--y:52px;--w:50px;--h:79px;--building-accent:#89a6b0", false, false),
-        new("B-19", "--x:517px;--y:41px;--w:57px;--h:94px;--building-accent:#a29b82", false, false),
-        new("C-02", "--x:599px;--y:25px;--w:66px;--h:112px;--building-accent:#9a987d", false, false),
-        new("C-06", "--x:721px;--y:57px;--w:52px;--h:71px;--building-accent:#839f89", false, false),
-        new("C-14", "--x:790px;--y:29px;--w:64px;--h:108px;--building-accent:#819ea8", true, false),
-        new("D-03", "--x:45px;--y:203px;--w:56px;--h:83px;--building-accent:#8fa18a", false, false),
-        new("D-08", "--x:125px;--y:181px;--w:68px;--h:113px;--building-accent:#899f7e", true, false),
-        new("E-05", "--x:319px;--y:196px;--w:49px;--h:91px;--building-accent:#829db2", false, false),
-        new("E-13", "--x:387px;--y:177px;--w:61px;--h:118px;--building-accent:#8d84ad", false, false),
-        new("F-01", "--x:523px;--y:199px;--w:57px;--h:87px;--building-accent:#8ca08f", false, false),
-        new("F-09", "--x:603px;--y:176px;--w:64px;--h:119px;--building-accent:#789b90", false, true),
-        new("G-02", "--x:728px;--y:194px;--w:54px;--h:96px;--building-accent:#9b927d", false, false),
-        new("G-10", "--x:801px;--y:215px;--w:53px;--h:75px;--building-accent:#8da09a", false, false),
-        new("H-07", "--x:42px;--y:374px;--w:62px;--h:99px;--building-accent:#7d9c88", false, false),
-        new("H-15", "--x:130px;--y:395px;--w:51px;--h:76px;--building-accent:#8ba5a8", false, false),
-        new("J-04", "--x:321px;--y:369px;--w:58px;--h:105px;--building-accent:#8d9e82", false, false),
-        new("CORE", "--x:401px;--y:335px;--w:70px;--h:142px;--building-accent:#8f85b7", true, true),
-        new("K-06", "--x:529px;--y:389px;--w:49px;--h:82px;--building-accent:#829d8b", false, false),
-        new("K-12", "--x:596px;--y:357px;--w:68px;--h:116px;--building-accent:#839da4", false, false),
-        new("L-03", "--x:726px;--y:374px;--w:58px;--h:98px;--building-accent:#9c997f", false, false),
-        new("L-11", "--x:804px;--y:398px;--w:48px;--h:73px;--building-accent:#88a186", false, false)
-    ];
-
-    private static readonly string[] CityPeople =
-    [
-        "--x:112px;--y:157px;--delay:.1s", "--x:133px;--y:164px;--delay:.8s", "--x:354px;--y:155px;--delay:.4s",
-        "--x:573px;--y:158px;--delay:1.1s", "--x:748px;--y:159px;--delay:.2s", "--x:210px;--y:325px;--delay:1.3s",
-        "--x:341px;--y:325px;--delay:.7s", "--x:548px;--y:320px;--delay:1.6s", "--x:774px;--y:326px;--delay:.5s",
-        "--x:280px;--y:94px;--delay:1s", "--x:492px;--y:238px;--delay:.3s", "--x:699px;--y:420px;--delay:1.4s"
-    ];
-
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadAsync();
-        _completed = await ProgressStore.LoadAsync();
-        _loading = false;
+        try
+        {
+            _levels = await LevelStore.LoadAsync();
+            _completed = await ProgressStore.LoadAsync();
+        }
+        finally
+        {
+            // Даже повреждённое локальное сохранение не оставляет главную на вечной загрузке.
+            _loading = false;
+        }
     }
-
-    private sealed record CityBuilding(string Label, string Style, bool Beacon, bool Antenna);
 }

@@ -5,6 +5,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- Игра не использует локализованные вычисления, поэтому не загружаем крупные ICU-таблицы. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Release-сборка удаляет недостижимый код Blazor и библиотек. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <BlazorWebAssemblyEnableLinking>true</BlazorWebAssemblyEnableLinking>
   </PropertyGroup>
 
   <ItemGroup>

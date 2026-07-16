@@ -6,7 +6,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>Игра — Синапс C#</PageTitle>
+<PageTitle>Игра — Синапс</PageTitle>
 
 @if (_loading)
 {
@@ -16,8 +16,8 @@ else if (ActiveLevel is null)
 {
     <section class="empty-state">
         <h1>Уровней пока нет</h1>
-        <p>Создайте первый уровень в редакторе.</p>
-        <a class="primary-link" href="editor">Открыть редактор</a>
+        <p>Попросите разработчика добавить первое задание в кампанию.</p>
+        <a class="primary-link" href="">Вернуться в город</a>
     </section>
 }
 else
@@ -111,6 +111,9 @@ else
                  @onpointerdown="CancelExecutionVisuals"
                  @onpointermove="MovePointer"
                  @onpointerup="CancelPointer"
+                 @onwheel="ZoomWithWheel"
+                 @onwheel:preventDefault="true"
+                 @onwheel:stopPropagation="true"
                  @ondragover:preventDefault="true"
                  @ondrop="DropTemplate">
                 <div class="port-legend" aria-label="Легенда портов">
@@ -229,7 +232,11 @@ else
             <div class="test-console">
                 <div class="console-title">
                     <span><i></i> ПРОВЕРКА ПРОГРАММЫ</span>
-                    @if (_results.Count > 0)
+                    @if (_running)
+                    {
+                        <small class="console-running">Тест @_activeTestIndex из @_activeTestCount</small>
+                    }
+                    else if (_results.Count > 0)
                     {
                         <strong class="@(_results.All(result => result.Passed) ? "passed" : "failed")">@_results.Count(result => result.Passed) / @_results.Count</strong>
                     }
@@ -240,7 +247,7 @@ else
                 </div>
                 @if (_results.Count == 0)
                 {
-                    <p class="console-placeholder">Здесь появится результат каждого открытого и скрытого теста.</p>
+                    <p class="console-placeholder">@(_running ? "Сейчас выполняется первый тест. Результаты будут добавляться по очереди." : "Здесь появится результат каждого открытого и скрытого теста.")</p>
                 }
                 else
                 {
@@ -249,7 +256,7 @@ else
                         {
                             <article class="@(result.Passed ? "pass" : "fail")">
                                 <b>@(result.Passed ? "✓" : "×")</b>
-                                <span><strong>@result.Name</strong><small>@(result.Passed ? $"получено: {result.Actual}" : (!string.IsNullOrWhiteSpace(result.Error) ? result.Error : $"ожидалось {result.Expected}, получено {result.Actual}"))</small></span>
+                                <span><strong>@ResultTitle(result)</strong><small>@ResultDetail(result)</small></span>
                             </article>
                         }
                     </div>
@@ -273,7 +280,11 @@ else
             <div class="run-panel @IntroHighlightClass(IntroHighlightTarget.RunPanel)">
                 <div class="run-summary"><span>ТЕСТОВ</span><b>@ActiveLevel.Tests.Count</b></div>
                 <section class="debug-readout" aria-label="Текущее состояние программы">
-                    <header><span>СОСТОЯНИЕ</span><b>@DebugStepLabel</b></header>
+                    <header><span>@(_activeTestCount > 0 ? $"ТЕСТ {_activeTestIndex}/{_activeTestCount}" : "СОСТОЯНИЕ")</span><b>@DebugStepLabel</b></header>
+                    @if (_activeTestCount > 0)
+                    {
+                        <div class="active-test-row"><span>@(_activeTestHidden ? "СКРЫТЫЙ" : "ТЕСТ")</span><code>@_activeTestName</code></div>
+                    }
                     <div><span>Вход</span><code>@RuntimeDisplay(_debugInput)</code></div>
                     <div><span>Сейчас</span><code>@RuntimeDisplay(_debugValue)</code></div>
                     <div class="expected-row"><span>Ожидается</span><code>@RuntimeDisplay(_debugExpected)</code></div>
@@ -290,38 +301,65 @@ else
 
     @if (ActiveIntroStep is LevelIntroStep introStep)
     {
-        <div class="level-intro-backdrop" role="presentation">
-            <section class="level-intro-modal intro-field-@introStep.FieldKind.ToString().ToLowerInvariant() intro-target-@introStep.HighlightTarget.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
-                <div class="intro-progress" aria-label="Шаг пояснения">
-                    @for (var index = 0; index < ActiveLevel.IntroSteps.Count; index++)
-                    {
-                        <i class="@(index == _introStepIndex ? "active" : index < _introStepIndex ? "complete" : "")"></i>
-                    }
-                </div>
-                <small>ПЕРЕД НАЧАЛОМ · @(_introStepIndex.GetValueOrDefault() + 1) / @ActiveLevel.IntroSteps.Count</small>
-                <h2 id="level-intro-title">@introStep.Title</h2>
-                <p>@introStep.Body</p>
-
-                @if (introStep.FieldKind != IntroFieldKind.None)
+        <div class="level-intro-backdrop" role="presentation"></div>
+        <section class="level-intro-modal intro-field-@introStep.FieldKind.ToString().ToLowerInvariant() intro-target-@introStep.HighlightTarget.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
+            <div class="intro-progress" aria-label="Шаг пояснения">
+                @for (var index = 0; index < ActiveLevel.IntroSteps.Count; index++)
                 {
-                    <div class="intro-demo-field field-@introStep.FieldKind.ToString().ToLowerInvariant()">
-                        <span>@IntroFieldKicker(introStep.FieldKind)</span>
-                        <code>@IntroFieldDisplay(introStep)</code>
+                    <i class="@(index == _introStepIndex ? "active" : index < _introStepIndex ? "complete" : "")"></i>
+                }
+            </div>
+            <small>ПЕРЕД НАЧАЛОМ · @(_introStepIndex.GetValueOrDefault() + 1) / @ActiveLevel.IntroSteps.Count</small>
+            <h2 id="level-intro-title">@introStep.Title</h2>
+            <p>@introStep.Body</p>
+
+            @if (!string.IsNullOrWhiteSpace(introStep.MediaUrl))
+            {
+                <figure class="intro-media">
+                    <img src="@introStep.MediaUrl" alt="Анимация к пояснению: @introStep.Title" loading="lazy" decoding="async" />
+                </figure>
+            }
+
+            @if (introStep.FieldKind != IntroFieldKind.None)
+            {
+                <div class="intro-demo-field field-@introStep.FieldKind.ToString().ToLowerInvariant()">
+                    <span>@IntroFieldKicker(introStep.FieldKind)</span>
+                    <code>@IntroFieldDisplay(introStep)</code>
+                </div>
+
+                @if (introStep.FieldKind == IntroFieldKind.Condition)
+                {
+                    <div class="intro-block-visual condition-usage" aria-label="Пример использования блока условия">
+                        <span class="intro-value-chip">вход: −3</span>
+                        <i class="intro-flow-arrow"></i>
+                        <div class="intro-visual-node"><small>УСЛОВИЕ</small><b>&lt; 0</b></div>
+                        <div class="intro-branch true"><b>УСЛ. ВЫП.</b><span>Задать blocked</span></div>
+                        <div class="intro-branch false"><b>УСЛ. НЕ ВЫП.</b><span>Задать valid</span></div>
                     </div>
                 }
-
-                <div class="level-intro-actions">
-                    <button type="button" class="intro-skip" @onclick="CloseLevelIntro">Пропустить</button>
-                    <div>
-                        @if (_introStepIndex > 0)
-                        {
-                            <button type="button" class="intro-back" @onclick="PreviousIntroStep">← Назад</button>
-                        }
-                        <button type="button" class="intro-next" @onclick="NextIntroStep">@(_introStepIndex == ActiveLevel.IntroSteps.Count - 1 ? "Начать уровень" : "Далее →")</button>
+                else if (introStep.FieldKind == IntroFieldKind.Loop)
+                {
+                    <div class="intro-block-visual loop-usage" aria-label="Пример использования блока цикла">
+                        <span class="intro-value-chip">вход: 3</span>
+                        <i class="intro-flow-arrow"></i>
+                        <div class="intro-visual-node"><small>ЦИКЛ</small><b>input</b></div>
+                        <div class="intro-loop-path"><b>ПОВТОР</b><span>Операция</span><i></i><strong>ВОЗВРАТ</strong></div>
+                        <div class="intro-loop-done"><b>ВЫХОД</b><span>после 3 повторов</span></div>
                     </div>
+                }
+            }
+
+            <div class="level-intro-actions">
+                <button type="button" class="intro-skip" @onclick="CloseLevelIntro">Пропустить</button>
+                <div>
+                    @if (_introStepIndex > 0)
+                    {
+                        <button type="button" class="intro-back" @onclick="PreviousIntroStep">← Назад</button>
+                    }
+                    <button type="button" class="intro-next" @onclick="NextIntroStep">@(_introStepIndex == ActiveLevel.IntroSteps.Count - 1 ? "Начать уровень" : "Далее →")</button>
                 </div>
-            </section>
-        </div>
+            </div>
+        </section>
     }
 
     @if (_showSuccess)
@@ -413,6 +451,10 @@ else
     private string _debugExpected = "—";
     private string _debugMessage = "Ожидает запуска";
     private string _debugFinalError = "";
+    private int _activeTestIndex;
+    private int _activeTestCount;
+    private string _activeTestName = "";
+    private bool _activeTestHidden;
     private int _executionGeneration;
     private HashSet<Guid> _completed = [];
     private double _connectionStartClientX;
@@ -422,6 +464,7 @@ else
     private ElementReference _canvasElement;
     private bool _canvasCentered;
     private bool _canvasNeedsRefresh;
+    private (double ClientX, double ClientY, double OldZoom, double NewZoom)? _pendingWheelZoom;
 
     private static readonly (string Id, string Label)[] OperationActions =
     [
@@ -489,6 +532,12 @@ else
             // После удаления DOM уже содержит новые границы, поэтому камера пересчитывается здесь.
             _canvasNeedsRefresh = false;
             await JS.InvokeVoidAsync("synapseCanvas.refresh", _canvasElement, CanvasOffsetX + CanvasOriginX - 100, CanvasOffsetY + CanvasOriginY - 100);
+        }
+
+        if (_pendingWheelZoom is { } wheelZoom)
+        {
+            _pendingWheelZoom = null;
+            await JS.InvokeVoidAsync("synapseCanvas.zoomAt", _canvasElement, wheelZoom.ClientX, wheelZoom.ClientY, wheelZoom.OldZoom, wheelZoom.NewZoom);
         }
     }
 
@@ -709,6 +758,10 @@ else
         _debugExpected = "—";
         _debugMessage = "Ожидает запуска";
         _debugFinalError = "";
+        _activeTestIndex = 0;
+        _activeTestCount = 0;
+        _activeTestName = "";
+        _activeTestHidden = false;
     }
 
     private void CancelExecutionVisuals()
@@ -777,47 +830,107 @@ else
         var executionGeneration = _executionGeneration;
         _running = true;
         _showSuccess = false;
-        // Сначала вычисляем все тесты, затем отдельно проигрываем короткую подсветку посещённых блоков.
+        _activeTestCount = ActiveLevel.Tests.Count;
+
+        // Результаты вычисляются заранее, но показываются только после анимации соответствующего теста.
         var computed = Runner.RunAll(_program, ActiveLevel).ToList();
-        var animationTest = ActiveLevel.Tests.FirstOrDefault(item => !item.Hidden) ?? ActiveLevel.Tests[0];
-        var animation = Runner.Run(_program, animationTest.Input);
-        var animationResult = computed.FirstOrDefault(result => result.TestId == animationTest.Id);
-        _debugSteps = animation.Steps.Take(80).ToList();
-        _debugFinalError = animation.Error;
-        if (string.IsNullOrWhiteSpace(_debugFinalError) && animationResult is { Passed: false })
-            _debugFinalError = $"Получено «{RuntimeDisplay(animationResult.Actual)}», ожидалось «{RuntimeDisplay(animationResult.Expected)}»";
-        _debugInput = animationTest.Input;
-        _debugValue = animationTest.Input;
-        _debugExpected = animationTest.ExpectedOutput;
-        _hasDebugExpectation = true;
-        for (var index = 0; index < _debugSteps.Count; index++)
+
+        for (var testIndex = 0; testIndex < ActiveLevel.Tests.Count; testIndex++)
         {
             if (executionGeneration != _executionGeneration) return;
-            var step = _debugSteps[index];
-            _previousExecutionNode = _activeExecutionNode;
-            _activeExecutionNode = step.NodeId;
-            _debugStepIndex = index;
-            _debugValue = step.Output;
-            _debugMessage = step.Detail;
-            _runtimeValues[step.NodeId] = step.Output;
+
+            var test = ActiveLevel.Tests[testIndex];
+            var result = computed[testIndex];
+            var execution = Runner.Run(_program, test.Input);
+            _activeTestIndex = testIndex + 1;
+            _activeTestHidden = test.Hidden;
+            _activeTestName = test.Hidden ? $"Скрытая проверка {_activeTestIndex}" : test.Name;
+            _debugSteps = execution.Steps.Take(80).ToList();
+            _debugStepIndex = -1;
+            _debugFinalError = execution.Error;
+            if (!result.Passed)
+            {
+                var mismatch = $"Вход «{RuntimeDisplay(test.Input)}»: получено «{RuntimeDisplay(result.Actual)}», ожидалось «{RuntimeDisplay(result.Expected)}»";
+                _debugFinalError = string.IsNullOrWhiteSpace(_debugFinalError) ? mismatch : $"{_debugFinalError} {mismatch}";
+            }
+            _debugInput = test.Hidden ? "•••" : test.Input;
+            _debugValue = test.Hidden ? "•••" : test.Input;
+            _debugExpected = test.Hidden ? "•••" : test.ExpectedOutput;
+            _debugMessage = $"Подготовка теста {_activeTestIndex} из {_activeTestCount}";
+            _hasDebugExpectation = true;
+            _activeExecutionNode = null;
+            _previousExecutionNode = null;
+            _executionErrorNode = null;
+            _executedNodes.Clear();
+            _runtimeValues.Clear();
             StateHasChanged();
-            await Task.Delay(160);
+
+            await Task.Delay(260);
             if (executionGeneration != _executionGeneration) return;
-            _executedNodes.Add(step.NodeId);
+
+            var stepDelay = Math.Clamp(1300 / Math.Max(1, _debugSteps.Count), 90, 170);
+            for (var stepIndex = 0; stepIndex < _debugSteps.Count; stepIndex++)
+            {
+                if (executionGeneration != _executionGeneration) return;
+                var step = _debugSteps[stepIndex];
+                _previousExecutionNode = _activeExecutionNode;
+                _activeExecutionNode = step.NodeId;
+                _debugStepIndex = stepIndex;
+                _debugValue = test.Hidden ? "•••" : step.Output;
+                _debugMessage = step.Detail;
+                _runtimeValues[step.NodeId] = test.Hidden ? "•••" : step.Output;
+                StateHasChanged();
+
+                await Task.Delay(stepDelay);
+                if (executionGeneration != _executionGeneration) return;
+                _executedNodes.Add(step.NodeId);
+            }
+
+            _activeExecutionNode = null;
+            _previousExecutionNode = null;
+            if (!result.Passed && result.VisitedNodes.Count > 0)
+                _executionErrorNode = result.VisitedNodes[^1];
+            if (test.Hidden && !result.Passed)
+            {
+                // После провала скрытая проверка становится учебным примером:
+                // ребёнок видит данные и может пересобрать схему осознанно.
+                _debugInput = test.Input;
+                _debugValue = result.Actual;
+                _debugExpected = test.ExpectedOutput;
+                foreach (var step in _debugSteps)
+                    _runtimeValues[step.NodeId] = step.Output;
+            }
+            _results.Add(result);
+            _debugMessage = result.Passed
+                ? $"Тест {_activeTestIndex} из {_activeTestCount} пройден"
+                : $"Тест {_activeTestIndex} из {_activeTestCount}: {_debugFinalError}";
+            StateHasChanged();
+
+            // Короткая остановка даёт ребёнку увидеть результат текущего теста до следующего запуска.
+            await Task.Delay(480);
         }
+
         if (executionGeneration != _executionGeneration) return;
         _activeExecutionNode = null;
         _previousExecutionNode = null;
-        _debugMessage = string.IsNullOrWhiteSpace(_debugFinalError) ? "Прогон завершён" : $"Ошибка: {_debugFinalError}";
-        var failed = computed.FirstOrDefault(result => !result.Passed);
-        _executionErrorNode = failed?.VisitedNodes.LastOrDefault();
-        _results = computed;
         _running = false;
         _stepSessionFinished = true;
+        var failed = _results.FirstOrDefault(result => !result.Passed);
+        if (failed is not null && failed.VisitedNodes.Count > 0)
+            _executionErrorNode = failed.VisitedNodes[^1];
+        _debugFinalError = failed is null ? "" : ResultDetail(failed);
+        _debugMessage = failed is null
+            ? $"Все {_results.Count} тестов пройдены"
+            : $"Прогон завершён: пройдено {_results.Count(result => result.Passed)} из {_results.Count}";
+        StateHasChanged();
+
         if (_results.Count > 0 && _results.All(result => result.Passed))
         {
             _completed.Add(ActiveLevel.Id);
             await ProgressStore.CompleteAsync(ActiveLevel.Id);
+            // Финальный результат остаётся на экране перед сюжетным окном завершения.
+            await Task.Delay(560);
+            if (executionGeneration != _executionGeneration) return;
             _showSuccess = true;
         }
     }
@@ -850,11 +963,22 @@ else
             ShowLevelIntro();
             return;
         }
-        Navigation.NavigateTo("/");
+        Navigation.NavigateTo(Navigation.BaseUri);
     }
 
     private void ZoomIn() => _zoom = Math.Min(1.3, _zoom + .1);
     private void ZoomOut() => _zoom = Math.Max(.6, _zoom - .1);
+
+    private void ZoomWithWheel(WheelEventArgs args)
+    {
+        var oldZoom = _zoom;
+        var direction = args.DeltaY < 0 ? .1 : -.1;
+        var newZoom = Math.Clamp(Math.Round((oldZoom + direction) * 10) / 10, .6, 1.3);
+        if (Math.Abs(newZoom - oldZoom) < .001) return;
+
+        _zoom = newZoom;
+        _pendingWheelZoom = (args.ClientX, args.ClientY, oldZoom, newZoom);
+    }
 
     private static double NodeHeight(BlockKind kind) => kind switch
     {
@@ -976,6 +1100,30 @@ else
 
     private bool IsWireActive(BlockConnection edge)
         => _previousExecutionNode == edge.FromNodeId && _activeExecutionNode == edge.ToNodeId;
+
+    private bool IsHiddenResult(TestRunResult result)
+        => ActiveLevel?.Tests.FirstOrDefault(test => test.Id == result.TestId)?.Hidden == true;
+
+    private string ResultTitle(TestRunResult result)
+    {
+        if (!IsHiddenResult(result)) return result.Name;
+        var index = ActiveLevel?.Tests.FindIndex(test => test.Id == result.TestId) ?? -1;
+        return $"Скрытая проверка {(index >= 0 ? index + 1 : 0)}";
+    }
+
+    private string ResultDetail(TestRunResult result)
+    {
+        if (IsHiddenResult(result))
+        {
+            if (result.Passed) return "скрытая проверка пройдена";
+            var values = $"вход: {RuntimeDisplay(result.Input)} · ожидалось: {RuntimeDisplay(result.Expected)} · получено: {RuntimeDisplay(result.Actual)}";
+            return string.IsNullOrWhiteSpace(result.Error) ? values : $"{result.Error} · {values}";
+        }
+        if (result.Passed) return $"получено: {result.Actual}";
+        return !string.IsNullOrWhiteSpace(result.Error)
+            ? result.Error
+            : $"ожидалось {result.Expected}, получено {result.Actual}";
+    }
 
     private static string RuntimeDisplay(string value)
         => string.IsNullOrEmpty(value) ? "∅ пусто" : value;

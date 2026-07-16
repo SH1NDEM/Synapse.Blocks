@@ -1,0 +1,70 @@
+@page "/admin"
+@layout AdminLayout
+@inject LevelStore LevelStore
+
+<PageTitle>Панель разработчика — Синапс</PageTitle>
+
+@if (_loading)
+{
+    <div class="page-loading"><span></span><p>Открываю панель разработчика…</p></div>
+}
+else
+{
+    <section class="admin-page">
+        <header class="admin-hero">
+            <div>
+                <small>РЕЖИМ РАЗРАБОТЧИКА</small>
+                <h1>Кампания<br /><em>под вашим контролем.</em></h1>
+                <p>Создавайте задания, задавайте тесты и добавляйте пояснения перед началом уровней. Дети в своей части сайта видят только игру и прохождение кампании.</p>
+            </div>
+            <div class="admin-hero-actions">
+                <a class="admin-primary" href="editor">Открыть редактор <span>→</span></a>
+                <a class="admin-secondary" href="">Посмотреть детскую версию</a>
+            </div>
+        </header>
+
+        <section class="admin-stats" aria-label="Состояние кампании">
+            <article><small>УРОВНЕЙ</small><strong>@_levels.Count</strong><span>в кампании</span></article>
+            <article><small>ПРОВЕРОК</small><strong>@TestCount</strong><span>всего тестов</span></article>
+            <article><small>ПОЯСНЕНИЙ</small><strong>@IntroCount</strong><span>перед уровнями</span></article>
+            <article><small>ГЛАВ</small><strong>@ChapterCount</strong><span>сюжетных секторов</span></article>
+        </section>
+
+        <section class="admin-workflow">
+            <div class="admin-section-heading"><small>// РАБОЧИЙ ПРОЦЕСС</small><h2>Что можно делать здесь</h2></div>
+            <div class="admin-action-grid">
+                <a class="admin-action-card accent-green" href="editor">
+                    <span>01</span><h3>Создать уровень</h3><p>Опишите задачу, входные и выходные данные, сюжет и допустимые блоки.</p><b>К редактору →</b>
+                </a>
+                <a class="admin-action-card accent-blue" href="editor">
+                    <span>02</span><h3>Настроить проверку</h3><p>Добавьте открытые и скрытые тесты. Игра сама сравнит результат программы с ожидаемым ответом.</p><b>Редактировать тесты →</b>
+                </a>
+                <a class="admin-action-card accent-purple" href="editor">
+                    <span>03</span><h3>Объяснить перед стартом</h3><p>Соберите всплывающие пояснения и подсветите нужные части игрового интерфейса.</p><b>Добавить пояснение →</b>
+                </a>
+                <a class="admin-action-card accent-amber" href="game">
+                    <span>04</span><h3>Проверить как игрок</h3><p>Откройте кампанию, соберите решение блоками и убедитесь, что все тесты проходят.</p><b>Запустить игру →</b>
+                </a>
+            </div>
+        </section>
+
+        <aside class="admin-local-note">
+            <i>i</i>
+            <p><b>Где сохраняются изменения.</b> Сейчас уровни редактора сохраняются в браузере этого устройства. Для общей кампании на GitHub Pages экспортируйте JSON или добавим облачное хранилище в следующем этапе.</p>
+        </aside>
+    </section>
+}
+
+@code {
+    private List<LevelDefinition> _levels = [];
+    private bool _loading = true;
+    private int TestCount => _levels.Sum(level => level.Tests.Count);
+    private int IntroCount => _levels.Sum(level => level.IntroSteps.Count);
+    private int ChapterCount => _levels.Select(level => level.Chapter).Distinct().Count();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _levels = await LevelStore.LoadAsync();
+        _loading = false;
+    }
+}
