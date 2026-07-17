@@ -6,7 +6,19 @@ public enum BlockKind
     Operation,
     Condition,
     Loop,
+    Variable,
+    VariableAction,
     Output
+}
+
+public enum VariableAction
+{
+    Read,
+    Set,
+    Add,
+    Subtract,
+    Multiply,
+    Append
 }
 
 public enum OutputPort
@@ -98,6 +110,10 @@ public sealed class BlockNode
     public Guid Id { get; set; } = Guid.NewGuid();
     public BlockKind Kind { get; set; }
     public string Config { get; set; } = "";
+    public string VariableName { get; set; } = "счётчик";
+    public string VariableInitialValue { get; set; } = "0";
+    public VariableAction VariableAction { get; set; }
+    public string VariableOperand { get; set; } = "";
     public double X { get; set; }
     public double Y { get; set; }
 }
@@ -132,7 +148,9 @@ public sealed record ExecutionStep(
     BlockKind Kind,
     string Input,
     string Output,
-    string Detail);
+    string Detail,
+    string VariableName = "",
+    string VariableValue = "");
 
 public sealed record TestRunResult(
     Guid TestId,
@@ -152,6 +170,8 @@ public static class BlockCatalog
         BlockKind.Operation => "Операция",
         BlockKind.Condition => "Условие",
         BlockKind.Loop => "Цикл",
+        BlockKind.Variable => "Переменная",
+        BlockKind.VariableAction => "Работа с переменной",
         BlockKind.Output => "Выход",
         _ => kind.ToString()
     };
@@ -162,6 +182,8 @@ public static class BlockCatalog
         BlockKind.Operation => "КОМАНДА",
         BlockKind.Condition => "ВЕТВЛЕНИЕ",
         BlockKind.Loop => "ПОВТОР",
+        BlockKind.Variable => "ПАМЯТЬ",
+        BlockKind.VariableAction => "ПЕРЕМЕННАЯ",
         BlockKind.Output => "РЕЗУЛЬТАТ",
         _ => "БЛОК"
     };
@@ -172,6 +194,8 @@ public static class BlockCatalog
         BlockKind.Operation => "Изменяет значение по команде",
         BlockKind.Condition => "Выбирает синюю или красную ветку",
         BlockKind.Loop => "Повторяет цепочку заданное число раз",
+        BlockKind.Variable => "Хранит значение во время запуска программы",
+        BlockKind.VariableAction => "Читает или изменяет выбранную переменную",
         BlockKind.Output => "Возвращает итог для проверки",
         _ => ""
     };
@@ -181,6 +205,8 @@ public static class BlockCatalog
         BlockKind.Operation => "+ 2, * 3, set готово, append !",
         BlockKind.Condition => "> 20, == ключ, contains ошибка",
         BlockKind.Loop => "input или число повторов",
+        BlockKind.Variable => "имя и начальное значение",
+        BlockKind.VariableAction => "выберите переменную и действие",
         _ => ""
     };
 }

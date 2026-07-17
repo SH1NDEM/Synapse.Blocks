@@ -217,7 +217,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadAsync();
+        _levels = await LevelStore.LoadEditorAsync();
         _selectedId = _levels.FirstOrDefault()?.Id;
         _loading = false;
     }
@@ -472,7 +472,7 @@ else
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Заменить текущие уровни тремя примерами?")) return;
         await LevelStore.ResetAsync();
-        _levels = await LevelStore.LoadAsync();
+        _levels = await LevelStore.LoadEditorAsync();
         _selectedId = _levels.First().Id;
         _message = "Примеры восстановлены.";
         _messageIsError = false;

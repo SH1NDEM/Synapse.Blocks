@@ -2,7 +2,7 @@
 
 <div class="library-node-stage stage-@Kind.ToString().ToLowerInvariant()" style="@StageStyle">
     <article class="node-card preview-node node-@Kind.ToString().ToLowerInvariant()" style="@NodeStyle">
-        @if (Kind != BlockKind.Input)
+        @if (Kind is not BlockKind.Input and not BlockKind.Variable)
         {
             <span class="node-port input-port"><i></i><span>@(Kind == BlockKind.Loop ? "данные" : "вход")</span></span>
         }
@@ -23,6 +23,18 @@
         {
             <div class="node-config operation-config has-value"><span>ДЕЙСТВИЕ</span><select><option>Умножить</option></select><input value="2" readonly /></div>
         }
+        else if (Kind == BlockKind.Variable)
+        {
+            <div class="node-config variable-plaque-config"><label><span>ИМЯ</span><input value="счётчик" readonly /></label><label><span>НАЧАЛО</span><input value="0" readonly /></label></div>
+        }
+        else if (Kind == BlockKind.Loop)
+        {
+            <div class="node-config loop-config"><span>ПОВТОРЫ</span><div class="loop-source-toggle"><button type="button" class="active">Вход</button><button type="button">Своё</button></div></div>
+        }
+        else if (Kind == BlockKind.VariableAction)
+        {
+            <div class="node-config variable-action-config"><span>ПЕРЕМЕННАЯ</span><select><option>счётчик</option></select><select><option>Прибавить</option></select><input value="2" readonly /></div>
+        }
         else
         {
             <div class="node-config"><span>@(Kind == BlockKind.Condition ? "ПРОВЕРКА" : "ПОВТОРЫ")</span><input value="@(Kind == BlockKind.Condition ? "> 20" : "input")" readonly /></div>
@@ -39,7 +51,7 @@
             <span class="node-port output-port repeat-port"><span>повтор</span><i></i></span>
             <span class="node-port loop-return-port"><i></i><span>возврат</span></span>
         }
-        else if (Kind != BlockKind.Output)
+        else if (Kind is not BlockKind.Output and not BlockKind.Variable)
         {
             <span class="node-port output-port"><span>выход</span><i></i></span>
         }
@@ -56,9 +68,9 @@
     private const double Scale = .8;
     private const double Width = 224;
     // Высоты совпадают с редактором: миниатюра отличается только масштабом 80%.
-    private double Height => Kind switch { BlockKind.Condition => 150, BlockKind.Loop => 152, _ => 126 };
-    private double LeftExtent => Kind == BlockKind.Input ? 0 : 56;
-    private double RightExtent => Kind switch { BlockKind.Condition => 94, BlockKind.Loop => 82, BlockKind.Output => 0, _ => 56 };
+    private double Height => Kind switch { BlockKind.Condition => 150, BlockKind.Loop => 166, BlockKind.Variable => 132, BlockKind.VariableAction => 176, _ => 126 };
+    private double LeftExtent => Kind is BlockKind.Input or BlockKind.Variable ? 0 : 56;
+    private double RightExtent => Kind switch { BlockKind.Condition => 94, BlockKind.Loop => 82, BlockKind.Output or BlockKind.Variable => 0, _ => 56 };
     private double BottomExtent => Kind == BlockKind.Loop ? 56 : 0;
     private string StageStyle => FormattableString.Invariant($"width:{(Width + LeftExtent + RightExtent) * Scale}px;height:{(Height + BottomExtent) * Scale}px");
     private string NodeStyle => FormattableString.Invariant($"left:{LeftExtent * Scale}px;top:0;width:{Width}px;height:{Height}px");

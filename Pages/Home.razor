@@ -132,7 +132,7 @@ else
                             {
                                 var wirePath = ConnectionPath(from, to, edge);
                                 <path class="wire-hit" d="@wirePath" @onclick="() => RemoveConnection(edge.Id)" />
-                                <path class="wire-line port-@edge.Port.ToString().ToLowerInvariant() @WireExecutionClass(edge)" d="@wirePath" />
+                                <path class="wire-line port-@edge.Port.ToString().ToLowerInvariant() target-@edge.TargetPort.ToString().ToLowerInvariant() @WireExecutionClass(edge)" d="@wirePath" />
                                 @if (IsWireActive(edge))
                                 {
                                     <circle class="wire-particle" r="4">
@@ -155,7 +155,7 @@ else
                     {
                         <article class="node-card node-@node.Kind.ToString().ToLowerInvariant() @ResultClass(node.Id)"
                                  style="@NodeStyle(node)">
-                            @if (node.Kind != BlockKind.Input)
+                            @if (node.Kind is not BlockKind.Input and not BlockKind.Variable)
                             {
                                 <button type="button" class="node-port input-port" title="Вход" aria-label="Вход" @onpointerup="() => FinishConnection(node.Id, TargetPort.Main)" @onpointerup:stopPropagation="true"><i></i><span>@(node.Kind == BlockKind.Loop ? "данные" : "вход")</span></button>
                             }
@@ -169,6 +169,13 @@ else
                             @if (node.Kind == BlockKind.Input)
                             {
                                 <div class="node-config readonly"><span>ПОЛУЧАЕТ</span><b>данные теста</b></div>
+                            }
+                            else if (node.Kind == BlockKind.Variable)
+                            {
+                                <div class="node-config variable-plaque-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <label><span>ИМЯ</span><input value="@node.VariableName" @oninput="e => ChangeVariableName(node, e)" aria-label="Имя переменной" /></label>
+                                    <label><span>НАЧАЛО</span><input value="@node.VariableInitialValue" @oninput="e => ChangeVariableInitialValue(node, e)" aria-label="Начальное значение переменной" /></label>
+                                </div>
                             }
                             else if (node.Kind == BlockKind.Output)
                             {
@@ -193,6 +200,42 @@ else
                                     }
                                 </div>
                             }
+                            else if (node.Kind == BlockKind.Loop)
+                            {
+                                <div class="node-config loop-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <span>ПОВТОРЫ</span>
+                                    <div class="loop-source-toggle">
+                                        <button type="button" class="@(LoopUsesInput(node.Config) ? "active" : "")" @onclick="() => SetLoopMode(node, true)">Вход</button>
+                                        <button type="button" class="@(!LoopUsesInput(node.Config) ? "active" : "")" @onclick="() => SetLoopMode(node, false)">Своё</button>
+                                    </div>
+                                    @if (!LoopUsesInput(node.Config))
+                                    {
+                                        <input type="number" min="0" max="1000" value="@LoopCountValue(node.Config)" @oninput="e => ChangeLoopCount(node, e)" aria-label="Количество повторов" />
+                                    }
+                                </div>
+                            }
+                            else if (node.Kind == BlockKind.VariableAction)
+                            {
+                                <div class="node-config variable-action-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <span>ПЕРЕМЕННАЯ</span>
+                                    <select value="@node.VariableName" @onchange="e => ChangeVariableActionName(node, e)">
+                                        @foreach (var variableName in VariableNamesFor(node))
+                                        {
+                                            <option value="@variableName">@variableName</option>
+                                        }
+                                    </select>
+                                    <select value="@node.VariableAction" @onchange="e => ChangeVariableActionMode(node, e)">
+                                        @foreach (var action in VariableActions)
+                                        {
+                                            <option value="@action.Action">@action.Label</option>
+                                        }
+                                    </select>
+                                    @if (node.VariableAction != VariableAction.Read)
+                                    {
+                                        <input value="@node.VariableOperand" @oninput="e => ChangeVariableOperand(node, e)" placeholder="значение или вход" aria-label="Значение для переменной" />
+                                    }
+                                </div>
+                            }
                             else
                             {
                                 <label class="node-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
@@ -210,7 +253,6 @@ else
                             {
                                 <button type="button" class="node-port output-port done-port" title="Выход из цикла" aria-label="Выход из цикла" @onpointerdown="e => StartConnection(node, OutputPort.Done, e)" @onpointerdown:stopPropagation="true"><i></i><span>выход</span></button>
                                 <button type="button" class="node-port output-port repeat-port" title="Повтор цикла" aria-label="Повтор цикла" @onpointerdown="e => StartConnection(node, OutputPort.Repeat, e)" @onpointerdown:stopPropagation="true"><i></i><span>повтор</span></button>
-                                <button type="button" class="node-port loop-return-port" title="Возврат в цикл" aria-label="Возврат в цикл" @onpointerup="() => FinishConnection(node.Id, TargetPort.Return)" @onpointerup:stopPropagation="true"><i></i><span>возврат</span></button>
                             }
                             else if (node.Kind is not BlockKind.Output and not BlockKind.Variable)
                             {
@@ -478,6 +520,16 @@ else
         ("count", "Посчитать элементы")
     ];
 
+    private static readonly (VariableAction Action, string Label)[] VariableActions =
+    [
+        (VariableAction.Read, "Прочитать"),
+        (VariableAction.Set, "Задать"),
+        (VariableAction.Add, "Прибавить"),
+        (VariableAction.Subtract, "Вычесть"),
+        (VariableAction.Multiply, "Умножить"),
+        (VariableAction.Append, "Добавить текст")
+    ];
+
     private LevelDefinition? ActiveLevel => _levels.FirstOrDefault(level => level.Id == _activeLevelId) ?? _levels.FirstOrDefault();
     private LevelIntroStep? ActiveIntroStep => ActiveLevel is { } level && _introStepIndex is int index && index >= 0 && index < level.IntroSteps.Count
         ? level.IntroSteps[index]
@@ -507,7 +559,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadAsync();
+        _levels = await LevelStore.LoadGameAsync();
         _completed = await ProgressStore.LoadAsync();
         _activeLevelId = RequestedLevel is Guid requested && _levels.Any(level => level.Id == requested)
             ? requested
@@ -567,6 +619,9 @@ else
                 BlockKind.Loop => "input",
                 _ => ""
             },
+            VariableName = NextVariableName(),
+            VariableInitialValue = "0",
+            VariableAction = VariableAction.Read,
             X = nodeX,
             Y = nodeY
         });
@@ -728,6 +783,77 @@ else
         ResetExecution();
     }
 
+    private static bool LoopUsesInput(string config)
+        => config.Trim().Equals("input", StringComparison.OrdinalIgnoreCase)
+            || config.Trim().Equals("вход", StringComparison.OrdinalIgnoreCase);
+
+    private static string LoopCountValue(string config)
+        => LoopUsesInput(config) ? "1" : config;
+
+    private void SetLoopMode(BlockNode node, bool useInput)
+    {
+        node.Config = useInput ? "input" : (LoopUsesInput(node.Config) ? "1" : node.Config);
+        ResetExecution();
+    }
+
+    private void ChangeLoopCount(BlockNode node, ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString() ?? "";
+        node.Config = string.IsNullOrWhiteSpace(value) ? "0" : value;
+        ResetExecution();
+    }
+
+    private string NextVariableName()
+    {
+        var index = 1;
+        while (_program.Nodes.Any(node => node.Kind == BlockKind.Variable && string.Equals(node.VariableName, $"переменная {index}", StringComparison.OrdinalIgnoreCase)))
+            index++;
+        return $"переменная {index}";
+    }
+
+    private IEnumerable<string> VariableNamesFor(BlockNode node)
+    {
+        var names = _program.Nodes
+            .Where(item => item.Kind == BlockKind.Variable && !string.IsNullOrWhiteSpace(item.VariableName))
+            .Select(item => item.VariableName.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (!string.IsNullOrWhiteSpace(node.VariableName) && !names.Contains(node.VariableName, StringComparer.OrdinalIgnoreCase))
+            names.Add(node.VariableName);
+        return names.Count > 0 ? names : ["переменная 1"];
+    }
+
+    private void ChangeVariableName(BlockNode node, ChangeEventArgs args)
+    {
+        node.VariableName = args.Value?.ToString() ?? "";
+        ResetExecution();
+    }
+
+    private void ChangeVariableInitialValue(BlockNode node, ChangeEventArgs args)
+    {
+        node.VariableInitialValue = args.Value?.ToString() ?? "";
+        ResetExecution();
+    }
+
+    private void ChangeVariableActionName(BlockNode node, ChangeEventArgs args)
+    {
+        node.VariableName = args.Value?.ToString() ?? "";
+        ResetExecution();
+    }
+
+    private void ChangeVariableActionMode(BlockNode node, ChangeEventArgs args)
+    {
+        if (Enum.TryParse<VariableAction>(args.Value?.ToString(), out var action))
+            node.VariableAction = action;
+        ResetExecution();
+    }
+
+    private void ChangeVariableOperand(BlockNode node, ChangeEventArgs args)
+    {
+        node.VariableOperand = args.Value?.ToString() ?? "";
+        ResetExecution();
+    }
+
     private void ClearProgram()
     {
         _program.Nodes.Clear();
@@ -806,7 +932,7 @@ else
         _previousExecutionNode = _activeExecutionNode;
         var step = _debugSteps[++_debugStepIndex];
         _activeExecutionNode = step.NodeId;
-        _runtimeValues[step.NodeId] = step.Output;
+        ApplyRuntimeStep(step, step.Output);
         _debugValue = step.Output;
         _debugMessage = step.Detail;
         _executedNodes.Add(step.NodeId);
@@ -878,7 +1004,7 @@ else
                 _debugStepIndex = stepIndex;
                 _debugValue = test.Hidden ? "•••" : step.Output;
                 _debugMessage = step.Detail;
-                _runtimeValues[step.NodeId] = test.Hidden ? "•••" : step.Output;
+                ApplyRuntimeStep(step, test.Hidden ? "•••" : step.Output);
                 StateHasChanged();
 
                 await Task.Delay(stepDelay);
@@ -898,7 +1024,7 @@ else
                 _debugValue = result.Actual;
                 _debugExpected = test.ExpectedOutput;
                 foreach (var step in _debugSteps)
-                    _runtimeValues[step.NodeId] = step.Output;
+                    ApplyRuntimeStep(step, step.Output);
             }
             _results.Add(result);
             _debugMessage = result.Passed
@@ -983,17 +1109,19 @@ else
     private static double NodeHeight(BlockKind kind) => kind switch
     {
         BlockKind.Condition => 150,
-        BlockKind.Loop => 152,
+        BlockKind.Loop => 166,
+        BlockKind.Variable => 132,
+        BlockKind.VariableAction => 176,
         _ => 126
     };
 
-    private static double NodeLeftExtent(BlockKind kind) => kind == BlockKind.Input ? 0 : 56;
+    private static double NodeLeftExtent(BlockKind kind) => kind is BlockKind.Input or BlockKind.Variable ? 0 : 56;
 
     private static double NodeRightExtent(BlockKind kind) => kind switch
     {
         BlockKind.Condition => 94,
         BlockKind.Loop => 82,
-        BlockKind.Output => 0,
+        BlockKind.Output or BlockKind.Variable => 0,
         _ => 56
     };
 
@@ -1006,7 +1134,7 @@ else
         (BlockKind.Condition, OutputPort.True) => 44,
         (BlockKind.Condition, OutputPort.False) => 103,
         (BlockKind.Loop, OutputPort.Done) => 42,
-        (BlockKind.Loop, OutputPort.Repeat) => 105,
+        (BlockKind.Loop, OutputPort.Repeat) => 112,
         _ => NodeHeight(kind) / 2
     };
 
@@ -1058,9 +1186,18 @@ else
         var y2 = returnTarget ? to.Y + CanvasOffsetY + NodeHeight(to.Kind) : to.Y + CanvasOffsetY + NodeHeight(to.Kind) / 2;
         if (returnTarget)
         {
-            var vertical = Math.Clamp(Math.Abs(y2 - y1) * .35, 26, 82);
-            var horizontal = Math.Clamp(Math.Abs(x2 - x1) * .26, 18, 72);
-            return FormattableString.Invariant($"M {x1} {y1} C {x1 + horizontal} {y1}, {x2} {y2 + vertical}, {x2} {y2}");
+            // Возврат всегда идёт ниже цепочки: он не перечёркивает блоки между действием и циклом.
+            var left = Math.Min(from.X, to.X) - 20;
+            var right = Math.Max(from.X + NodeWidth, to.X + NodeWidth) + 20;
+            var lowestBlockingNode = _program.Nodes
+                .Where(node => node.X + NodeWidth >= left && node.X <= right)
+                .Select(node => node.Y + NodeHeight(node.Kind) + NodeBottomExtent(node.Kind) + CanvasOffsetY)
+                .DefaultIfEmpty(Math.Max(y1, y2))
+                .Max();
+            var routeY = Math.Max(lowestBlockingNode + 70, Math.Max(y1, y2) + 76);
+            var exitX = x1 + 56;
+            var approach = 50d;
+            return FormattableString.Invariant($"M {x1} {y1} C {x1 + 28} {y1}, {exitX} {y1 + 28}, {exitX} {y1 + 54} C {exitX} {routeY - 34}, {exitX - 18} {routeY}, {exitX - 2} {routeY} C {exitX - 2 - Math.Abs(exitX - x2) * .42} {routeY}, {x2 + Math.Abs(exitX - x2) * .42} {routeY}, {x2} {routeY} C {x2} {routeY}, {x2} {y2 + approach}, {x2} {y2}");
         }
         return BezierPath(x1, y1, x2, y2);
     }
@@ -1085,6 +1222,19 @@ else
 
         var outward = Math.Clamp(24 + Math.Abs(dy) * .12, 24, 64);
         return FormattableString.Invariant($"M {x1} {y1} C {x1 + outward} {y1}, {x2 - outward} {y2}, {x2} {y2}");
+    }
+
+    private void ApplyRuntimeStep(ExecutionStep step, string displayedValue)
+    {
+        _runtimeValues[step.NodeId] = displayedValue;
+        if (string.IsNullOrWhiteSpace(step.VariableName)) return;
+
+        foreach (var plaque in _program.Nodes.Where(node =>
+                     node.Kind == BlockKind.Variable
+                     && string.Equals(node.VariableName.Trim(), step.VariableName, StringComparison.OrdinalIgnoreCase)))
+        {
+            _runtimeValues[plaque.Id] = displayedValue == "•••" ? "•••" : step.VariableValue;
+        }
     }
 
     private string ResultClass(Guid nodeId)
@@ -1134,6 +1284,8 @@ else
         BlockKind.Operation => "Изменяет текущее значение. Действие выбирается из списка, а параметр вводится в отдельном поле.",
         BlockKind.Condition => "Сравнивает входное значение и направляет выполнение по синей или красной ветке.",
         BlockKind.Loop => "Повторяет подключённую цепочку заданное число раз и после каждого шага принимает возврат снизу.",
+        BlockKind.Variable => "Плашка памяти. Она задаёт имя и начальное значение переменной для каждого запуска теста.",
+        BlockKind.VariableAction => "Читает или изменяет переменную. Пустое поле значения берёт данные из входящего потока.",
         BlockKind.Output => "Завершает программу и отправляет фактический результат в систему тестов.",
         _ => ""
     };
@@ -1142,6 +1294,7 @@ else
     {
         BlockKind.Input => "Данные выдаёт уровень — внешнего входа нет.",
         BlockKind.Loop => "Слева — данные, снизу — возврат после повтора.",
+        BlockKind.Variable => "Портов нет: это плашка памяти, а не часть пути выполнения.",
         _ => "Значение от предыдущего блока."
     };
 
@@ -1150,6 +1303,7 @@ else
         BlockKind.Output => "Выходов нет — программа завершена.",
         BlockKind.Condition => "Синий — условие верно, красный — неверно.",
         BlockKind.Loop => "Сверху — выход, ниже — следующий повтор.",
+        BlockKind.Variable => "Портов нет. Блок работы с переменной выбирает её по имени.",
         _ => "Одно значение для следующего блока."
     };
 
@@ -1159,6 +1313,8 @@ else
         BlockKind.Operation => ["Подключите вход.", "Выберите действие в меню.", "Если появилось поле — задайте значение.", "Передайте результат дальше."],
         BlockKind.Condition => ["Подайте значение на вход.", "Напишите только проверку, например > 20.", "Подключите синюю и красную ветки."],
         BlockKind.Loop => ["Подайте данные слева.", "Выберите input или своё число.", "Выход «повтор» соедините с действием.", "Верните действие в нижний порт.", "Верхний выход ведите дальше."],
+        BlockKind.Variable => ["Поставьте плашку рядом со схемой.", "Введите уникальное имя.", "Задайте начальное значение для нового теста.", "Не соединяйте её проводами."],
+        BlockKind.VariableAction => ["Подключите блок к потоку.", "Выберите созданную плашку переменной.", "Выберите чтение или изменение.", "Оставьте значение пустым, чтобы взять входящие данные."],
         BlockKind.Output => ["Поставьте блок в конце.", "Подключите итоговое значение.", "Запустите все тесты уровня."],
         _ => []
     };
