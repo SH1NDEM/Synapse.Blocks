@@ -212,7 +212,7 @@ else
                                 <button type="button" class="node-port output-port repeat-port" title="Повтор цикла" aria-label="Повтор цикла" @onpointerdown="e => StartConnection(node, OutputPort.Repeat, e)" @onpointerdown:stopPropagation="true"><i></i><span>повтор</span></button>
                                 <button type="button" class="node-port loop-return-port" title="Возврат в цикл" aria-label="Возврат в цикл" @onpointerup="() => FinishConnection(node.Id, TargetPort.Return)" @onpointerup:stopPropagation="true"><i></i><span>возврат</span></button>
                             }
-                            else if (node.Kind != BlockKind.Output)
+                            else if (node.Kind is not BlockKind.Output and not BlockKind.Variable)
                             {
                                 <button type="button" class="node-port output-port" title="Выход" aria-label="Выход" @onpointerdown="e => StartConnection(node, OutputPort.Next, e)" @onpointerdown:stopPropagation="true"><i></i><span>выход</span></button>
                             }
