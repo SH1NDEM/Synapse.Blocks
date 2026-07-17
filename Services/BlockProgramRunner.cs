@@ -53,6 +53,17 @@ public sealed partial class BlockProgramRunner
         if (duplicateEdge is not null)
             return Fail("Из одного порта нельзя провести две связи.");
 
+        // Плашки переменных не входят в маршрут: они дают программе начальные значения.
+        var variables = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var variableNode in program.Nodes.Where(node => node.Kind == BlockKind.Variable))
+        {
+            var name = variableNode.VariableName.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                return Fail("У плашки переменной нужно указать имя.");
+            if (!variables.TryAdd(name, ParseValue(variableNode.VariableInitialValue)))
+                return Fail($"Переменная «{name}» добавлена дважды. Оставьте одну плашку с этим именем.");
+        }
+
         object? value = ParseValue(rawInput);
         var visited = new List<Guid>();
         var steps = new List<ExecutionStep>();
@@ -67,6 +78,7 @@ public sealed partial class BlockProgramRunner
             visited.Add(executing.Id);
             switch (executing.Kind)
             {
+                    //Ввод значения
                 case BlockKind.Input:
                     if (!TryNext(executing.Id, OutputPort.Next, out current, out var inputError))
                     {
@@ -75,7 +87,8 @@ public sealed partial class BlockProgramRunner
                     }
                     steps.Add(new(executing.Id, executing.Kind, before, before, "Входные данные получены"));
                     break;
-
+                
+                    //Операция
                 case BlockKind.Operation:
                     if (!TryApplyOperation(value, executing.Config, out value, out var operationError))
                     {
@@ -87,6 +100,79 @@ public sealed partial class BlockProgramRunner
                         return Fail(nextError, visited, steps);
                     break;
 
+                    //Переменная
+                case BlockKind.Variable:
+                    const string variablePlaqueError = "Плашка переменной хранит значение и не подключается к потоку. Используйте блок «Работа с переменной».";
+                    steps.Add(new(executing.Id, executing.Kind, before, before, variablePlaqueError));
+                    return Fail(variablePlaqueError, visited, steps);
+
+                    //Действие с переменной
+                case BlockKind.VariableAction:
+                {
+                    var variableName = executing.VariableName.Trim();
+                    if (string.IsNullOrWhiteSpace(variableName) || !variables.TryGetValue(variableName, out var storedValue))
+                    {
+                        var variableError = string.IsNullOrWhiteSpace(variableName)
+                            ? "Выберите переменную для этого блока."
+                            : $"Плашка переменной «{variableName}» не найдена.";
+                        steps.Add(new(executing.Id, executing.Kind, before, before, variableError));
+                        return Fail(variableError, visited, steps);
+                    }
+
+                    var usesInputAsOperand = string.IsNullOrWhiteSpace(executing.VariableOperand);
+                    var operand = usesInputAsOperand ? value : ParseValue(executing.VariableOperand);
+                    var writesVariable = executing.VariableAction != VariableAction.Read;
+                    object? nextValue = storedValue;
+
+                    switch (executing.VariableAction)
+                    {
+                        case VariableAction.Read:
+                            break;
+                        case VariableAction.Set:
+                            nextValue = operand;
+                            break;
+                        case VariableAction.Append:
+                            nextValue = $"{AsText(storedValue)}{AsText(operand)}";
+                            break;
+                        case VariableAction.Add:
+                        case VariableAction.Subtract:
+                        case VariableAction.Multiply:
+                            var operation = executing.VariableAction switch
+                            {
+                                VariableAction.Add => "+",
+                                VariableAction.Subtract => "-",
+                                _ => "*"
+                            };
+                            if (!TryApplyOperation(storedValue, $"{operation} {FormatValue(operand)}", out nextValue, out var variableActionError))
+                            {
+                                steps.Add(new(executing.Id, executing.Kind, before, before, variableActionError, variableName, FormatValue(storedValue)));
+                                return Fail(variableActionError, visited, steps);
+                            }
+                            break;
+                    }
+
+                    if (writesVariable)
+                        variables[variableName] = nextValue;
+
+                    value = nextValue;
+                    var actionLabel = executing.VariableAction switch
+                    {
+                        VariableAction.Read => "Прочитано значение",
+                        VariableAction.Set => "Задано значение",
+                        VariableAction.Add => "Значение увеличено",
+                        VariableAction.Subtract => "Значение уменьшено",
+                        VariableAction.Multiply => "Значение умножено",
+                        VariableAction.Append => "Текст добавлен",
+                        _ => "Переменная обновлена"
+                    };
+                    var formattedVariable = FormatValue(nextValue);
+                    steps.Add(new(executing.Id, executing.Kind, before, formattedVariable, $"{actionLabel}: {variableName}", variableName, formattedVariable));
+                    if (!TryNext(executing.Id, OutputPort.Next, out current, out var variableNextError))
+                        return Fail(variableNextError, visited, steps);
+                    break;
+                }
+
+                    //Условие
                 case BlockKind.Condition:
                     if (!TryEvaluateCondition(value, executing.Config, out var condition, out var conditionError))
                     {
@@ -99,6 +185,7 @@ public sealed partial class BlockProgramRunner
                         return Fail(branchError, visited, steps);
                     break;
 
+                    //Цикл
                 case BlockKind.Loop:
                     // Первый вход создаёт счётчик, каждый возврат снизу завершает одну итерацию.
                     if (!loopStates.TryGetValue(executing.Id, out var state))

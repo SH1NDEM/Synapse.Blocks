@@ -18,8 +18,8 @@
     </header>
 
     <div class="guide-section-title">
-        <div><small>// КОНСТРУКТОР ПРОГРАММЫ</small><h2>Пять типов блоков</h2></div>
-        <p>Цвет и форма помогают быстро отличить данные, команды, ветвления и повторения.</p>
+        <div><small>// КОНСТРУКТОР ПРОГРАММЫ</small><h2>Семь типов блоков</h2></div>
+        <p>Цвет и форма помогают быстро отличить данные, команды, ветвления, повторения и память программы.</p>
     </div>
     <div class="guide-grid">
         @foreach (var kind in Enum.GetValues<BlockKind>())
@@ -39,6 +39,14 @@
                 else if (kind == BlockKind.Loop)
                 {
                     <div class="command-list"><code>input</code><span>число повторов берётся со входа</span><code>20</code><span>своё число повторов</span></div>
+                }
+                else if (kind == BlockKind.Variable)
+                {
+                    <div class="command-list"><code>счётчик</code><span>уникальное имя переменной</span><code>0</code><span>начальное значение для каждого теста</span></div>
+                }
+                else if (kind == BlockKind.VariableAction)
+                {
+                    <div class="command-list"><code>Прочитать</code><span>передать значение в поток</span><code>Прибавить</code><span>изменить сохранённое число</span><code>пустое поле</code><span>взять значение со входа</span></div>
                 }
             </article>
         }

@@ -89,7 +89,7 @@ else
     {
         try
         {
-            _levels = await LevelStore.LoadAsync();
+            _levels = await LevelStore.LoadGameAsync();
             _completed = await ProgressStore.LoadAsync();
         }
         finally
