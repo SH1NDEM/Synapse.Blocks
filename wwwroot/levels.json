@@ -16,9 +16,9 @@
     "AllowedBlocks": [
       "Input",
       "Operation",
-      "Output",
+      "Variable",
       "VariableAction",
-      "Variable"
+      "Output"
     ],
     "Tests": [
       {
@@ -49,6 +49,72 @@
         "ExpectedOutput": "-8",
         "Hidden": true
       }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "8f47eb9b-5b76-4c2e-b31f-6ad332804d21",
+    "Order": 2,
+    "Chapter": 1,
+    "Title": "Контроль доступа",
+    "Direction": "Кибербезопасность",
+    "Location": "Шлюз жилого сектора",
+    "Description": "Повреждённый шлюз пропускает пакеты с опасным уровнем риска.",
+    "StoryIntro": "Система безопасности снова принимает запросы, но ещё не умеет отличать безопасные подключения от подозрительных.",
+    "StorySuccess": "Шлюз закрывает опасные каналы, а жители снова подключаются к городской сети.",
+    "Objective": "Если число риска больше 20, верните blocked. Иначе верните allowed.",
+    "InputDescription": "Целое число — уровень риска подключения.",
+    "OutputDescription": "Текст blocked или allowed.",
+    "Hint": "Используйте условие > 20 и две операции «Задать значение».",
+    "AllowedBlocks": ["Input", "Condition", "Operation", "Output"],
+    "Tests": [
+      { "Id": "2d4c6300-33f4-47a8-b03e-b33af9bd35a1", "Name": "Обычный запрос", "Input": "12", "ExpectedOutput": "allowed", "Hidden": false },
+      { "Id": "9afdb886-ff23-4cc5-b2b9-cbe4e2a4e7d5", "Name": "Опасный запрос", "Input": "43", "ExpectedOutput": "blocked", "Hidden": false },
+      { "Id": "074b725a-41d5-4f7c-93bd-810ace7a6858", "Name": "Граница", "Input": "20", "ExpectedOutput": "allowed", "Hidden": true }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "14a90a23-b537-41b8-a9ce-539701a975cb",
+    "Order": 3,
+    "Chapter": 1,
+    "Title": "Пакетный импульс",
+    "Direction": "Алгоритмы",
+    "Location": "Энергетический накопитель",
+    "Description": "Накопитель усиливает импульс одной и той же командой несколько раз.",
+    "StoryIntro": "Чтобы открыть транспортную линию, накопителю нужно провести серию одинаковых усилений без ручного управления.",
+    "StorySuccess": "Энергия проходит по контуру, и первая транспортная линия возвращается в строй.",
+    "Objective": "Повторите прибавление 2 столько раз, сколько указано во входном числе.",
+    "InputDescription": "Целое число — начальное значение и количество повторов.",
+    "OutputDescription": "Входное число после указанного количества прибавлений 2.",
+    "Hint": "Настройте цикл на повторы из входа, а в его теле поставьте операцию + 2.",
+    "AllowedBlocks": ["Input", "Loop", "Operation", "Output"],
+    "Tests": [
+      { "Id": "9116e287-2688-4d10-a86c-47ef90f0ef4b", "Name": "Три импульса", "Input": "3", "ExpectedOutput": "9", "Hidden": false },
+      { "Id": "a819e21d-514b-41f3-a92d-d70771e047a5", "Name": "Один импульс", "Input": "1", "ExpectedOutput": "3", "Hidden": false },
+      { "Id": "5f3d44c7-e2bb-4422-807b-4ef89a03feb8", "Name": "Пустой цикл", "Input": "0", "ExpectedOutput": "0", "Hidden": true }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "44d91579-dbcf-45ca-a76d-ff0641e4fd72",
+    "Order": 4,
+    "Chapter": 1,
+    "Title": "Резервный регистр",
+    "Direction": "Память программы",
+    "Location": "Архив обращений",
+    "Description": "Система должна запомнить номер заявки, обработать поток и вернуть сохранённое значение.",
+    "StoryIntro": "Архив теряет номера заявок во время обработки. Нужен небольшой регистр, который сохранит исходное значение.",
+    "StorySuccess": "Архив снова связывает ответы с правильными заявками.",
+    "Objective": "Запишите вход в регистр A, измените поток, затем получите из A исходное значение и верните его.",
+    "InputDescription": "Целое число — номер заявки.",
+    "OutputDescription": "Исходный номер заявки.",
+    "Hint": "Записать A → Операция + 10 → Получить A → Выход.",
+    "AllowedBlocks": ["Input", "Operation", "Variable", "VariableAction", "Output"],
+    "Tests": [
+      { "Id": "dd7588d1-aac6-4fdd-84cd-a1f46db69483", "Name": "Заявка 17", "Input": "17", "ExpectedOutput": "17", "Hidden": false },
+      { "Id": "29bdb09f-c4d0-48c9-9030-17b999f014da", "Name": "Заявка 204", "Input": "204", "ExpectedOutput": "204", "Hidden": false },
+      { "Id": "f9cbcd73-0fc7-450b-a462-c2773bccdc6c", "Name": "Нулевая заявка", "Input": "0", "ExpectedOutput": "0", "Hidden": true }
     ],
     "IntroSteps": []
   }

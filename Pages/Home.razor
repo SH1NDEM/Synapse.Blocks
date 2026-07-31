@@ -1,12 +1,14 @@
 @page "/game"
 @using System.Globalization
+@using System.Text.Json.Nodes
 @inject LevelStore LevelStore
 @inject ProgressStore ProgressStore
+@inject SolutionStore SolutionStore
 @inject BlockProgramRunner Runner
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>Игра — Синапс</PageTitle>
+<PageTitle>@(Sandbox ? "Песочница — Синапс" : "Игра — Синапс")</PageTitle>
 
 @if (_loading)
 {
@@ -22,9 +24,9 @@ else if (ActiveLevel is null)
 }
 else
 {
-    <section class="game-toolbar">
+    <section class="game-toolbar @(IsSandbox ? "sandbox-toolbar" : "child-toolbar")">
         <div>
-            <small>ТЕКУЩАЯ ОПЕРАЦИЯ</small>
+            <small>@(IsSandbox ? "ПЕСОЧНИЦА / УРОВЕНЬ" : "ТЕКУЩАЯ ОПЕРАЦИЯ")</small>
             <select value="@ActiveLevel.Id" @onchange="SelectLevel">
                 @foreach (var level in _levels)
                 {
@@ -33,8 +35,15 @@ else
             </select>
         </div>
         <div class="toolbar-stats">
-            <span><b>@_levels.Count</b> уровней</span>
-            <span><b>@ActiveLevel.Tests.Count</b> тестов</span>
+            @if (IsSandbox)
+            {
+                <span><b>@ActiveLevel.Tests.Count</b> тестов</span>
+            }
+            @if (IsSandbox)
+            {
+                <span class="sandbox-mode">без зачёта</span>
+                <button type="button" @onclick="ExportSandboxJson">Скачать JSON</button>
+            }
             @if (ActiveLevel.IntroSteps.Count > 0)
             {
                 <button type="button" @onclick="ShowLevelIntro">Пояснение</button>
@@ -43,18 +52,42 @@ else
         </div>
     </section>
 
-    <div class="game-layout">
-        <aside class="mission-pane @IntroHighlightClass(IntroHighlightTarget.Mission)">
+    <div class="game-layout @(IsSandbox ? "sandbox-layout" : "child-game-layout")">
+        <aside class="mission-pane @(IsSandbox ? "sandbox-settings" : "") @IntroHighlightClass(IntroHighlightTarget.Mission)">
             <div class="mission-scroll">
-                <span class="direction-pill">@ActiveLevel.Direction</span>
-                <p class="operation-number">ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00")</p>
-                <h1>@ActiveLevel.Title</h1>
-                <p class="mission-description">@ActiveLevel.Description</p>
+                @if (IsSandbox)
+                {
+                    <span class="direction-pill">НАСТРОЙКА</span>
+                    <h1>Тесты программы</h1>
+                    <p class="mission-description">Задайте вход и ожидаемый результат. Каждый тест запустит одну и ту же схему с новыми данными.</p>
 
-                <div class="story-card">
-                    <small>@ActiveLevel.Location</small>
-                    <p>@ActiveLevel.StoryIntro</p>
-                </div>
+                    <div class="sandbox-test-list">
+                        @foreach (var test in ActiveLevel.Tests)
+                        {
+                            <article class="sandbox-test-card" @key="test.Id">
+                                <div class="sandbox-test-card-head">
+                                    <input value="@test.Name" @oninput="e => ChangeSandboxTestName(test, e)" aria-label="Название теста" />
+                                    <button type="button" @onclick="() => RemoveSandboxTest(test.Id)" disabled="@(ActiveLevel.Tests.Count <= 1)" aria-label="Удалить тест">×</button>
+                                </div>
+                                <label><span>Вход</span><input value="@test.Input" @oninput="e => ChangeSandboxTestInput(test, e)" /></label>
+                                <label><span>Ожидаемый выход</span><input value="@test.ExpectedOutput" @oninput="e => ChangeSandboxTestExpected(test, e)" /></label>
+                            </article>
+                        }
+                    </div>
+                    <button type="button" class="sandbox-add-test" @onclick="AddSandboxTest">+ Добавить тест</button>
+                    <p class="sandbox-note">Все блоки доступны без ограничений. Изменения тестов действуют только до перезагрузки страницы.</p>
+                }
+                else
+                {
+                    <span class="direction-pill">@ActiveLevel.Direction</span>
+                    <p class="operation-number">ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00")</p>
+                    <h1>@ActiveLevel.Title</h1>
+                    <p class="mission-description">@ActiveLevel.Description</p>
+
+                    <details class="story-card child-story-card">
+                        <summary>@ActiveLevel.Location</summary>
+                        <p>@ActiveLevel.StoryIntro</p>
+                    </details>
 
                 <div class="objective-card @IntroHighlightClass(IntroHighlightTarget.Objective)">
                     <small>ЦЕЛЬ</small>
@@ -81,10 +114,11 @@ else
                     }
                 </div>
 
-                <details class="hint-box">
-                    <summary>Показать подсказку</summary>
-                    <p>@ActiveLevel.Hint</p>
-                </details>
+                    <details class="hint-box">
+                        <summary>Показать подсказку</summary>
+                        <p>@ActiveLevel.Hint</p>
+                    </details>
+                }
             </div>
         </aside>
 
@@ -108,7 +142,6 @@ else
                  data-origin-x="@CanvasNumber(CanvasOffsetX)"
                  data-origin-y="@CanvasNumber(CanvasOffsetY)"
                  data-zoom="@CanvasNumber(_zoom)"
-                 @onpointerdown="CancelExecutionVisuals"
                  @onpointermove="MovePointer"
                  @onpointerup="CancelPointer"
                  @onwheel="ZoomWithWheel"
@@ -116,14 +149,25 @@ else
                  @onwheel:stopPropagation="true"
                  @ondragover:preventDefault="true"
                  @ondrop="DropTemplate">
-                <div class="port-legend" aria-label="Легенда портов">
-                    <span class="legend-flow"><i></i>поток</span>
-                    <span class="legend-true"><i></i>условие да</span>
-                    <span class="legend-false"><i></i>условие нет</span>
-                    <span class="legend-return"><i></i>возврат</span>
-                </div>
                 <div class="node-world" style="@WorldStyle">
                     <svg class="wire-layer" width="@CanvasNumber(CanvasWorldWidth)" height="@CanvasNumber(CanvasWorldHeight)" viewBox="@CanvasViewBox" aria-hidden="true">
+                        @foreach (var loop in _program.Nodes.Where(node => node.Kind == BlockKind.Loop))
+                        {
+                            var group = LoopGroupBounds(loop);
+                            if (group is { } bounds)
+                            {
+                                <rect class="loop-group-area" x="@CanvasNumber(bounds.X)" y="@CanvasNumber(bounds.Y)" width="@CanvasNumber(bounds.Width)" height="@CanvasNumber(bounds.Height)" rx="18" />
+                                <foreignObject x="@CanvasNumber(bounds.X + 12)" y="@CanvasNumber(bounds.Y + 8)" width="190" height="24"><div class="loop-group-label">ТЕЛО ЦИКЛА · @LoopCountLabel(loop)</div></foreignObject>
+                            }
+                        }
+                        @foreach (var action in _program.Nodes.Where(node => node.Kind == BlockKind.VariableAction))
+                        {
+                            var variable = FindVariablePlaque(action.VariableName);
+                            if (variable is not null)
+                            {
+                                <path class="variable-reference-line" d="@VariableReferencePath(variable, action)" />
+                            }
+                        }
                         @foreach (var edge in _program.Connections)
                         {
                             var from = _program.Nodes.FirstOrDefault(node => node.Id == edge.FromNodeId);
@@ -132,7 +176,7 @@ else
                             {
                                 var wirePath = ConnectionPath(from, to, edge);
                                 <path class="wire-hit" d="@wirePath" @onclick="() => RemoveConnection(edge.Id)" />
-                                <path class="wire-line port-@edge.Port.ToString().ToLowerInvariant() target-@edge.TargetPort.ToString().ToLowerInvariant() @WireExecutionClass(edge)" d="@wirePath" />
+                                <path class="wire-line port-@edge.Port.ToString().ToLowerInvariant() @WireExecutionClass(edge)" d="@wirePath" />
                                 @if (IsWireActive(edge))
                                 {
                                     <circle class="wire-particle" r="4">
@@ -157,7 +201,7 @@ else
                                  style="@NodeStyle(node)">
                             @if (node.Kind is not BlockKind.Input and not BlockKind.Variable)
                             {
-                                <button type="button" class="node-port input-port" title="Вход" aria-label="Вход" @onpointerup="() => FinishConnection(node.Id, TargetPort.Main)" @onpointerup:stopPropagation="true"><i></i><span>@(node.Kind == BlockKind.Loop ? "данные" : "вход")</span></button>
+                                <button type="button" class="node-port input-port" title="Вход" aria-label="Вход" @onpointerup="() => FinishConnection(node.Id)" @onpointerup:stopPropagation="true"><i></i><span>@(node.Kind == BlockKind.Loop ? "данные" : "вход")</span></button>
                             }
 
                             <div class="node-drag" @onpointerdown="(e) => StartNodeDrag(node, e)" @onpointerdown:stopPropagation="true">
@@ -172,9 +216,14 @@ else
                             }
                             else if (node.Kind == BlockKind.Variable)
                             {
-                                <div class="node-config variable-plaque-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
-                                    <label><span>ИМЯ</span><input value="@node.VariableName" @oninput="e => ChangeVariableName(node, e)" aria-label="Имя переменной" /></label>
-                                    <label><span>НАЧАЛО</span><input value="@node.VariableInitialValue" @oninput="e => ChangeVariableInitialValue(node, e)" aria-label="Начальное значение переменной" /></label>
+                                <div class="node-config variable-plaque-config register-display" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <label class="register-name"><span>РЕГИСТР</span><select value="@node.VariableName" @onchange="e => ChangeVariableName(node, e)" aria-label="Регистр памяти">
+                                        @foreach (var slot in VariableSlotsFor(node))
+                                        {
+                                            <option value="@slot">@slot</option>
+                                        }
+                                    </select></label>
+                                    <label class="register-value"><span>@(_runtimeValues.ContainsKey(node.Id) ? "СЕЙЧАС" : "НАЧАЛО")</span><input value="@DisplayedVariableValue(node)" @oninput="e => ChangeVariableInitialValue(node, e)" readonly="@_runtimeValues.ContainsKey(node.Id)" aria-label="Значение регистра" /></label>
                                 </div>
                             }
                             else if (node.Kind == BlockKind.Output)
@@ -206,34 +255,28 @@ else
                                     <span>ПОВТОРЫ</span>
                                     <div class="loop-source-toggle">
                                         <button type="button" class="@(LoopUsesInput(node.Config) ? "active" : "")" @onclick="() => SetLoopMode(node, true)">Вход</button>
-                                        <button type="button" class="@(!LoopUsesInput(node.Config) ? "active" : "")" @onclick="() => SetLoopMode(node, false)">Своё</button>
+                                        <button type="button" class="@(!LoopUsesInput(node.Config) ? "active" : "")" @onclick="() => SetLoopMode(node, false)">Число</button>
                                     </div>
                                     @if (!LoopUsesInput(node.Config))
                                     {
-                                        <input type="number" min="0" max="1000" value="@LoopCountValue(node.Config)" @oninput="e => ChangeLoopCount(node, e)" aria-label="Количество повторов" />
+                                        <input type="number" min="0" max="1000" value="@LoopCountValue(node.Config)" @oninput="e => ChangeLoopCount(node, e)" placeholder="Количество повторов" aria-label="Количество повторов" />
                                     }
                                 </div>
                             }
                             else if (node.Kind == BlockKind.VariableAction)
                             {
                                 <div class="node-config variable-action-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
-                                    <span>ПЕРЕМЕННАЯ</span>
-                                    <select value="@node.VariableName" @onchange="e => ChangeVariableActionName(node, e)">
+                                    <label class="variable-picker"><span>Память</span><select value="@node.VariableName" @onchange="e => ChangeVariableActionName(node, e)">
                                         @foreach (var variableName in VariableNamesFor(node))
                                         {
                                             <option value="@variableName">@variableName</option>
                                         }
-                                    </select>
-                                    <select value="@node.VariableAction" @onchange="e => ChangeVariableActionMode(node, e)">
-                                        @foreach (var action in VariableActions)
-                                        {
-                                            <option value="@action.Action">@action.Label</option>
-                                        }
-                                    </select>
-                                    @if (node.VariableAction != VariableAction.Read)
-                                    {
-                                        <input value="@node.VariableOperand" @oninput="e => ChangeVariableOperand(node, e)" placeholder="значение или вход" aria-label="Значение для переменной" />
-                                    }
+                                    </select></label>
+                                    <div class="variable-action-buttons" aria-label="Действие с переменной">
+                                        <button type="button" class="@(node.VariableAction == VariableAction.Read ? "active" : "")" @onclick="() => SetVariableAction(node, VariableAction.Read)">Получить</button>
+                                        <button type="button" class="@(node.VariableAction != VariableAction.Read ? "active" : "")" @onclick="() => SetVariableAction(node, VariableAction.Set)">Записать</button>
+                                    </div>
+                                    <small class="variable-result-note">@(node.VariableAction == VariableAction.Read ? "Память → выход" : "Вход → память и выход")</small>
                                 </div>
                             }
                             else
@@ -251,17 +294,17 @@ else
                             }
                             else if (node.Kind == BlockKind.Loop)
                             {
-                                <button type="button" class="node-port output-port done-port" title="Выход из цикла" aria-label="Выход из цикла" @onpointerdown="e => StartConnection(node, OutputPort.Done, e)" @onpointerdown:stopPropagation="true"><i></i><span>выход</span></button>
-                                <button type="button" class="node-port output-port repeat-port" title="Повтор цикла" aria-label="Повтор цикла" @onpointerdown="e => StartConnection(node, OutputPort.Repeat, e)" @onpointerdown:stopPropagation="true"><i></i><span>повтор</span></button>
+                                <button type="button" class="node-port output-port done-port" title="Продолжить после цикла" aria-label="После цикла" @onpointerdown="e => StartConnection(node, OutputPort.Done, e)" @onpointerdown:stopPropagation="true"><i></i><span>после цикла</span></button>
+                                <button type="button" class="node-port output-port repeat-port" title="Начало повторяемой группы" aria-label="Тело цикла" @onpointerdown="e => StartConnection(node, OutputPort.Repeat, e)" @onpointerdown:stopPropagation="true"><i></i><span>тело</span></button>
                             }
                             else if (node.Kind is not BlockKind.Output and not BlockKind.Variable)
                             {
                                 <button type="button" class="node-port output-port" title="Выход" aria-label="Выход" @onpointerdown="e => StartConnection(node, OutputPort.Next, e)" @onpointerdown:stopPropagation="true"><i></i><span>выход</span></button>
                             }
 
-                            @if (_runtimeValues.TryGetValue(node.Id, out var runtimeValue))
+                            @if (node.Kind != BlockKind.Variable && _runtimeValues.TryGetValue(node.Id, out var runtimeValue))
                             {
-                                <div class="node-runtime" title="Значение после блока"><span>@(node.Kind == BlockKind.Output ? "получено" : "данные")</span><b>@RuntimeDisplay(runtimeValue)</b></div>
+                                <div class="node-runtime" title="Значение после блока"><span>@ValueTypeLabel(runtimeValue)</span><b>@RuntimeDisplay(runtimeValue)</b></div>
                             }
 
                             <button type="button" class="node-help-button" @onclick="() => OpenHelp(node.Kind)" @onclick:stopPropagation="true" aria-label="Справка по блоку">?</button>
@@ -274,7 +317,7 @@ else
             <div class="test-console">
                 <div class="console-title">
                     <span><i></i> ПРОВЕРКА ПРОГРАММЫ</span>
-                    @if (_running)
+                    @if (_running || _stepPlaying)
                     {
                         <small class="console-running">Тест @_activeTestIndex из @_activeTestCount</small>
                     }
@@ -309,7 +352,7 @@ else
         <aside class="library-pane">
             <div class="library-head"><span>БЛОКИ</span><small>Можно использовать сколько угодно раз</small></div>
             <div class="block-library @IntroHighlightClass(IntroHighlightTarget.BlockLibrary)">
-                @foreach (var kind in ActiveLevel.AllowedBlocks)
+                @foreach (var kind in AvailableBlocks)
                 {
                     <div class="library-node-entry kind-@kind.ToString().ToLowerInvariant()"
                          draggable="true"
@@ -321,6 +364,8 @@ else
             </div>
             <div class="run-panel @IntroHighlightClass(IntroHighlightTarget.RunPanel)">
                 <div class="run-summary"><span>ТЕСТОВ</span><b>@ActiveLevel.Tests.Count</b></div>
+                @if (IsSandbox || _running || _results.Count > 0 || _debugging)
+                {
                 <section class="debug-readout" aria-label="Текущее состояние программы">
                     <header><span>@(_activeTestCount > 0 ? $"ТЕСТ {_activeTestIndex}/{_activeTestCount}" : "СОСТОЯНИЕ")</span><b>@DebugStepLabel</b></header>
                     @if (_activeTestCount > 0)
@@ -332,16 +377,31 @@ else
                     <div class="expected-row"><span>Ожидается</span><code>@RuntimeDisplay(_debugExpected)</code></div>
                     <p>@_debugMessage</p>
                 </section>
-                <button type="button" class="run-button" @onclick="RunTests" disabled="@(ActiveLevel.Tests.Count == 0 || _program.Nodes.Count == 0 || _running)">
-                    <span>@(_running ? "Выполняю программу…" : "Запустить все тесты")</span><b>@(_running ? "●" : "▶")</b>
-                </button>
-                <button type="button" class="step-button" @onclick="StepDebug" disabled="@(!CanStepProgram)">@StepButtonLabel</button>
+                }
+                @if (_program.Nodes.Count > 0 && _graphIssues.Count > 0)
+                {
+                    <div class="graph-issues"><strong>Схема не готова</strong>@foreach (var issue in _graphIssues.Take(4)) { <span>@issue</span> }</div>
+                }
+                <div class="run-actions">
+                    <button type="button" class="run-button" @onclick="RunTests" disabled="@(ActiveLevel.Tests.Count == 0 || _program.Nodes.Count == 0 || _running)">
+                        <span>@(_running ? "Выполняю программу…" : "Запустить все тесты")</span><b>@(_running ? "●" : "▶")</b>
+                    </button>
+                    @if (_running)
+                    {
+                        <button type="button" class="stop-button" @onclick="StopTests"><span>Остановить</span><b>■</b></button>
+                    }
+                </div>
+                <div class="step-controls">
+                    <button type="button" class="step-button" @onclick="StepDebug" disabled="@(!CanStepProgram)">@StepButtonLabel</button>
+                    <button type="button" @onclick="ContinueDebug" disabled="@(!CanStepProgram || _stepPlaying)">Продолжить</button>
+                    <button type="button" @onclick="RestartStepDebug" disabled="@(ActiveLevel.Tests.Count == 0 || _program.Nodes.Count == 0 || _running)">Заново</button>
+                </div>
                 <small>Программа получит новые входные данные для каждой проверки</small>
             </div>
         </aside>
     </div>
 
-    @if (ActiveIntroStep is LevelIntroStep introStep)
+    @if (!IsSandbox && ActiveIntroStep is LevelIntroStep introStep)
     {
         <div class="level-intro-backdrop" role="presentation"></div>
         <section class="level-intro-modal intro-field-@introStep.FieldKind.ToString().ToLowerInvariant() intro-target-@introStep.HighlightTarget.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
@@ -404,7 +464,7 @@ else
         </section>
     }
 
-    @if (_showSuccess)
+    @if (!IsSandbox && _showSuccess)
     {
         <div class="level-complete-backdrop" role="presentation">
             <section class="level-complete-modal" role="dialog" aria-modal="true" aria-labelledby="complete-title">
@@ -498,6 +558,10 @@ else
     private string _activeTestName = "";
     private bool _activeTestHidden;
     private int _executionGeneration;
+    private int _saveGeneration;
+    private bool _stepPlaying;
+    private List<string> _graphIssues = [];
+    private string _lastVariableSlot = "A";
     private HashSet<Guid> _completed = [];
     private double _connectionStartClientX;
     private double _connectionStartClientY;
@@ -520,17 +584,13 @@ else
         ("count", "Посчитать элементы")
     ];
 
-    private static readonly (VariableAction Action, string Label)[] VariableActions =
-    [
-        (VariableAction.Read, "Прочитать"),
-        (VariableAction.Set, "Задать"),
-        (VariableAction.Add, "Прибавить"),
-        (VariableAction.Subtract, "Вычесть"),
-        (VariableAction.Multiply, "Умножить"),
-        (VariableAction.Append, "Добавить текст")
-    ];
+    private static readonly string[] VariableSlots = ["A", "B", "C", "D"];
+
+    [Parameter] public bool Sandbox { get; set; }
 
     private LevelDefinition? ActiveLevel => _levels.FirstOrDefault(level => level.Id == _activeLevelId) ?? _levels.FirstOrDefault();
+    private bool IsSandbox => Sandbox;
+    private IEnumerable<BlockKind> AvailableBlocks => IsSandbox ? Enum.GetValues<BlockKind>() : ActiveLevel?.AllowedBlocks ?? [];
     private LevelIntroStep? ActiveIntroStep => ActiveLevel is { } level && _introStepIndex is int index && index >= 0 && index < level.IntroSteps.Count
         ? level.IntroSteps[index]
         : null;
@@ -560,12 +620,69 @@ else
     protected override async Task OnInitializedAsync()
     {
         _levels = await LevelStore.LoadGameAsync();
+        if (IsSandbox)
+            _levels = _levels.Select(CloneForSandbox).ToList();
         _completed = await ProgressStore.LoadAsync();
         _activeLevelId = RequestedLevel is Guid requested && _levels.Any(level => level.Id == requested)
             ? requested
             : _levels.FirstOrDefault(level => !_completed.Contains(level.Id))?.Id ?? _levels.FirstOrDefault()?.Id;
         _loading = false;
-        ShowLevelIntro();
+        await LoadSolutionAsync();
+        if (!IsSandbox)
+            ShowLevelIntro();
+    }
+
+    private static LevelDefinition CloneForSandbox(LevelDefinition source) => new()
+    {
+        Id = source.Id,
+        Order = source.Order,
+        Chapter = source.Chapter,
+        Title = source.Title,
+        Direction = source.Direction,
+        Location = source.Location,
+        Description = source.Description,
+        StoryIntro = source.StoryIntro,
+        StorySuccess = source.StorySuccess,
+        Objective = source.Objective,
+        InputDescription = source.InputDescription,
+        OutputDescription = source.OutputDescription,
+        Hint = source.Hint,
+        AllowedBlocks = Enum.GetValues<BlockKind>().ToList(),
+        Tests = source.Tests.Select(test => new LevelTestCase
+        {
+            Id = Guid.NewGuid(),
+            Name = test.Name,
+            Input = test.Input,
+            ExpectedOutput = test.ExpectedOutput,
+            Hidden = false
+        }).ToList(),
+        IntroSteps = []
+    };
+
+    private void AddSandboxTest()
+    {
+        if (!IsSandbox || ActiveLevel is null) return;
+        ActiveLevel.Tests.Add(new LevelTestCase { Name = $"Тест {ActiveLevel.Tests.Count + 1}", Input = "0", ExpectedOutput = "0" });
+        ResetExecution();
+    }
+
+    private void RemoveSandboxTest(Guid id)
+    {
+        if (!IsSandbox || ActiveLevel is null || ActiveLevel.Tests.Count <= 1) return;
+        ActiveLevel.Tests.RemoveAll(test => test.Id == id);
+        ResetExecution();
+    }
+
+    private void ChangeSandboxTestName(LevelTestCase test, ChangeEventArgs args) => test.Name = args.Value?.ToString() ?? "";
+    private void ChangeSandboxTestInput(LevelTestCase test, ChangeEventArgs args)
+    {
+        test.Input = args.Value?.ToString() ?? "";
+        ResetExecution();
+    }
+    private void ChangeSandboxTestExpected(LevelTestCase test, ChangeEventArgs args)
+    {
+        test.ExpectedOutput = args.Value?.ToString() ?? "";
+        ResetExecution();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -593,15 +710,35 @@ else
         }
     }
 
-    private void SelectLevel(ChangeEventArgs args)
+    private async Task SelectLevel(ChangeEventArgs args)
     {
         if (Guid.TryParse(args.Value?.ToString(), out var id))
         {
             _activeLevelId = id;
             ClearProgram();
+            await LoadSolutionAsync();
             _showSuccess = false;
-            ShowLevelIntro();
+            if (!IsSandbox)
+                ShowLevelIntro();
         }
+    }
+
+    private async Task LoadSolutionAsync()
+    {
+        if (IsSandbox || ActiveLevel is null) return;
+        var saved = await SolutionStore.LoadAsync(ActiveLevel.Id);
+        if (saved is null) return;
+        _program.Nodes.AddRange(saved.Nodes);
+        _program.Connections.AddRange(saved.Connections);
+        _graphIssues = Runner.Validate(_program).ToList();
+        _canvasNeedsRefresh = true;
+    }
+
+    private async Task PersistProgramAsync(int generation)
+    {
+        await Task.Delay(250);
+        if (generation != _saveGeneration || IsSandbox || ActiveLevel is null || _loading) return;
+        await SolutionStore.SaveAsync(ActiveLevel.Id, _program);
     }
 
     private void AddNode(BlockKind kind, double? x = null, double? y = null)
@@ -609,7 +746,13 @@ else
         var index = _program.Nodes.Count;
         var nodeX = x ?? CanvasOriginX + 80 + index % 3 * 280;
         var nodeY = y ?? CanvasOriginY + 70 + index / 3 * 220;
-        _program.Nodes.Add(new BlockNode
+        var variableName = kind switch
+        {
+            BlockKind.Variable => NextVariableName(),
+            BlockKind.VariableAction => _lastVariableSlot,
+            _ => _lastVariableSlot
+        };
+        var newNode = new BlockNode
         {
             Kind = kind,
             Config = kind switch
@@ -619,12 +762,15 @@ else
                 BlockKind.Loop => "input",
                 _ => ""
             },
-            VariableName = NextVariableName(),
+            VariableName = variableName,
             VariableInitialValue = "0",
             VariableAction = VariableAction.Read,
             X = nodeX,
             Y = nodeY
-        });
+        };
+        _program.Nodes.Add(newNode);
+        if (kind is BlockKind.Variable or BlockKind.VariableAction)
+            _lastVariableSlot = variableName;
         ResetExecution();
     }
 
@@ -692,11 +838,11 @@ else
         _pointerY = _connectionStartWorldY;
     }
 
-    private void FinishConnection(Guid targetNodeId, TargetPort targetPort)
+    private void FinishConnection(Guid targetNodeId)
     {
         if (_connectingNodeId is not Guid sourceNodeId || sourceNodeId == targetNodeId) return;
         _program.Connections.RemoveAll(edge => edge.FromNodeId == sourceNodeId && edge.Port == _connectingPort);
-        _program.Connections.Add(new BlockConnection { FromNodeId = sourceNodeId, ToNodeId = targetNodeId, Port = _connectingPort, TargetPort = targetPort });
+        _program.Connections.Add(new BlockConnection { FromNodeId = sourceNodeId, ToNodeId = targetNodeId, Port = _connectingPort });
         _connectingNodeId = null;
         ResetExecution();
     }
@@ -805,11 +951,14 @@ else
 
     private string NextVariableName()
     {
-        var index = 1;
-        while (_program.Nodes.Any(node => node.Kind == BlockKind.Variable && string.Equals(node.VariableName, $"переменная {index}", StringComparison.OrdinalIgnoreCase)))
-            index++;
-        return $"переменная {index}";
+        return VariableSlots.FirstOrDefault(slot => !_program.Nodes.Any(node => node.Kind == BlockKind.Variable && string.Equals(node.VariableName, slot, StringComparison.OrdinalIgnoreCase))) ?? "A";
     }
+
+    private IEnumerable<string> VariableSlotsFor(BlockNode node) => VariableSlots.Contains(node.VariableName, StringComparer.OrdinalIgnoreCase)
+        ? VariableSlots
+        : [node.VariableName, .. VariableSlots];
+
+    private string DisplayedVariableValue(BlockNode node) => _runtimeValues.TryGetValue(node.Id, out var value) ? RuntimeDisplay(value) : node.VariableInitialValue;
 
     private IEnumerable<string> VariableNamesFor(BlockNode node)
     {
@@ -820,12 +969,18 @@ else
             .ToList();
         if (!string.IsNullOrWhiteSpace(node.VariableName) && !names.Contains(node.VariableName, StringComparer.OrdinalIgnoreCase))
             names.Add(node.VariableName);
-        return names.Count > 0 ? names : ["переменная 1"];
+        return names.Count > 0 ? names : ["A"];
     }
+
+    private BlockNode? FindVariablePlaque(string name) => _program.Nodes.FirstOrDefault(node =>
+        node.Kind == BlockKind.Variable
+        && string.Equals(node.VariableName.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private void ChangeVariableName(BlockNode node, ChangeEventArgs args)
     {
         node.VariableName = args.Value?.ToString() ?? "";
+        if (!string.IsNullOrWhiteSpace(node.VariableName))
+            _lastVariableSlot = node.VariableName;
         ResetExecution();
     }
 
@@ -838,6 +993,8 @@ else
     private void ChangeVariableActionName(BlockNode node, ChangeEventArgs args)
     {
         node.VariableName = args.Value?.ToString() ?? "";
+        if (!string.IsNullOrWhiteSpace(node.VariableName))
+            _lastVariableSlot = node.VariableName;
         ResetExecution();
     }
 
@@ -845,6 +1002,26 @@ else
     {
         if (Enum.TryParse<VariableAction>(args.Value?.ToString(), out var action))
             node.VariableAction = action;
+        ResetExecution();
+    }
+
+    private void SetVariableAction(BlockNode node, VariableAction action)
+    {
+        node.VariableAction = action;
+        node.VariableOperand = "";
+        ResetExecution();
+    }
+
+    private async Task ExportSandboxJson()
+    {
+        if (!IsSandbox) return;
+        var json = LevelStore.Export(_levels);
+        await JS.InvokeVoidAsync("synapseDownloadText", "synapse-sandbox-levels.json", json);
+    }
+
+    private void SetVariableOperandMode(BlockNode node, bool useInput)
+    {
+        node.VariableOperand = useInput ? "" : "0";
         ResetExecution();
     }
 
@@ -888,6 +1065,13 @@ else
         _activeTestCount = 0;
         _activeTestName = "";
         _activeTestHidden = false;
+        _stepPlaying = false;
+        _graphIssues = Runner.Validate(_program).ToList();
+        if (!IsSandbox && !_loading)
+        {
+            var generation = ++_saveGeneration;
+            _ = PersistProgramAsync(generation);
+        }
     }
 
     private void CancelExecutionVisuals()
@@ -949,10 +1133,56 @@ else
         }
     }
 
+    private async Task ContinueDebug()
+    {
+        if (!CanStepProgram || _stepPlaying) return;
+        if (_debugSteps.Count == 0 && !PrepareStepRun()) return;
+        _stepPlaying = true;
+        var generation = _executionGeneration;
+        while (_debugging && _debugStepIndex + 1 < _debugSteps.Count && generation == _executionGeneration)
+        {
+            StepDebugCore();
+            StateHasChanged();
+            await Task.Delay(180);
+        }
+        _stepPlaying = false;
+    }
+
+    private void StepDebugCore()
+    {
+        if (!_debugging || _debugStepIndex + 1 >= _debugSteps.Count) return;
+        _previousExecutionNode = _activeExecutionNode;
+        var step = _debugSteps[++_debugStepIndex];
+        _activeExecutionNode = step.NodeId;
+        ApplyRuntimeStep(step, step.Output);
+        _debugValue = step.Output;
+        _debugMessage = step.Detail;
+        _executedNodes.Add(step.NodeId);
+        if (_debugStepIndex == _debugSteps.Count - 1)
+        {
+            _debugging = false;
+            _stepSessionFinished = true;
+            if (!string.IsNullOrWhiteSpace(_debugFinalError)) _executionErrorNode = step.NodeId;
+            _debugMessage = string.IsNullOrWhiteSpace(_debugFinalError) ? $"{step.Detail}. Пошаговый запуск завершён." : $"{step.Detail}. Ошибка: {_debugFinalError}";
+        }
+    }
+
+    private void RestartStepDebug()
+    {
+        ResetExecution();
+        if (PrepareStepRun()) StepDebug();
+    }
+
     private async Task RunTests()
     {
         if (ActiveLevel is null || _running) return;
         ResetExecution();
+        if (_graphIssues.Count > 0)
+        {
+            _debugMessage = _graphIssues[0];
+            _stepSessionFinished = true;
+            return;
+        }
         var executionGeneration = _executionGeneration;
         _running = true;
         _showSuccess = false;
@@ -1052,13 +1282,29 @@ else
 
         if (_results.Count > 0 && _results.All(result => result.Passed))
         {
-            _completed.Add(ActiveLevel.Id);
-            await ProgressStore.CompleteAsync(ActiveLevel.Id);
+            if (!IsSandbox)
+            {
+                _completed.Add(ActiveLevel.Id);
+                await ProgressStore.CompleteAsync(ActiveLevel.Id);
+            }
             // Финальный результат остаётся на экране перед сюжетным окном завершения.
             await Task.Delay(560);
             if (executionGeneration != _executionGeneration) return;
             _showSuccess = true;
         }
+    }
+
+    private void StopTests()
+    {
+        if (!_running && !_stepPlaying) return;
+        _executionGeneration++;
+        _running = false;
+        _stepPlaying = false;
+        _activeExecutionNode = null;
+        _previousExecutionNode = null;
+        _debugging = false;
+        _stepSessionFinished = true;
+        _debugMessage = "Выполнение остановлено";
     }
 
     private void CloseSuccess() => _showSuccess = false;
@@ -1086,20 +1332,21 @@ else
             _activeLevelId = _levels[index + 1].Id;
             ClearProgram();
             _showSuccess = false;
-            ShowLevelIntro();
+            if (!IsSandbox)
+                ShowLevelIntro();
             return;
         }
         Navigation.NavigateTo(Navigation.BaseUri);
     }
 
-    private void ZoomIn() => _zoom = Math.Min(1.3, _zoom + .1);
-    private void ZoomOut() => _zoom = Math.Max(.6, _zoom - .1);
+    private void ZoomIn() => _zoom = Math.Min(1.5, Math.Round((_zoom + .1) * 10) / 10);
+    private void ZoomOut() => _zoom = Math.Max(.2, Math.Round((_zoom - .1) * 10) / 10);
 
     private void ZoomWithWheel(WheelEventArgs args)
     {
         var oldZoom = _zoom;
         var direction = args.DeltaY < 0 ? .1 : -.1;
-        var newZoom = Math.Clamp(Math.Round((oldZoom + direction) * 10) / 10, .6, 1.3);
+        var newZoom = Math.Clamp(Math.Round((oldZoom + direction) * 10) / 10, .2, 1.5);
         if (Math.Abs(newZoom - oldZoom) < .001) return;
 
         _zoom = newZoom;
@@ -1109,9 +1356,9 @@ else
     private static double NodeHeight(BlockKind kind) => kind switch
     {
         BlockKind.Condition => 150,
-        BlockKind.Loop => 166,
-        BlockKind.Variable => 132,
-        BlockKind.VariableAction => 176,
+        BlockKind.Loop => 152,
+        BlockKind.Variable => 144,
+        BlockKind.VariableAction => 144,
         _ => 126
     };
 
@@ -1125,7 +1372,7 @@ else
         _ => 56
     };
 
-    private static double NodeBottomExtent(BlockKind kind) => kind == BlockKind.Loop ? 56 : 0;
+    private static double NodeBottomExtent(BlockKind kind) => 0;
 
     private static string CanvasNumber(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 
@@ -1134,7 +1381,7 @@ else
         (BlockKind.Condition, OutputPort.True) => 44,
         (BlockKind.Condition, OutputPort.False) => 103,
         (BlockKind.Loop, OutputPort.Done) => 42,
-        (BlockKind.Loop, OutputPort.Repeat) => 112,
+        (BlockKind.Loop, OutputPort.Repeat) => 102,
         _ => NodeHeight(kind) / 2
     };
 
@@ -1178,28 +1425,69 @@ else
 
     private string ConnectionPath(BlockNode from, BlockNode to, BlockConnection edge)
     {
-        // У возврата цикла вход расположен снизу, у остальных блоков — слева.
         var x1 = from.X + CanvasOffsetX + NodeWidth;
         var y1 = from.Y + CanvasOffsetY + PortOffset(from.Kind, edge.Port);
-        var returnTarget = edge.TargetPort == TargetPort.Return;
-        var x2 = returnTarget ? to.X + CanvasOffsetX + NodeWidth / 2 : to.X + CanvasOffsetX;
-        var y2 = returnTarget ? to.Y + CanvasOffsetY + NodeHeight(to.Kind) : to.Y + CanvasOffsetY + NodeHeight(to.Kind) / 2;
-        if (returnTarget)
-        {
-            // Возврат всегда идёт ниже цепочки: он не перечёркивает блоки между действием и циклом.
-            var left = Math.Min(from.X, to.X) - 20;
-            var right = Math.Max(from.X + NodeWidth, to.X + NodeWidth) + 20;
-            var lowestBlockingNode = _program.Nodes
-                .Where(node => node.X + NodeWidth >= left && node.X <= right)
-                .Select(node => node.Y + NodeHeight(node.Kind) + NodeBottomExtent(node.Kind) + CanvasOffsetY)
-                .DefaultIfEmpty(Math.Max(y1, y2))
-                .Max();
-            var routeY = Math.Max(lowestBlockingNode + 70, Math.Max(y1, y2) + 76);
-            var exitX = x1 + 56;
-            var approach = 50d;
-            return FormattableString.Invariant($"M {x1} {y1} C {x1 + 28} {y1}, {exitX} {y1 + 28}, {exitX} {y1 + 54} C {exitX} {routeY - 34}, {exitX - 18} {routeY}, {exitX - 2} {routeY} C {exitX - 2 - Math.Abs(exitX - x2) * .42} {routeY}, {x2 + Math.Abs(exitX - x2) * .42} {routeY}, {x2} {routeY} C {x2} {routeY}, {x2} {y2 + approach}, {x2} {y2}");
-        }
+        var x2 = to.X + CanvasOffsetX;
+        var y2 = to.Y + CanvasOffsetY + NodeHeight(to.Kind) / 2;
         return BezierPath(x1, y1, x2, y2);
+    }
+
+    private string VariableReferencePath(BlockNode variable, BlockNode action)
+    {
+        var x1 = variable.X + CanvasOffsetX + NodeWidth / 2;
+        var y1 = variable.Y + CanvasOffsetY + NodeHeight(variable.Kind);
+        var x2 = action.X + CanvasOffsetX + NodeWidth / 2;
+        var y2 = action.Y + CanvasOffsetY;
+        var bend = Math.Max(42, Math.Abs(y2 - y1) * .45);
+        return $"M {CanvasNumber(x1)} {CanvasNumber(y1)} C {CanvasNumber(x1)} {CanvasNumber(y1 + bend)}, {CanvasNumber(x2)} {CanvasNumber(y2 - bend)}, {CanvasNumber(x2)} {CanvasNumber(y2)}";
+    }
+
+    private sealed record LoopBounds(double X, double Y, double Width, double Height);
+
+    private LoopBounds? LoopGroupBounds(BlockNode loop)
+    {
+        var start = _program.Connections.LastOrDefault(edge => edge.FromNodeId == loop.Id && edge.Port == OutputPort.Repeat)?.ToNodeId;
+        if (start is null) return null;
+        var ids = new HashSet<Guid>();
+        var queue = new Queue<Guid>();
+        queue.Enqueue(start.Value);
+        while (queue.TryDequeue(out var id) && ids.Count < 80)
+        {
+            if (!ids.Add(id)) continue;
+            var node = _program.Nodes.FirstOrDefault(item => item.Id == id);
+            if (node is null || node.Kind == BlockKind.Output) continue;
+            foreach (var next in _program.Connections.Where(edge => edge.FromNodeId == id).Select(edge => edge.ToNodeId))
+                queue.Enqueue(next);
+        }
+        var nodes = _program.Nodes.Where(node => ids.Contains(node.Id)).ToList();
+        if (nodes.Count == 0) return null;
+        var left = nodes.Min(node => node.X + CanvasOffsetX) - 24;
+        var top = nodes.Min(node => node.Y + CanvasOffsetY) - 34;
+        var right = nodes.Max(node => node.X + CanvasOffsetX + NodeWidth) + 24;
+        var bottom = nodes.Max(node => node.Y + CanvasOffsetY + NodeHeight(node.Kind)) + 24;
+        return new(left, top, right - left, bottom - top);
+    }
+
+    private static string LoopCountLabel(BlockNode loop) => LoopUsesInput(loop.Config) ? "ПО ВХОДУ" : $"{LoopCountValue(loop.Config)} РАЗ";
+
+    private static string ValueTypeLabel(string raw)
+    {
+        var value = raw.Trim();
+        if (string.IsNullOrEmpty(value)) return "пусто";
+        if (bool.TryParse(value, out _)) return "логика";
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out _)) return "число";
+        try
+        {
+            return JsonNode.Parse(value) switch
+            {
+                JsonArray => "список",
+                JsonObject => "объект",
+                JsonValue json when json.TryGetValue<bool>(out _) => "логика",
+                JsonValue json when json.TryGetValue<double>(out _) => "число",
+                _ => "текст"
+            };
+        }
+        catch { return "текст"; }
     }
 
     private string PreviewPath(BlockNode from)
@@ -1283,9 +1571,9 @@ else
         BlockKind.Input => "Начало программы. На каждом тесте этот блок автоматически получает новые данные уровня.",
         BlockKind.Operation => "Изменяет текущее значение. Действие выбирается из списка, а параметр вводится в отдельном поле.",
         BlockKind.Condition => "Сравнивает входное значение и направляет выполнение по синей или красной ветке.",
-        BlockKind.Loop => "Повторяет подключённую цепочку заданное число раз и после каждого шага принимает возврат снизу.",
-        BlockKind.Variable => "Плашка памяти. Она задаёт имя и начальное значение переменной для каждого запуска теста.",
-        BlockKind.VariableAction => "Читает или изменяет переменную. Пустое поле значения берёт данные из входящего потока.",
+        BlockKind.Loop => "Повторяет целую ветку блоков заданное число раз, затем продолжает программу через выход «после цикла».",
+        BlockKind.Variable => "Именованная ячейка памяти. Её значение сохраняется между разными участками схемы и повторениями цикла.",
+        BlockKind.VariableAction => "Получает значение из выбранного регистра или записывает в него входящие данные.",
         BlockKind.Output => "Завершает программу и отправляет фактический результат в систему тестов.",
         _ => ""
     };
@@ -1293,7 +1581,7 @@ else
     private static string HelpInput(BlockKind kind) => kind switch
     {
         BlockKind.Input => "Данные выдаёт уровень — внешнего входа нет.",
-        BlockKind.Loop => "Слева — данные, снизу — возврат после повтора.",
+        BlockKind.Loop => "Слева — данные для программы.",
         BlockKind.Variable => "Портов нет: это плашка памяти, а не часть пути выполнения.",
         _ => "Значение от предыдущего блока."
     };
@@ -1302,7 +1590,7 @@ else
     {
         BlockKind.Output => "Выходов нет — программа завершена.",
         BlockKind.Condition => "Синий — условие верно, красный — неверно.",
-        BlockKind.Loop => "Сверху — выход, ниже — следующий повтор.",
+        BlockKind.Loop => "«Тело» запускает группу блоков, «после цикла» продолжает основной маршрут.",
         BlockKind.Variable => "Портов нет. Блок работы с переменной выбирает её по имени.",
         _ => "Одно значение для следующего блока."
     };
@@ -1312,9 +1600,9 @@ else
         BlockKind.Input => ["Поставьте блок в начало.", "Он получит данные очередного теста.", "Потяните выход к следующему блоку."],
         BlockKind.Operation => ["Подключите вход.", "Выберите действие в меню.", "Если появилось поле — задайте значение.", "Передайте результат дальше."],
         BlockKind.Condition => ["Подайте значение на вход.", "Напишите только проверку, например > 20.", "Подключите синюю и красную ветки."],
-        BlockKind.Loop => ["Подайте данные слева.", "Выберите input или своё число.", "Выход «повтор» соедините с действием.", "Верните действие в нижний порт.", "Верхний выход ведите дальше."],
-        BlockKind.Variable => ["Поставьте плашку рядом со схемой.", "Введите уникальное имя.", "Задайте начальное значение для нового теста.", "Не соединяйте её проводами."],
-        BlockKind.VariableAction => ["Подключите блок к потоку.", "Выберите созданную плашку переменной.", "Выберите чтение или изменение.", "Оставьте значение пустым, чтобы взять входящие данные."],
+        BlockKind.Loop => ["Подайте данные слева.", "Выберите «Вход» или своё число повторов.", "От порта «тело» соберите цепочку из любого количества блоков.", "Последний блок группы оставьте без выхода — возврат выполнится автоматически.", "Порт «после цикла» соедините с продолжением программы."],
+        BlockKind.Variable => ["Поставьте регистр рядом со схемой.", "Выберите короткое имя A, B, C или D.", "Задайте начальное значение.", "Пунктир показывает обращение к памяти, но не является маршрутом выполнения."],
+        BlockKind.VariableAction => ["Подключите блок к обычному потоку.", "Выберите регистр A, B, C или D.", "«Получить» передаст сохранённое значение дальше.", "«Записать» сохранит входящие данные и передаст их дальше.", "Для вычисления используйте отдельный блок «Операция»."],
         BlockKind.Output => ["Поставьте блок в конце.", "Подключите итоговое значение.", "Запустите все тесты уровня."],
         _ => []
     };

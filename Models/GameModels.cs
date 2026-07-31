@@ -31,13 +31,6 @@ public enum OutputPort
     Done
 }
 
-public enum TargetPort
-{
-    // Return используется только нижним входом цикла.
-    Main,
-    Return
-}
-
 /// <summary>Вид поля, которое можно показать внутри вступительного пояснения.</summary>
 public enum IntroFieldKind
 {
@@ -110,7 +103,7 @@ public sealed class BlockNode
     public Guid Id { get; set; } = Guid.NewGuid();
     public BlockKind Kind { get; set; }
     public string Config { get; set; } = "";
-    public string VariableName { get; set; } = "счётчик";
+    public string VariableName { get; set; } = "A";
     public string VariableInitialValue { get; set; } = "0";
     public VariableAction VariableAction { get; set; }
     public string VariableOperand { get; set; } = "";
@@ -124,7 +117,6 @@ public sealed class BlockConnection
     public Guid FromNodeId { get; set; }
     public Guid ToNodeId { get; set; }
     public OutputPort Port { get; set; } = OutputPort.Next;
-    public TargetPort TargetPort { get; set; } = TargetPort.Main;
 }
 
 public sealed class BlockProgram
@@ -193,9 +185,9 @@ public static class BlockCatalog
         BlockKind.Input => "Получает данные текущего теста",
         BlockKind.Operation => "Изменяет значение по команде",
         BlockKind.Condition => "Выбирает синюю или красную ветку",
-        BlockKind.Loop => "Повторяет цепочку заданное число раз",
-        BlockKind.Variable => "Хранит значение во время запуска программы",
-        BlockKind.VariableAction => "Читает или изменяет выбранную переменную",
+        BlockKind.Loop => "Повторяет группу блоков заданное число раз",
+        BlockKind.Variable => "Именованная ячейка памяти программы",
+        BlockKind.VariableAction => "Читает, записывает или изменяет память",
         BlockKind.Output => "Возвращает итог для проверки",
         _ => ""
     };

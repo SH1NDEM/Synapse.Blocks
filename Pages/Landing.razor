@@ -10,73 +10,56 @@
 }
 else
 {
-    <section class="city-home">
-        <div class="city-home-grid" aria-hidden="true"></div>
-        <div class="city-hero-copy">
-            <div class="season-label"><span>СЕЗОН 01</span> ГОРОД НОЛЬ</div>
-            <h1>Запустите город<br /><em>своей логикой.</em></h1>
-            <p>Сеть пережила аварию. Восстанавливайте районы, расследуйте следы взлома и создавайте программы для жителей — одна проверка за другой.</p>
-            <div class="city-actions">
-                <a class="city-primary" href="game">@(_completed.Count > 0 ? "Продолжить кампанию" : "Начать кампанию") <span>→</span></a>
-                <a class="city-secondary" href="guide">Как работают блоки</a>
+    <main class="signal-home">
+        <section class="signal-hero">
+            <div class="signal-copy">
+                <span class="signal-eyebrow"><i></i> СЕТЬ ГОРОДА НОЛЬ / ONLINE</span>
+                <h1>Здесь программы<br /><em>меняют мир.</em></h1>
+                <p>Получайте данные, собирайте логику из блоков и возвращайте городу правильный ответ. Каждая рабочая схема оживляет новый сектор.</p>
+                <div class="signal-actions">
+                    <a class="signal-start" href="game">@(_completed.Count > 0 ? "Продолжить с последней операции" : "Запустить первую операцию") <b>→</b></a>
+                    <a class="signal-guide" href="guide">Сначала разобраться</a>
+                </div>
+                <div class="signal-progress"><span><b style="width:@ProgressPercent%"></b></span><div><strong>@ProgressPercent%</strong><small>сети восстановлено</small></div></div>
             </div>
-            <div class="campaign-summary">
-                <div><strong>@_levels.Count</strong><span>операций</span></div>
-                <div><strong>@_completed.Count</strong><span>завершено</span></div>
-                <div><strong>@ProgressPercent%</strong><span>сеть города</span></div>
-            </div>
-        </div>
 
-        <div class="logic-window" aria-label="Пример программы из блоков">
-            <div class="logic-window-head">
-                <span><i></i><i></i><i></i></span>
-                <b>ПРОГРАММА / СИГНАЛ A-17</b>
-                <small><i></i> ГОТОВА К ЗАПУСКУ</small>
+            <div class="district-board" aria-label="Карта операций кампании">
+                <header><div><span>ГОРОД НОЛЬ</span><strong>Панель восстановления</strong></div><b>@_completed.Count / @_levels.Count</b></header>
+                <div class="district-grid">
+                    @for (var index = 0; index < Math.Min(4, _levels.Count); index++)
+                    {
+                        var level = _levels[index];
+                        var complete = _completed.Contains(level.Id);
+                        <a class="district-card district-@index @(complete ? "complete" : "")" href="game?level=@level.Id">
+                            <div><span>@level.Order.ToString("00")</span><i></i></div>
+                            <small>@level.Direction</small>
+                            <strong>@level.Title</strong>
+                            <p>@level.Location</p>
+                            <footer><span>@level.Tests.Count теста</span><b>@(complete ? "ГОТОВО ✓" : "ОТКРЫТЬ →")</b></footer>
+                        </a>
+                    }
+                </div>
+                <aside class="district-status">
+                    <div><span>ЭНЕРГИЯ</span><b>@(12 + ProgressPercent / 2)%</b></div>
+                    <div><span>СВЯЗЬ</span><b>@(ProgressPercent > 0 ? "СТАБИЛЬНА" : "ЛОКАЛЬНАЯ")</b></div>
+                    <p><i></i> Решения синхронизируются с сетью города</p>
+                </aside>
             </div>
-            <div class="logic-board">
-                <div class="logic-board-grid" aria-hidden="true"></div>
-                <svg class="logic-wires" viewBox="0 0 760 350" aria-hidden="true">
-                    <path d="M 205 175 C 252 175, 255 105, 304 105" />
-                    <path d="M 472 105 C 522 105, 522 175, 570 175" />
-                    <path class="logic-flow" d="M 205 175 C 252 175, 255 105, 304 105 M 472 105 C 522 105, 522 175, 570 175" />
-                </svg>
+        </section>
 
-                <article class="logic-node logic-input">
-                    <span>ДАННЫЕ</span><h3>Вход</h3><p>Получить значение теста</p>
-                    <div><small>ПОЛУЧАЕТ</small><b>15</b></div><i class="logic-port out"></i>
-                </article>
-                <article class="logic-node logic-operation">
-                    <span>КОМАНДА</span><h3>Умножить</h3><p>Изменить текущее значение</p>
-                    <div><small>ЗНАЧЕНИЕ</small><b>× 2</b></div><i class="logic-port input"></i><i class="logic-port out"></i>
-                </article>
-                <article class="logic-node logic-output">
-                    <span>РЕЗУЛЬТАТ</span><h3>Выход</h3><p>Вернуть ответ программы</p>
-                    <div><small>РЕЗУЛЬТАТ</small><b>30</b></div><i class="logic-port input"></i>
-                </article>
-
-                <div class="logic-test-card"><span>ТЕСТ 01</span><b>15 → 30</b><small>ПРОЙДЕН</small></div>
-                <div class="logic-hint"><i></i><span>Данные проходят по связям между блоками</span></div>
+        <section class="mission-feed">
+            <header><div><small>ДОСТУПНЫЕ ЗАДАНИЯ</small><h2>Выберите следующий сигнал</h2></div><p>Нет единственной правильной схемы. Город проверяет только результат на разных данных.</p></header>
+            <div class="mission-feed-grid">
+                @foreach (var level in _levels)
+                {
+                    var complete = _completed.Contains(level.Id);
+                    <a class="mission-ticket @(complete ? "complete" : "")" href="game?level=@level.Id">
+                        <span>@level.Order.ToString("00")</span><div><small>@level.Direction · @level.Tests.Count проверок</small><h3>@level.Title</h3><p>@level.Objective</p></div><b>@(complete ? "✓" : "→")</b>
+                    </a>
+                }
             </div>
-            <div class="logic-window-foot">
-                <span><i></i> 3 блока</span><span>2 связи</span><b>Результат совпал ✓</b>
-            </div>
-        </div>
-    </section>
-
-    <section class="campaign-section">
-        <div class="campaign-heading"><div><small>// МАРШРУТ СИНАПСА</small><h2>Операции кампании</h2></div><p>Каждое решение меняет состояние города и открывает следующий фрагмент истории.</p></div>
-        <div class="campaign-levels">
-            @foreach (var level in _levels)
-            {
-                var complete = _completed.Contains(level.Id);
-                <a class="campaign-level @(complete ? "complete" : "")" href="game?level=@level.Id">
-                    <span class="campaign-index">@level.Order.ToString("00")</span>
-                    <div><small>@level.Location</small><h3>@level.Title</h3><p>@level.Description</p></div>
-                    <b>@(complete ? "✓" : "→")</b>
-                </a>
-            }
-        </div>
-    </section>
+        </section>
+    </main>
 }
 
 @code {
