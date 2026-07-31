@@ -15,6 +15,64 @@ public sealed partial class BlockProgramRunner
     // Защита от случайно собранного бесконечного цикла.
     private const int MaxSteps = 10_000;
 
+    public IReadOnlyList<string> Validate(BlockProgram program)
+    {
+        var issues = new List<string>();
+        var inputs = program.Nodes.Where(node => node.Kind == BlockKind.Input).ToList();
+        var outputs = program.Nodes.Where(node => node.Kind == BlockKind.Output).ToList();
+        if (inputs.Count != 1) issues.Add("Нужен ровно один блок «Вход».");
+        if (outputs.Count != 1) issues.Add("Нужен ровно один блок «Выход».");
+
+        var nodeIds = program.Nodes.Select(node => node.Id).ToHashSet();
+        if (program.Connections.Any(edge => !nodeIds.Contains(edge.FromNodeId) || !nodeIds.Contains(edge.ToNodeId)))
+            issues.Add("Одна из связей ведёт к удалённому блоку.");
+        if (program.Connections.GroupBy(edge => (edge.FromNodeId, edge.Port)).Any(group => group.Count() > 1))
+            issues.Add("Из одного порта проведено несколько связей.");
+
+        bool Connected(BlockNode node, OutputPort port) => program.Connections.Any(edge => edge.FromNodeId == node.Id && edge.Port == port);
+        foreach (var node in program.Nodes)
+        {
+            if (node.Kind == BlockKind.Condition)
+            {
+                if (!Connected(node, OutputPort.True)) issues.Add("У условия не подключена синяя ветка.");
+                if (!Connected(node, OutputPort.False)) issues.Add("У условия не подключена красная ветка.");
+            }
+            else if (node.Kind == BlockKind.Loop)
+            {
+                if (!Connected(node, OutputPort.Repeat)) issues.Add("У цикла не подключено тело.");
+                if (!Connected(node, OutputPort.Done)) issues.Add("У цикла не подключён выход «после цикла».");
+            }
+            else if (node.Kind is not (BlockKind.Output or BlockKind.Variable) && !Connected(node, OutputPort.Next)
+                     && !IsInsideLoopBody(program, node.Id))
+            {
+                issues.Add($"У блока «{BlockCatalog.Label(node.Kind)}» не подключён выход.");
+            }
+        }
+
+        var variables = program.Nodes.Where(node => node.Kind == BlockKind.Variable).ToList();
+        if (variables.GroupBy(node => node.VariableName.Trim(), StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+            issues.Add("Два регистра памяти имеют одинаковую букву.");
+        foreach (var action in program.Nodes.Where(node => node.Kind == BlockKind.VariableAction))
+            if (!variables.Any(node => string.Equals(node.VariableName.Trim(), action.VariableName.Trim(), StringComparison.OrdinalIgnoreCase)))
+                issues.Add($"Для блока памяти не найден регистр {action.VariableName}.");
+
+        return issues.Distinct().ToList();
+    }
+
+    private static bool IsInsideLoopBody(BlockProgram program, Guid nodeId)
+    {
+        var starts = program.Connections.Where(edge => edge.Port == OutputPort.Repeat).Select(edge => edge.ToNodeId).ToHashSet();
+        var visited = new HashSet<Guid>();
+        var queue = new Queue<Guid>(starts);
+        while (queue.TryDequeue(out var current))
+        {
+            if (!visited.Add(current)) continue;
+            foreach (var next in program.Connections.Where(edge => edge.FromNodeId == current).Select(edge => edge.ToNodeId))
+                queue.Enqueue(next);
+        }
+        return visited.Contains(nodeId);
+    }
+
     public IReadOnlyList<TestRunResult> RunAll(BlockProgram program, LevelDefinition level)
     {
         return level.Tests.Select(test =>
@@ -53,6 +111,18 @@ public sealed partial class BlockProgramRunner
         if (duplicateEdge is not null)
             return Fail("Из одного порта нельзя провести две связи.");
 
+        // Тело цикла — самостоятельная ветка из любого количества блоков.
+        // Отдельный обратный провод не нужен: конец ветки определяется автоматически.
+        foreach (var edge in program.Connections.Where(edge => edge.Port == OutputPort.Repeat))
+        {
+            if (!nodes.TryGetValue(edge.FromNodeId, out var loop) || loop.Kind != BlockKind.Loop)
+                return Fail("Порт «повтор» есть только у блока «Цикл».");
+            if (!nodes.TryGetValue(edge.ToNodeId, out var body))
+                return Fail("Тело цикла ведёт к удалённому блоку.");
+            if (body.Kind is BlockKind.Input or BlockKind.Variable or BlockKind.Output)
+                return Fail("Тело цикла должно начинаться с команды, условия, работы с переменной или другого цикла.");
+        }
+
         // Плашки переменных не входят в маршрут: они дают программе начальные значения.
         var variables = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
         foreach (var variableNode in program.Nodes.Where(node => node.Kind == BlockKind.Variable))
@@ -69,6 +139,7 @@ public sealed partial class BlockProgramRunner
         var steps = new List<ExecutionStep>();
         // Каждый цикл хранит собственный счётчик, поэтому вложенные маршруты не смешиваются.
         var loopStates = new Dictionary<Guid, (int Total, int Completed)>();
+        var activeLoopBodies = new Stack<Guid>();
         var current = inputNodes[0];
 
         for (var step = 0; step < MaxSteps; step++)
@@ -96,7 +167,7 @@ public sealed partial class BlockProgramRunner
                         return Fail(operationError, visited, steps);
                     }
                     steps.Add(new(executing.Id, executing.Kind, before, FormatValue(value), $"Команда: {executing.Config.Trim()}"));
-                    if (!TryNext(executing.Id, OutputPort.Next, out current, out var nextError))
+                    if (!TryAdvance(executing.Id, OutputPort.Next, out current, out var nextError))
                         return Fail(nextError, visited, steps);
                     break;
 
@@ -167,7 +238,7 @@ public sealed partial class BlockProgramRunner
                     };
                     var formattedVariable = FormatValue(nextValue);
                     steps.Add(new(executing.Id, executing.Kind, before, formattedVariable, $"{actionLabel}: {variableName}", variableName, formattedVariable));
-                    if (!TryNext(executing.Id, OutputPort.Next, out current, out var variableNextError))
+                    if (!TryAdvance(executing.Id, OutputPort.Next, out current, out var variableNextError))
                         return Fail(variableNextError, visited, steps);
                     break;
                 }
@@ -181,13 +252,13 @@ public sealed partial class BlockProgramRunner
                     }
                     var conditionPort = condition ? OutputPort.True : OutputPort.False;
                     steps.Add(new(executing.Id, executing.Kind, before, before, condition ? "Условие выполнено — синяя ветка" : "Условие не выполнено — красная ветка"));
-                    if (!TryNext(executing.Id, conditionPort, out current, out var branchError))
+                    if (!TryAdvance(executing.Id, conditionPort, out current, out var branchError))
                         return Fail(branchError, visited, steps);
                     break;
 
                     //Цикл
                 case BlockKind.Loop:
-                    // Первый вход создаёт счётчик, каждый возврат снизу завершает одну итерацию.
+                    // Первый вход создаёт счётчик, а тело цикла возвращается сюда автоматически.
                     if (!loopStates.TryGetValue(executing.Id, out var state))
                     {
                         if (!TryGetLoopCount(value, executing.Config, out var total, out var loopError))
@@ -207,12 +278,25 @@ public sealed partial class BlockProgramRunner
                     var loopPort = state.Completed < state.Total ? OutputPort.Repeat : OutputPort.Done;
                     if (loopPort == OutputPort.Done)
                         loopStates.Remove(executing.Id);
+                    else
+                        activeLoopBodies.Push(executing.Id);
                     var loopDetail = loopPort == OutputPort.Repeat
                         ? $"Повтор {state.Completed + 1} из {state.Total}"
                         : $"Цикл завершён: {state.Total} повторов";
                     steps.Add(new(executing.Id, executing.Kind, before, before, loopDetail));
-                    if (!TryNext(executing.Id, loopPort, out current, out var loopNextError))
+                    if (loopPort == OutputPort.Repeat)
+                    {
+                        // У цикла обязательно должно быть явно указано начало группы.
+                        if (!TryNext(executing.Id, loopPort, out current, out var loopNextError))
+                        {
+                            activeLoopBodies.Pop();
+                            return Fail(loopNextError, visited, steps);
+                        }
+                    }
+                    else if (!TryAdvance(executing.Id, loopPort, out current, out var loopNextError))
+                    {
                         return Fail(loopNextError, visited, steps);
+                    }
                     break;
 
                 case BlockKind.Output:
@@ -239,6 +323,20 @@ public sealed partial class BlockProgramRunner
             }
             error = "";
             return true;
+        }
+
+        bool TryAdvance(Guid from, OutputPort port, out BlockNode next, out string error)
+        {
+            if (TryNext(from, port, out next, out error))
+                return true;
+
+            // Неподключённый выход внутри тела завершает всю группу блоков.
+            if (activeLoopBodies.Count > 0 && nodes.TryGetValue(activeLoopBodies.Pop(), out next!))
+            {
+                error = "";
+                return true;
+            }
+            return false;
         }
     }
 

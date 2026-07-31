@@ -30,7 +30,7 @@ else
             <div class="file-actions">
                 <button type="button" @onclick="ExportLevels">Экспорт JSON</button>
                 <label>Импорт JSON<InputFile OnChange="ImportFile" accept="application/json,.json" /></label>
-                <button type="button" @onclick="ResetLevels">Вернуть примеры</button>
+                <button type="button" @onclick="ResetLevels">Перезагрузить JSON</button>
             </div>
         </aside>
 
@@ -162,7 +162,7 @@ else
                                         <label><span>Ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
                                         <label><span>Или загрузить файл</span><InputFile OnChange="args => UploadIntroMedia(introIndex, args)" accept="image/gif,image/png,image/jpeg,image/webp" /></label>
                                     </div>
-                                    <p class="intro-media-note">GIF лучше загружать по ссылке: файл попадёт в экспорт уровней. Загрузка в редакторе ограничена 4 МБ и хранится в этом браузере.</p>
+                                    <p class="intro-media-note">GIF лучше добавлять по ссылке: файл попадёт в скачиваемый JSON. Локальный файл ограничен 4 МБ.</p>
 
                                     @if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
                                     {
@@ -198,8 +198,8 @@ else
                 </section>
 
                 <footer class="editor-savebar">
-                    <div><strong>@level.Tests.Count тестов</strong><span> · @level.IntroSteps.Count вступительных окон · @level.AllowedBlocks.Count типов блоков · данные хранятся в этом браузере</span></div>
-                    <button type="button" class="save-button" @onclick="Save">Сохранить уровни</button>
+                    <div><strong>@level.Tests.Count тестов</strong><span> · @level.IntroSteps.Count вступительных окон · @level.AllowedBlocks.Count типов блоков · источник: JSON</span></div>
+                    <button type="button" class="save-button" @onclick="Save">Скачать JSON</button>
                 </footer>
             </main>
         }
@@ -444,8 +444,8 @@ else
             return;
         }
         Renumber();
-        await LevelStore.SaveAsync(_levels);
-        _message = "Сохранено. Игра уже использует обновлённые уровни.";
+        await ExportLevels();
+        _message = "JSON скачан. Замените им файл wwwroot/levels.json — после публикации игру получат новые уровни.";
         _messageIsError = false;
     }
 
@@ -458,8 +458,7 @@ else
             var json = await reader.ReadToEndAsync();
             _levels = LevelStore.Import(json);
             _selectedId = _levels.First().Id;
-            await LevelStore.SaveAsync(_levels);
-            _message = $"Импортировано уровней: {_levels.Count}.";
+            _message = $"Импортировано уровней: {_levels.Count}. После правок скачайте новый JSON.";
             _messageIsError = false;
         }
         catch (Exception exception)
@@ -470,8 +469,7 @@ else
 
     private async Task ResetLevels()
     {
-        if (!await JS.InvokeAsync<bool>("confirm", "Заменить текущие уровни тремя примерами?")) return;
-        await LevelStore.ResetAsync();
+        if (!await JS.InvokeAsync<bool>("confirm", "Отменить несохранённые изменения и заново загрузить levels.json?")) return;
         _levels = await LevelStore.LoadEditorAsync();
         _selectedId = _levels.First().Id;
         _message = "Примеры восстановлены.";

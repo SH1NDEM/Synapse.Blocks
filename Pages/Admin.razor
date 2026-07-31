@@ -11,15 +11,15 @@
 else
 {
     <section class="admin-page">
-        <header class="admin-hero">
+        <header class="admin-hero admin-hero-compact">
             <div>
-                <small>РЕЖИМ РАЗРАБОТЧИКА</small>
-                <h1>Кампания<br /><em>под вашим контролем.</em></h1>
-                <p>Создавайте задания, задавайте тесты и добавляйте пояснения перед началом уровней. Дети в своей части сайта видят только игру и прохождение кампании.</p>
+                <small>ПАНЕЛЬ РАЗРАБОТЧИКА</small>
+                <h1>Уровни и проверка</h1>
+                <p>Настройте кампанию в редакторе или проверьте блоки и тесты в песочнице.</p>
             </div>
             <div class="admin-hero-actions">
-                <a class="admin-primary" href="editor">Открыть редактор <span>→</span></a>
-                <a class="admin-secondary" href="">Посмотреть детскую версию</a>
+                <a class="admin-primary" href="editor">Редактировать JSON <span>→</span></a>
+                <a class="admin-secondary" href="sandbox">Открыть песочницу</a>
             </div>
         </header>
 
@@ -30,27 +30,9 @@ else
             <article><small>ГЛАВ</small><strong>@ChapterCount</strong><span>сюжетных секторов</span></article>
         </section>
 
-        <section class="admin-workflow">
-            <div class="admin-section-heading"><small>// РАБОЧИЙ ПРОЦЕСС</small><h2>Что можно делать здесь</h2></div>
-            <div class="admin-action-grid">
-                <a class="admin-action-card accent-green" href="editor">
-                    <span>01</span><h3>Создать уровень</h3><p>Опишите задачу, входные и выходные данные, сюжет и допустимые блоки.</p><b>К редактору →</b>
-                </a>
-                <a class="admin-action-card accent-blue" href="editor">
-                    <span>02</span><h3>Настроить проверку</h3><p>Добавьте открытые и скрытые тесты. Игра сама сравнит результат программы с ожидаемым ответом.</p><b>Редактировать тесты →</b>
-                </a>
-                <a class="admin-action-card accent-purple" href="editor">
-                    <span>03</span><h3>Объяснить перед стартом</h3><p>Соберите всплывающие пояснения и подсветите нужные части игрового интерфейса.</p><b>Добавить пояснение →</b>
-                </a>
-                <a class="admin-action-card accent-amber" href="game">
-                    <span>04</span><h3>Проверить как игрок</h3><p>Откройте кампанию, соберите решение блоками и убедитесь, что все тесты проходят.</p><b>Запустить игру →</b>
-                </a>
-            </div>
-        </section>
-
         <aside class="admin-local-note">
             <i>i</i>
-            <p><b>Где сохраняются изменения.</b> Сейчас уровни редактора сохраняются в браузере этого устройства. Для общей кампании на GitHub Pages экспортируйте JSON или добавим облачное хранилище в следующем этапе.</p>
+            <p><b>Источник кампании.</b> Игра читает <code>wwwroot/levels.json</code>. Редактор скачивает готовый JSON: замените этим файлом текущий <code>levels.json</code>, затем отправьте изменения в GitHub.</p>
         </aside>
     </section>
 }
@@ -64,7 +46,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadEditorAsync();
+        _levels = await LevelStore.LoadGameAsync();
         _loading = false;
     }
 }

@@ -11,4 +11,5 @@ namespace Synapse.Blocks.Serialization;
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(List<LevelDefinition>))]
 [JsonSerializable(typeof(HashSet<Guid>))]
+[JsonSerializable(typeof(BlockProgram))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext;

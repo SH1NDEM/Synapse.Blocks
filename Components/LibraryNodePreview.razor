@@ -25,15 +25,19 @@
         }
         else if (Kind == BlockKind.Variable)
         {
-            <div class="node-config variable-plaque-config"><label><span>ИМЯ</span><input value="счётчик" readonly /></label><label><span>НАЧАЛО</span><input value="0" readonly /></label></div>
+            <div class="node-config variable-plaque-config register-display"><label class="register-name"><span>РЕГИСТР</span><select><option>A</option></select></label><label class="register-value"><span>НАЧАЛО</span><input value="0" readonly /></label></div>
         }
         else if (Kind == BlockKind.Loop)
         {
-            <div class="node-config loop-config"><span>ПОВТОРЫ</span><div class="loop-source-toggle"><button type="button" class="active">Вход</button><button type="button">Своё</button></div></div>
+            <div class="node-config loop-config"><span>ПОВТОРЫ</span><div class="loop-source-toggle"><button type="button" class="active">Вход</button><button type="button">Число</button></div></div>
         }
         else if (Kind == BlockKind.VariableAction)
         {
-            <div class="node-config variable-action-config"><span>ПЕРЕМЕННАЯ</span><select><option>счётчик</option></select><select><option>Прибавить</option></select><input value="2" readonly /></div>
+            <div class="node-config variable-action-config">
+                <label class="variable-picker"><span>Память</span><select><option>A</option></select></label>
+                <div class="variable-action-buttons"><button class="active">Получить</button><button>Записать</button></div>
+                <small class="variable-result-note">Память → выход</small>
+            </div>
         }
         else
         {
@@ -47,9 +51,8 @@
         }
         else if (Kind == BlockKind.Loop)
         {
-            <span class="node-port output-port done-port"><span>выход</span><i></i></span>
-            <span class="node-port output-port repeat-port"><span>повтор</span><i></i></span>
-            <span class="node-port loop-return-port"><i></i><span>возврат</span></span>
+            <span class="node-port output-port done-port"><span>после цикла</span><i></i></span>
+            <span class="node-port output-port repeat-port"><span>тело</span><i></i></span>
         }
         else if (Kind is not BlockKind.Output and not BlockKind.Variable)
         {
@@ -68,10 +71,10 @@
     private const double Scale = .8;
     private const double Width = 224;
     // Высоты совпадают с редактором: миниатюра отличается только масштабом 80%.
-    private double Height => Kind switch { BlockKind.Condition => 150, BlockKind.Loop => 166, BlockKind.Variable => 132, BlockKind.VariableAction => 176, _ => 126 };
+    private double Height => Kind switch { BlockKind.Condition => 150, BlockKind.Loop => 152, BlockKind.Variable => 144, BlockKind.VariableAction => 144, _ => 126 };
     private double LeftExtent => Kind is BlockKind.Input or BlockKind.Variable ? 0 : 56;
     private double RightExtent => Kind switch { BlockKind.Condition => 94, BlockKind.Loop => 82, BlockKind.Output or BlockKind.Variable => 0, _ => 56 };
-    private double BottomExtent => Kind == BlockKind.Loop ? 56 : 0;
+    private double BottomExtent => 0;
     private string StageStyle => FormattableString.Invariant($"width:{(Width + LeftExtent + RightExtent) * Scale}px;height:{(Height + BottomExtent) * Scale}px");
     private string NodeStyle => FormattableString.Invariant($"left:{LeftExtent * Scale}px;top:0;width:{Width}px;height:{Height}px");
     private Task ShowHelp() => OnHelp.InvokeAsync(Kind);
