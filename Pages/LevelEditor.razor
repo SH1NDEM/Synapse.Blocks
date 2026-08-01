@@ -275,6 +275,10 @@ else
             OutputDescription = source.OutputDescription,
             Hint = source.Hint,
             AllowedBlocks = [.. source.AllowedBlocks],
+            RequiredBlocks = [.. source.RequiredBlocks],
+            RequiredLoopCount = source.RequiredLoopCount,
+            RequiredLoopBodyOperationCount = source.RequiredLoopBodyOperationCount,
+            MaxOperationBlocks = source.MaxOperationBlocks,
             IntroSteps = source.IntroSteps.Select(step => new LevelIntroStep
             {
                 Title = step.Title,

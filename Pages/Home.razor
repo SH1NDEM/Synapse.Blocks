@@ -94,6 +94,17 @@ else
                     <strong>@ActiveLevel.Objective</strong>
                 </div>
 
+                @if (HasSolutionRules)
+                {
+                    <div class="solution-rules">
+                        <small>УСЛОВИЯ СХЕМЫ</small>
+                        @foreach (var rule in SolutionRuleLabels())
+                        {
+                            <span>@rule</span>
+                        }
+                    </div>
+                }
+
                 <dl class="data-contract">
                     <div class="@IntroHighlightClass(IntroHighlightTarget.InputData)"><dt>Вход</dt><dd>@ActiveLevel.InputDescription</dd></div>
                     <div class="@IntroHighlightClass(IntroHighlightTarget.OutputData)"><dt>Выход</dt><dd>@ActiveLevel.OutputDescription</dd></div>
@@ -648,6 +659,10 @@ else
         OutputDescription = source.OutputDescription,
         Hint = source.Hint,
         AllowedBlocks = Enum.GetValues<BlockKind>().ToList(),
+        RequiredBlocks = source.RequiredBlocks.ToList(),
+        RequiredLoopCount = source.RequiredLoopCount,
+        RequiredLoopBodyOperationCount = source.RequiredLoopBodyOperationCount,
+        MaxOperationBlocks = source.MaxOperationBlocks,
         Tests = source.Tests.Select(test => new LevelTestCase
         {
             Id = Guid.NewGuid(),
@@ -730,7 +745,7 @@ else
         if (saved is null) return;
         _program.Nodes.AddRange(saved.Nodes);
         _program.Connections.AddRange(saved.Connections);
-        _graphIssues = Runner.Validate(_program).ToList();
+        _graphIssues = ValidateCurrentProgram();
         _canvasNeedsRefresh = true;
     }
 
@@ -1066,7 +1081,7 @@ else
         _activeTestName = "";
         _activeTestHidden = false;
         _stepPlaying = false;
-        _graphIssues = Runner.Validate(_program).ToList();
+        _graphIssues = ValidateCurrentProgram();
         if (!IsSandbox && !_loading)
         {
             var generation = ++_saveGeneration;
@@ -1488,6 +1503,78 @@ else
             };
         }
         catch { return "текст"; }
+    }
+
+    private bool HasSolutionRules => ActiveLevel is not null
+        && (ActiveLevel.RequiredBlocks.Count > 0
+            || ActiveLevel.RequiredLoopCount is not null
+            || ActiveLevel.RequiredLoopBodyOperationCount is not null
+            || ActiveLevel.MaxOperationBlocks is not null);
+
+    private IEnumerable<string> SolutionRuleLabels()
+    {
+        if (ActiveLevel is null) yield break;
+        foreach (var kind in ActiveLevel.RequiredBlocks)
+            yield return $"Обязательный блок: {BlockCatalog.Label(kind)}";
+        if (ActiveLevel.RequiredLoopCount is int loopCount)
+            yield return $"Повторов цикла: {loopCount}";
+        if (ActiveLevel.RequiredLoopBodyOperationCount is int bodyOperations)
+            yield return $"Операций в теле цикла: {bodyOperations}";
+        if (ActiveLevel.MaxOperationBlocks is int maxOperations)
+            yield return $"Операций во всей схеме: не больше {maxOperations}";
+    }
+
+    private HashSet<Guid> LoopBodyNodeIds(BlockNode loop)
+    {
+        var result = new HashSet<Guid>();
+        var start = _program.Connections.LastOrDefault(edge => edge.FromNodeId == loop.Id && edge.Port == OutputPort.Repeat)?.ToNodeId;
+        if (start is null) return result;
+
+        var queue = new Queue<Guid>();
+        queue.Enqueue(start.Value);
+        while (queue.TryDequeue(out var id) && result.Count < 80)
+        {
+            if (!result.Add(id)) continue;
+            var node = _program.Nodes.FirstOrDefault(item => item.Id == id);
+            if (node is null || node.Kind == BlockKind.Output || node.Kind == BlockKind.Loop) continue;
+            foreach (var next in _program.Connections.Where(edge => edge.FromNodeId == id).Select(edge => edge.ToNodeId))
+                queue.Enqueue(next);
+        }
+        return result;
+    }
+
+    private List<string> ValidateCurrentProgram()
+    {
+        var issues = Runner.Validate(_program).ToList();
+        if (ActiveLevel is null) return issues;
+
+        foreach (var kind in ActiveLevel.RequiredBlocks)
+            if (!_program.Nodes.Any(node => node.Kind == kind))
+                issues.Add($"В этом задании обязательно используйте блок «{BlockCatalog.Label(kind)}».");
+
+        if (ActiveLevel.MaxOperationBlocks is int maxOperations)
+        {
+            var operationCount = _program.Nodes.Count(node => node.Kind == BlockKind.Operation);
+            if (operationCount > maxOperations)
+                issues.Add($"Используйте не больше {maxOperations} блоков «Операция».");
+        }
+
+        if (ActiveLevel.RequiredLoopCount is int requiredCount)
+        {
+            var loops = _program.Nodes.Where(node => node.Kind == BlockKind.Loop).ToList();
+            if (loops.Count > 0 && !loops.Any(loop => !LoopUsesInput(loop.Config) && LoopCountValue(loop.Config) == requiredCount.ToString(CultureInfo.InvariantCulture)))
+                issues.Add($"Настройте цикл ровно на {requiredCount} повтора.");
+        }
+
+        if (ActiveLevel.RequiredLoopBodyOperationCount is int requiredBodyOperations)
+        {
+            var loops = _program.Nodes.Where(node => node.Kind == BlockKind.Loop).ToList();
+            var hasRequiredBody = loops.Any(loop =>
+                LoopBodyNodeIds(loop).Count(id => _program.Nodes.Any(node => node.Id == id && node.Kind == BlockKind.Operation)) == requiredBodyOperations);
+            if (loops.Count > 0 && !hasRequiredBody)
+                issues.Add($"Поместите в тело цикла ровно {requiredBodyOperations} блока «Операция».");
+        }
+        return issues.Distinct().ToList();
     }
 
     private string PreviewPath(BlockNode from)
