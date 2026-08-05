@@ -31,6 +31,10 @@
         {
             <div class="node-config loop-config"><span>ПОВТОРЫ</span><div class="loop-source-toggle"><button type="button" class="active">Вход</button><button type="button">Число</button></div></div>
         }
+        else if (Kind == BlockKind.Condition)
+        {
+            <div class="node-config condition-config"><span>ПРОВЕРКА</span><input value="> 20" readonly /><button type="button">Тип</button></div>
+        }
         else if (Kind == BlockKind.VariableAction)
         {
             <div class="node-config variable-action-config">
@@ -41,7 +45,7 @@
         }
         else
         {
-            <div class="node-config"><span>@(Kind == BlockKind.Condition ? "ПРОВЕРКА" : "ПОВТОРЫ")</span><input value="@(Kind == BlockKind.Condition ? "> 20" : "input")" readonly /></div>
+            <div class="node-config"><span>ПОВТОРЫ</span><input value="input" readonly /></div>
         }
 
         @if (Kind == BlockKind.Condition)

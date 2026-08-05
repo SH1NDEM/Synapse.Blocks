@@ -1,0 +1,293 @@
+@page "/admin/city"
+@layout AdminLayout
+@implements IAsyncDisposable
+@using System.Text
+@inject CitySceneStore CitySceneStore
+@inject LevelStore LevelStore
+@inject IJSRuntime JS
+
+<PageTitle>Редактор 3D-города — Синапс</PageTitle>
+
+@if (_loading)
+{
+    <div class="page-loading"><span></span><p>Открываю 3D-редактор…</p></div>
+}
+else
+{
+    <main class="city-editor-page">
+        <section class="city-editor-preview-panel">
+            <header>
+                <div><small>3D-СЦЕНА · @_levelCount УРОВНЕЙ · @_scene.Chips.Count ЧИПОВ</small><h1>Редактор города</h1></div>
+                <div class="city-edit-modes">
+                    <button type="button" class="@(_mode == "move" ? "active" : "")" @onclick="SetMoveMode">Перемещать чипы</button>
+                    <button type="button" class="@(_mode == "route" ? "active" : "")" @onclick="SetRouteMode">Прокладывать путь</button>
+                </div>
+            </header>
+
+            <div class="chip-city-scene city-editor-preview">
+                <canvas id="synapse-city-editor-webgl" class="city-webgl"></canvas>
+                <div class="city-webgl-vignette" aria-hidden="true"></div>
+                @for (var index = 0; index < _scene.Chips.Count; index++)
+                {
+                    <span class="city-system-label editor-number @(index == _selectedIndex ? "selected" : "")" data-system-index="@index"><strong>@_scene.Chips[index].Number.ToString("00")</strong></span>
+                }
+                <div class="city-webgl-fallback">WebGL недоступен в этом браузере</div>
+            </div>
+
+            <footer>
+                <i></i>
+                <p>@(_mode == "move" ? "Потяните любой чип, чтобы изменить его положение." : $"Щёлкайте по сетке — новые повороты добавятся в маршрут чипа {SelectedChip.Number:00}.")</p>
+                <span>X @SelectedChip.X.ToString("0.0") · Z @SelectedChip.Z.ToString("0.0")</span>
+            </footer>
+        </section>
+
+        <aside class="city-editor-controls">
+            <div class="city-editor-actions">
+                <button type="button" class="primary" @onclick="SaveLocal">Сохранить в браузере</button>
+                <button type="button" @onclick="ExportJson">Скачать JSON</button>
+                <label>Загрузить JSON<InputFile OnChange="ImportJson" accept="application/json,.json" /></label>
+                <button type="button" @onclick="ResetFromFile">Вернуть файл сайта</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_message))
+            {
+                <div class="city-editor-message @(_messageError ? "error" : "")">@_message</div>
+            }
+
+            <section class="city-control-card">
+                <header><span>СЦЕНА</span><small>Камера и поверхность</small></header>
+                <label><span>Отдаление камеры <b>@_scene.CameraSize.ToString("0.0")</b></span><input type="range" min="6" max="20" step=".1" @bind="_scene.CameraSize" @bind:event="oninput" @bind:after="PreviewChanged" /></label>
+                <div class="city-color-row">
+                    <label><span>Фон</span><input type="color" @bind="_scene.GroundColor" @bind:after="PreviewChanged" /></label>
+                    <label><span>Сетка</span><input type="color" @bind="_scene.GridColor" @bind:after="PreviewChanged" /></label>
+                </div>
+            </section>
+
+            <section class="city-control-card">
+                <header><span>ГЛАВНЫЙ ЧИП</span><small>Основание города</small></header>
+                <div class="city-number-grid">
+                    <label><span>Ширина</span><input type="number" min="3" max="9" step=".1" @bind="_scene.Core.Width" @bind:after="PreviewChanged" /></label>
+                    <label><span>Глубина</span><input type="number" min="2.4" max="7" step=".1" @bind="_scene.Core.Depth" @bind:after="PreviewChanged" /></label>
+                </div>
+                <label class="city-color-full"><span>Цвет корпуса</span><input type="color" @bind="_scene.Core.Color" @bind:after="PreviewChanged" /></label>
+            </section>
+
+            <section class="city-control-card">
+                <header><span>ПОДСИСТЕМА</span><small>Выберите номер</small></header>
+                <div class="city-chip-selector">
+                    @for (var index = 0; index < _scene.Chips.Count; index++)
+                    {
+                        var captured = index;
+                        <button type="button" class="@(captured == _selectedIndex ? "active" : "")" @onclick="() => SelectChip(captured)">@_scene.Chips[captured].Number.ToString("00")</button>
+                    }
+                </div>
+                <div class="city-number-grid">
+                    <label><span>X</span><input type="number" step=".1" @bind="SelectedChip.X" @bind:after="ChipPositionChanged" /></label>
+                    <label><span>Z</span><input type="number" step=".1" @bind="SelectedChip.Z" @bind:after="ChipPositionChanged" /></label>
+                    <label><span>Ширина</span><input type="number" min="1.8" max="6" step=".1" @bind="SelectedChip.Width" @bind:after="PreviewChanged" /></label>
+                    <label><span>Глубина</span><input type="number" min="1.2" max="4.5" step=".1" @bind="SelectedChip.Depth" @bind:after="PreviewChanged" /></label>
+                </div>
+                <label class="city-color-full"><span>Цвет чипа</span><input type="color" @bind="SelectedChip.Color" @bind:after="PreviewChanged" /></label>
+            </section>
+
+            <section class="city-control-card route-card">
+                <header><span>МАРШРУТ @SelectedChip.Number.ToString("00")</span><small>@SelectedRoute.Points.Count точек</small></header>
+                <label class="city-color-full"><span>Цвет сигнала</span><input type="color" @bind="SelectedRoute.Color" @bind:after="PreviewChanged" /></label>
+                <div class="route-point-list">
+                    @for (var index = 0; index < SelectedRoute.Points.Count; index++)
+                    {
+                        var captured = index;
+                        var point = SelectedRoute.Points[captured];
+                        <div class="route-point-row">
+                            <span>@(captured + 1)</span>
+                            <label>X <input type="number" step=".1" @bind="point.X" @bind:after="PreviewChanged" /></label>
+                            <label>Z <input type="number" step=".1" @bind="point.Z" @bind:after="PreviewChanged" /></label>
+                            <button type="button" disabled="@(captured == 0 || captured == SelectedRoute.Points.Count - 1)" @onclick="() => RemoveRoutePoint(captured)">×</button>
+                        </div>
+                    }
+                </div>
+                <button type="button" class="route-reset" @onclick="ResetRoute">Очистить повороты</button>
+            </section>
+        </aside>
+    </main>
+}
+
+@code {
+    private const string CanvasId = "synapse-city-editor-webgl";
+    private CitySceneDefinition _scene = new();
+    private DotNetObjectReference<CityEditor>? _selfReference;
+    private bool _loading = true;
+    private bool _started;
+    private bool _previewDirty;
+    private int _selectedIndex;
+    private string _mode = "move";
+    private string _message = "";
+    private bool _messageError;
+    private int _levelCount;
+
+    private CityChipDefinition SelectedChip => _scene.Chips[_selectedIndex];
+    private CityRouteDefinition SelectedRoute => EnsureRoute(SelectedChip.Number);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _levelCount = (await LevelStore.LoadEditorAsync()).Count;
+        _scene = await CitySceneStore.LoadAsync();
+        EnsureLevelChips();
+        _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loading) return;
+        if (!_started)
+        {
+            _selfReference = DotNetObjectReference.Create(this);
+            _started = await JS.InvokeAsync<bool>("synapseCity3d.start", CanvasId, CitySceneStore.Export(_scene), true, _selfReference);
+            await JS.InvokeVoidAsync("synapseCity3d.setEditorMode", CanvasId, _mode, _selectedIndex);
+        }
+        else if (_previewDirty)
+        {
+            _previewDirty = false;
+            await JS.InvokeVoidAsync("synapseCity3d.update", CanvasId, CitySceneStore.Export(_scene));
+            await JS.InvokeVoidAsync("synapseCity3d.setEditorMode", CanvasId, _mode, _selectedIndex);
+        }
+    }
+
+    private void EnsureLevelChips()
+    {
+        _scene = CitySceneStore.MatchLevelCount(_scene, _levelCount);
+        _selectedIndex = Math.Clamp(_selectedIndex, 0, _scene.Chips.Count - 1);
+    }
+
+    private CityRouteDefinition EnsureRoute(int chipNumber)
+    {
+        var route = _scene.Routes.FirstOrDefault(item => item.ChipNumber == chipNumber);
+        if (route is not null) return route;
+        var chip = _scene.Chips.First(item => item.Number == chipNumber);
+        route = new() { ChipNumber = chipNumber, Points = [new() { X = chip.X, Z = chip.Z }, new() { X = _scene.Core.X, Z = _scene.Core.Z }] };
+        _scene.Routes.Add(route);
+        return route;
+    }
+
+    private void SelectChip(int index)
+    {
+        _selectedIndex = Math.Clamp(index, 0, _scene.Chips.Count - 1);
+        _previewDirty = true;
+    }
+
+    private void SetMode(string mode)
+    {
+        _mode = mode == "route" ? "route" : "move";
+        _previewDirty = true;
+    }
+
+    private void SetMoveMode() => SetMode("move");
+    private void SetRouteMode() => SetMode("route");
+
+    private void PreviewChanged() => _previewDirty = true;
+
+    private void ChipPositionChanged()
+    {
+        var route = SelectedRoute;
+        if (route.Points.Count > 0)
+        {
+            route.Points[0].X = SelectedChip.X;
+            route.Points[0].Z = SelectedChip.Z;
+        }
+        PreviewChanged();
+    }
+
+    private void RemoveRoutePoint(int index)
+    {
+        if (index <= 0 || index >= SelectedRoute.Points.Count - 1) return;
+        SelectedRoute.Points.RemoveAt(index);
+        PreviewChanged();
+    }
+
+    private void ResetRoute()
+    {
+        SelectedRoute.Points = [new() { X = SelectedChip.X, Z = SelectedChip.Z }, new() { X = _scene.Core.X, Z = _scene.Core.Z }];
+        PreviewChanged();
+    }
+
+    [JSInvokable]
+    public async Task SelectChipFromScene(int index)
+    {
+        _selectedIndex = Math.Clamp(index, 0, _scene.Chips.Count - 1);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task MoveChipFromScene(int index, double x, double z)
+    {
+        if (index < 0 || index >= _scene.Chips.Count) return;
+        var chip = _scene.Chips[index];
+        var deltaX = x - chip.X;
+        var deltaZ = z - chip.Z;
+        chip.X = Math.Round(x, 2);
+        chip.Z = Math.Round(z, 2);
+        var route = EnsureRoute(chip.Number);
+        if (route.Points.Count > 0)
+        {
+            route.Points[0].X += deltaX;
+            route.Points[0].Z += deltaZ;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task AddRoutePointFromScene(int index, double x, double z)
+    {
+        if (index < 0 || index >= _scene.Chips.Count) return;
+        _selectedIndex = index;
+        var route = SelectedRoute;
+        var point = new CityRoutePoint { X = Math.Round(x, 2), Z = Math.Round(z, 2) };
+        route.Points.Insert(Math.Max(1, route.Points.Count - 1), point);
+        _previewDirty = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveLocal()
+    {
+        await CitySceneStore.SaveLocalAsync(_scene);
+        ShowMessage("Сцена сохранена. Главная страница на этом устройстве уже использует эту версию.");
+    }
+
+    private async Task ExportJson()
+        => await JS.InvokeVoidAsync("synapseDownloadText", "city-scene.json", CitySceneStore.Export(_scene));
+
+    private async Task ImportJson(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            await using var stream = args.File.OpenReadStream(1_000_000);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            _scene = CitySceneStore.Import(await reader.ReadToEndAsync());
+            EnsureLevelChips();
+            _previewDirty = true;
+            ShowMessage("JSON загружен в редактор. Нажмите «Сохранить в браузере», чтобы применить его.");
+        }
+        catch (Exception error) { ShowMessage($"Не удалось загрузить JSON: {error.Message}", true); }
+    }
+
+    private async Task ResetFromFile()
+    {
+        await CitySceneStore.ClearLocalAsync();
+        _scene = await CitySceneStore.LoadFileAsync();
+        EnsureLevelChips();
+        _previewDirty = true;
+        ShowMessage("Загружена версия из wwwroot/city-scene.json.");
+    }
+
+    private void ShowMessage(string text, bool error = false)
+    {
+        _message = text;
+        _messageError = error;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_started) await JS.InvokeVoidAsync("synapseCity3d.stop", CanvasId);
+        _selfReference?.Dispose();
+    }
+}

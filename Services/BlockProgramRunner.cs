@@ -416,6 +416,28 @@ public sealed partial class BlockProgramRunner
             return false;
         }
 
+        if (condition.StartsWith("type ", StringComparison.OrdinalIgnoreCase)
+            || condition.StartsWith("тип ", StringComparison.OrdinalIgnoreCase))
+        {
+            var separator = condition.IndexOf(' ');
+            var requestedType = condition[(separator + 1)..].Trim();
+            if (requestedType.Equals("text", StringComparison.OrdinalIgnoreCase)
+                || requestedType.Equals("текст", StringComparison.OrdinalIgnoreCase))
+            {
+                result = IsTextValue(input);
+                return true;
+            }
+            if (requestedType.Equals("number", StringComparison.OrdinalIgnoreCase)
+                || requestedType.Equals("число", StringComparison.OrdinalIgnoreCase))
+            {
+                result = IsNumberValue(input);
+                return true;
+            }
+
+            error = "Неизвестный тип. Выберите «Текст» или «Число».";
+            return false;
+        }
+
         foreach (var (prefix, predicate) in new (string Prefix, Func<string, string, bool> Test)[]
         {
             ("contains ", (left, right) => left.Contains(right, StringComparison.OrdinalIgnoreCase)),
@@ -519,6 +541,22 @@ public sealed partial class BlockProgramRunner
     }
 
     private static string AsText(object? value) => FormatValue(value).Trim('"');
+
+    private static bool IsTextValue(object? value)
+        => value is string or char
+            || value is JsonValue jsonValue && jsonValue.TryGetValue<string>(out _);
+
+    private static bool IsNumberValue(object? value)
+    {
+        if (value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal)
+            return true;
+
+        return value is JsonValue jsonValue
+            && (jsonValue.TryGetValue<double>(out _)
+                || jsonValue.TryGetValue<decimal>(out _)
+                || jsonValue.TryGetValue<long>(out _)
+                || jsonValue.TryGetValue<ulong>(out _));
+    }
 
     private static bool TryNumber(object? value, out double number)
     {

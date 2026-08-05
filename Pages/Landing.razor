@@ -1,6 +1,9 @@
 @page "/"
+@implements IAsyncDisposable
 @inject LevelStore LevelStore
 @inject ProgressStore ProgressStore
+@inject CitySceneStore CitySceneStore
+@inject IJSRuntime JS
 
 <PageTitle>Синапс — Город Ноль</PageTitle>
 
@@ -23,26 +26,31 @@ else
                 <div class="signal-progress"><span><b style="width:@ProgressPercent%"></b></span><div><strong>@ProgressPercent%</strong><small>сети восстановлено</small></div></div>
             </div>
 
-            <div class="district-board" aria-label="Карта операций кампании">
-                <header><div><span>ГОРОД НОЛЬ</span><strong>Панель восстановления</strong></div><b>@_completed.Count / @_levels.Count</b></header>
-                <div class="district-grid">
-                    @for (var index = 0; index < Math.Min(4, _levels.Count); index++)
+            <div class="chip-city" aria-label="Город Ноль на системной плате">
+                <header>
+                    <div><span>ГОРОД НОЛЬ / SYSTEM BOARD</span><strong>Программы внутри города</strong></div>
+                    <b>@_completed.Count / @_levels.Count</b>
+                </header>
+
+                <div class="chip-city-scene">
+                    <canvas id="synapse-city-webgl" class="city-webgl" aria-hidden="true"></canvas>
+                    <div class="city-webgl-vignette" aria-hidden="true"></div>
+
+                    @for (var index = 0; index < _levels.Count; index++)
                     {
                         var level = _levels[index];
                         var complete = _completed.Contains(level.Id);
-                        <a class="district-card district-@index @(complete ? "complete" : "")" href="game?level=@level.Id">
-                            <div><span>@level.Order.ToString("00")</span><i></i></div>
-                            <small>@level.Direction</small>
-                            <strong>@level.Title</strong>
-                            <p>@level.Location</p>
-                            <footer><span>@level.Tests.Count теста</span><b>@(complete ? "ГОТОВО ✓" : "ОТКРЫТЬ →")</b></footer>
+                        <a class="city-system-label @(complete ? "complete" : "")" data-system-index="@index" href="game?level=@level.Id" aria-label="Открыть уровень @level.Title">
+                            <strong>@((index + 1).ToString("00"))</strong>
                         </a>
                     }
+                    <div class="city-webgl-fallback">3D-сцена недоступна в этом браузере</div>
                 </div>
-                <aside class="district-status">
+
+                <aside class="chip-city-status">
                     <div><span>ЭНЕРГИЯ</span><b>@(12 + ProgressPercent / 2)%</b></div>
                     <div><span>СВЯЗЬ</span><b>@(ProgressPercent > 0 ? "СТАБИЛЬНА" : "ЛОКАЛЬНАЯ")</b></div>
-                    <p><i></i> Решения синхронизируются с сетью города</p>
+                    <p><i></i> Сигналы проходят между программными районами</p>
                 </aside>
             </div>
         </section>
@@ -66,19 +74,34 @@ else
     private List<LevelDefinition> _levels = [];
     private HashSet<Guid> _completed = [];
     private bool _loading = true;
+    private bool _cityStarted;
+    private string _citySceneJson = "";
     private int ProgressPercent => _levels.Count == 0 ? 0 : (int)Math.Round(_completed.Count * 100d / _levels.Count);
-
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _levels = await LevelStore.LoadGameAsync();
             _completed = await ProgressStore.LoadAsync();
+            var cityScene = await CitySceneStore.LoadAsync();
+            _citySceneJson = CitySceneStore.Export(CitySceneStore.MatchLevelCount(cityScene, _levels.Count));
         }
         finally
         {
             // Даже повреждённое локальное сохранение не оставляет главную на вечной загрузке.
             _loading = false;
         }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_loading || _cityStarted) return;
+        _cityStarted = await JS.InvokeAsync<bool>("synapseCity3d.start", "synapse-city-webgl", _citySceneJson, false, null);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_cityStarted)
+            await JS.InvokeVoidAsync("synapseCity3d.stop", "synapse-city-webgl");
     }
 }
