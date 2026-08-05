@@ -3,6 +3,7 @@
 @implements IAsyncDisposable
 @using System.Text
 @inject CitySceneStore CitySceneStore
+@inject LevelStore LevelStore
 @inject IJSRuntime JS
 
 <PageTitle>Редактор 3D-города — Синапс</PageTitle>
@@ -16,7 +17,7 @@ else
     <main class="city-editor-page">
         <section class="city-editor-preview-panel">
             <header>
-                <div><small>3D-СЦЕНА</small><h1>Редактор города</h1></div>
+                <div><small>3D-СЦЕНА · @_levelCount УРОВНЕЙ · @_scene.Chips.Count ЧИПОВ</small><h1>Редактор города</h1></div>
                 <div class="city-edit-modes">
                     <button type="button" class="@(_mode == "move" ? "active" : "")" @onclick="SetMoveMode">Перемещать чипы</button>
                     <button type="button" class="@(_mode == "route" ? "active" : "")" @onclick="SetRouteMode">Прокладывать путь</button>
@@ -122,14 +123,16 @@ else
     private string _mode = "move";
     private string _message = "";
     private bool _messageError;
+    private int _levelCount;
 
     private CityChipDefinition SelectedChip => _scene.Chips[_selectedIndex];
     private CityRouteDefinition SelectedRoute => EnsureRoute(SelectedChip.Number);
 
     protected override async Task OnInitializedAsync()
     {
+        _levelCount = (await LevelStore.LoadEditorAsync()).Count;
         _scene = await CitySceneStore.LoadAsync();
-        EnsureFourChips();
+        EnsureLevelChips();
         _loading = false;
     }
 
@@ -150,13 +153,9 @@ else
         }
     }
 
-    private void EnsureFourChips()
+    private void EnsureLevelChips()
     {
-        for (var number = 1; number <= 4; number++)
-            if (_scene.Chips.All(chip => chip.Number != number))
-                _scene.Chips.Add(new() { Number = number, X = number % 2 == 0 ? 7 : -7, Z = number <= 2 ? -4 : 4 });
-        _scene.Chips = _scene.Chips.OrderBy(chip => chip.Number).Take(4).ToList();
-        foreach (var chip in _scene.Chips) EnsureRoute(chip.Number);
+        _scene = CitySceneStore.MatchLevelCount(_scene, _levelCount);
         _selectedIndex = Math.Clamp(_selectedIndex, 0, _scene.Chips.Count - 1);
     }
 
@@ -264,7 +263,7 @@ else
             await using var stream = args.File.OpenReadStream(1_000_000);
             using var reader = new StreamReader(stream, Encoding.UTF8);
             _scene = CitySceneStore.Import(await reader.ReadToEndAsync());
-            EnsureFourChips();
+            EnsureLevelChips();
             _previewDirty = true;
             ShowMessage("JSON загружен в редактор. Нажмите «Сохранить в браузере», чтобы применить его.");
         }
@@ -275,7 +274,7 @@ else
     {
         await CitySceneStore.ClearLocalAsync();
         _scene = await CitySceneStore.LoadFileAsync();
-        EnsureFourChips();
+        EnsureLevelChips();
         _previewDirty = true;
         ShowMessage("Загружена версия из wwwroot/city-scene.json.");
     }

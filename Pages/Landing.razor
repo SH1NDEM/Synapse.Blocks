@@ -36,7 +36,7 @@ else
                     <canvas id="synapse-city-webgl" class="city-webgl" aria-hidden="true"></canvas>
                     <div class="city-webgl-vignette" aria-hidden="true"></div>
 
-                    @for (var index = 0; index < Math.Min(4, _levels.Count); index++)
+                    @for (var index = 0; index < _levels.Count; index++)
                     {
                         var level = _levels[index];
                         var complete = _completed.Contains(level.Id);
@@ -83,7 +83,8 @@ else
         {
             _levels = await LevelStore.LoadGameAsync();
             _completed = await ProgressStore.LoadAsync();
-            _citySceneJson = CitySceneStore.Export(await CitySceneStore.LoadAsync());
+            var cityScene = await CitySceneStore.LoadAsync();
+            _citySceneJson = CitySceneStore.Export(CitySceneStore.MatchLevelCount(cityScene, _levels.Count));
         }
         finally
         {

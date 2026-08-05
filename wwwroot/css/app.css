@@ -235,6 +235,11 @@ code { color: #d7efaf; font-family: ui-monospace, SFMono-Regular, Consolas, mono
 .operation-config.has-value { grid-template-columns: 44px minmax(0,1fr) 48px; gap: 3px; }
 .operation-config > span { flex: none; }
 .operation-config select, .operation-config input { padding-inline: 6px; font-size: 9px; }
+.condition-config { display: grid; grid-template-columns: 51px minmax(0,1fr) 45px; gap: 3px; }
+.condition-config > span { flex: none; }
+.condition-config input, .condition-config select { padding-inline: 6px; font-size: 10px; }
+.condition-config button { min-width: 0; height: 28px; padding: 0 4px; border: 1px solid color-mix(in srgb, var(--accent), #3b463f 50%); border-radius: 6px; background: color-mix(in srgb, var(--accent) 10%, #111512); color: color-mix(in srgb, var(--accent), white 22%); font-size: 8px; font-weight: 700; }
+.condition-config button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 17%, #111512); color: #fff7e8; }
 .loop-config { display: grid; grid-template-columns: 54px minmax(0,1fr); gap: 3px; align-items: center; }
 .loop-config > span { grid-row: 1 / span 2; flex: none; }
 .loop-source-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }

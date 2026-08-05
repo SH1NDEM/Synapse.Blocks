@@ -163,17 +163,27 @@
         const coreSource=read(value,"Core","core",{});
         const chipSources=read(value,"Chips","chips",[]);
         const routeSources=read(value,"Routes","routes",[]);
-        const defaults=[[-7.8,-5.15],[7.25,-3.75],[-8.65,3.45],[8.35,5.25]];
+        const defaults=[[-7.8,-5.15],[7.1,-6.6],[-8,8.9],[10.4,5.25],[-12,1.2],[12,-1.1],[-3.8,-10.8],[4.4,10.9],[-12.5,-8.8],[12.7,8.7]];
+        const defaultPosition=index => {
+            if(defaults[index]) return defaults[index];
+            const extra=index-defaults.length;
+            const radius=14+Math.floor(extra/8)*4;
+            const angle=-Math.PI/2+(extra%8)*Math.PI/4;
+            return [Math.cos(angle)*radius,Math.sin(angle)*radius];
+        };
         const chips=[];
         for(let index=0;index<count;index++) {
             const source=chipSources.find(chip => Number(read(chip,"Number","number",0))===index+1)||chipSources[index]||{};
+            const fallback=defaultPosition(index);
             chips.push({
                 number:index+1,
-                x:Number(read(source,"X","x",defaults[index]?.[0]??0)),
-                z:Number(read(source,"Z","z",defaults[index]?.[1]??0)),
+                x:Number(read(source,"X","x",fallback[0])),
+                z:Number(read(source,"Z","z",fallback[1])),
                 width:Number(read(source,"Width","width",3.18)),
                 depth:Number(read(source,"Depth","depth",1.92)),
-                color:colorFromHex(read(source,"Color","color","#21492F"),"#21492F")
+                color:colorFromHex(
+                    read(source,"Color","color",index>=6?"#2F65A7":"#21492F"),
+                    index>=6?"#2F65A7":"#21492F")
             });
         }
         const routes=chips.map((chip,index) => {
@@ -182,7 +192,9 @@
             const points=sourcePoints.map(point => [Number(read(point,"X","x",0)),Number(read(point,"Z","z",0))]);
             return {
                 points:points.length>=2?points:[[chip.x,chip.z],[chip.x*.28,chip.z*.28]],
-                color:colorFromHex(read(source,"Color","color","#B7ED63"),"#B7ED63")
+                color:colorFromHex(
+                    read(source,"Color","color",chip.number>=7?"#6CA8FF":"#B7ED63"),
+                    chip.number>=7?"#6CA8FF":"#B7ED63")
             };
         });
         return {

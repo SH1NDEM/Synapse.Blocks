@@ -242,7 +242,7 @@ public static class BlockCatalog
     public static string Placeholder(BlockKind kind) => kind switch
     {
         BlockKind.Operation => "+ 2, * 3, set готово, append !",
-        BlockKind.Condition => "> 20, == ключ, contains ошибка",
+        BlockKind.Condition => "> 20, == ключ, contains ошибка или проверка типа",
         BlockKind.Loop => "input или число повторов",
         BlockKind.Variable => "имя и начальное значение",
         BlockKind.VariableAction => "выберите переменную и действие",

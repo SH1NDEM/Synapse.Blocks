@@ -260,6 +260,25 @@ else
                                     }
                                 </div>
                             }
+                            else if (node.Kind == BlockKind.Condition)
+                            {
+                                <div class="node-config condition-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
+                                    <span>ПРОВЕРКА</span>
+                                    @if (ConditionUsesType(node.Config))
+                                    {
+                                        <select value="@ConditionTypeValue(node.Config)" @onchange="e => ChangeConditionType(node, e)" aria-label="Проверяемый тип данных">
+                                            <option value="text">Текст</option>
+                                            <option value="number">Число</option>
+                                        </select>
+                                        <button type="button" title="Вернуться к обычному условию" @onclick="() => ToggleConditionMode(node)">Условие</button>
+                                    }
+                                    else
+                                    {
+                                        <input value="@node.Config" @oninput="e => ChangeConditionExpression(node, e)" placeholder="@BlockCatalog.Placeholder(node.Kind)" aria-label="Условие сравнения" />
+                                        <button type="button" title="Проверить тип входных данных" @onclick="() => ToggleConditionMode(node)">Тип</button>
+                                    }
+                                </div>
+                            }
                             else if (node.Kind == BlockKind.Loop)
                             {
                                 <div class="node-config loop-config" @onpointerdown="CancelExecutionVisuals" @onpointerdown:stopPropagation="true">
@@ -879,6 +898,41 @@ else
     private void ChangeConfig(BlockNode node, string value)
     {
         node.Config = value;
+        ResetExecution();
+    }
+
+    private static bool ConditionUsesType(string config)
+        => config.Trim().StartsWith("type ", StringComparison.OrdinalIgnoreCase)
+            || config.Trim().StartsWith("тип ", StringComparison.OrdinalIgnoreCase);
+
+    private static string ConditionTypeValue(string config)
+    {
+        var value = config.Trim();
+        var separator = value.IndexOf(' ');
+        var type = separator >= 0 ? value[(separator + 1)..].Trim() : "";
+        return type.Equals("number", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("число", StringComparison.OrdinalIgnoreCase)
+                ? "number"
+                : "text";
+    }
+
+    private void ToggleConditionMode(BlockNode node)
+    {
+        // В режиме типа поле заменяется простым списком. Возврат создаёт понятное
+        // числовое условие, которое ребёнок может сразу изменить.
+        node.Config = ConditionUsesType(node.Config) ? "> 0" : "type text";
+        ResetExecution();
+    }
+
+    private void ChangeConditionExpression(BlockNode node, ChangeEventArgs args)
+    {
+        node.Config = args.Value?.ToString() ?? "";
+        ResetExecution();
+    }
+
+    private void ChangeConditionType(BlockNode node, ChangeEventArgs args)
+    {
+        node.Config = args.Value?.ToString() == "number" ? "type number" : "type text";
         ResetExecution();
     }
 
