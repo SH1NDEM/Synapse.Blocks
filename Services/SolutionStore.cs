@@ -8,7 +8,8 @@ namespace Synapse.Blocks.Services;
 /// <summary>Хранит черновик графа отдельно для каждого уровня на этом устройстве.</summary>
 public sealed class SolutionStore(IJSRuntime js)
 {
-    private static string Key(Guid levelId) => $"synapse-solution-v1-{levelId:N}";
+    private const string StoragePrefix = "synapse-solution-v1-";
+    private static string Key(Guid levelId) => $"{StoragePrefix}{levelId:N}";
 
     public async Task<BlockProgram?> LoadAsync(Guid levelId)
     {
@@ -30,4 +31,8 @@ public sealed class SolutionStore(IJSRuntime js)
     }
 
     public async Task RemoveAsync(Guid levelId) => await js.InvokeVoidAsync("localStorage.removeItem", Key(levelId));
+
+    /// <summary>Удаляет черновики всех уровней перед передачей компьютера следующему игроку.</summary>
+    public async Task ResetAllAsync()
+        => await js.InvokeVoidAsync("synapseStorage.removeByPrefix", StoragePrefix);
 }

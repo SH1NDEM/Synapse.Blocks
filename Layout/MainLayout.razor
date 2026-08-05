@@ -1,4 +1,7 @@
 @inherits LayoutComponentBase
+@inject ProgressStore ProgressStore
+@inject SolutionStore SolutionStore
+@inject NavigationManager Navigation
 
 <div class="app-shell">
     <header class="app-header">
@@ -7,9 +10,35 @@
             <span><b>СИНАПС</b></span>
         </a>
         <NavMenu />
-        <div class="runtime-badge"><i></i> Детская версия</div>
+        <button type="button"
+                class="runtime-badge player-reset"
+                disabled="@_resetting"
+                @onclick="ResetPlayerAsync">
+            <i></i> @(_resetting ? "Сброс…" : "Детская версия")
+        </button>
     </header>
     <main class="app-main">
         @Body
     </main>
 </div>
+
+@code {
+    private bool _resetting;
+
+    private async Task ResetPlayerAsync()
+    {
+        if (_resetting) return;
+        _resetting = true;
+
+        // Новый ребёнок не должен получить ни отметки о прохождении,
+        // ни готовые схемы предыдущего игрока на этом компьютере.
+        try { await ProgressStore.ResetAsync(); }
+        catch { }
+        try { await SolutionStore.ResetAllAsync(); }
+        catch { }
+
+        // BaseUri корректно возвращает на главную и на localhost, и при публикации
+        // сайта в подпапке GitHub Pages.
+        Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
+    }
+}

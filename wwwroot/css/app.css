@@ -63,6 +63,9 @@ code { color: #d7efaf; font-family: ui-monospace, SFMono-Regular, Consolas, mono
 .main-nav a.active::after { content: ""; position: absolute; left: 16px; right: 16px; bottom: -1px; height: 2px; background: var(--green); }
 .runtime-badge { justify-self: end; color: #77817c; font: 9px/1 ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; }
 .runtime-badge i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px rgba(183,237,99,.55); }
+.player-reset { padding: 8px 0; border: 0; background: transparent; white-space: nowrap; transition: color .15s ease, opacity .15s ease; }
+.player-reset:hover { color: #a8b5ae; }
+.player-reset:active { color: var(--green); }
 .app-main { min-height: calc(100dvh - 68px); }
 
 /* Developer area */

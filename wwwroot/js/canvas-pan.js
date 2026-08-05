@@ -183,4 +183,17 @@
         link.remove();
         URL.revokeObjectURL(url);
     };
+
+    // Удаляем только пользовательские черновики с нужным префиксом.
+    // Настройки города и данные редактора при сбросе детской сессии сохраняются.
+    window.synapseStorage = {
+        removeByPrefix(prefix) {
+            const keys = [];
+            for (let index = 0; index < localStorage.length; index++) {
+                const key = localStorage.key(index);
+                if (key?.startsWith(prefix)) keys.push(key);
+            }
+            keys.forEach(key => localStorage.removeItem(key));
+        }
+    };
 })();
