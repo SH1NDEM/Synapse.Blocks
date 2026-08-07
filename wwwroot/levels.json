@@ -517,8 +517,616 @@
                        ]
     },
     {
-        "Id":  "f72c9291-3033-4b92-acf6-8c3bc22f3699",
+        "Id":  "813c4de9-71ba-4a18-a152-cbc781843904",
         "Order":  9,
+        "Chapter":  6,
+        "Title":  "G. Хватит ли карандашей",
+        "Direction":  "Ветвление",
+        "Location":  "Класс 2",
+        "Description":  "Для группы нужно 4 карандаша. Нужно быстро сказать, хватит их или мало.",
+        "StoryIntro":  "Для группы нужно 4 карандаша. Нужно быстро сказать, хватит их или мало.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Если входное число больше или равно 4, выведите хватит, иначе выведите мало.",
+        "InputDescription":  "Целое число от 0 до 10 — сколько карандашей есть.",
+        "OutputDescription":  "Слово хватит или мало.",
+        "Hint":  "Поставьте условие \u003e= 4. В синей ветке напишите set хватит, в красной — set мало.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Condition",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Condition"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  null,
+        "MaxOperationBlocks":  2,
+        "Tests":  [
+                      {
+                          "Id":  "de4913d8-1c80-4864-bd5d-40fa2e6acb3f",
+                          "Name":  "Два карандаша",
+                          "Input":  "2",
+                          "ExpectedOutput":  "мало",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "fe0ea827-1688-4d77-8ca9-622b12abf48f",
+                          "Name":  "Четыре карандаша",
+                          "Input":  "4",
+                          "ExpectedOutput":  "хватит",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "8c437dfb-2d89-4d3d-aa03-f83904a3a02f",
+                          "Name":  "Семь карандашей",
+                          "Input":  "7",
+                          "ExpectedOutput":  "хватит",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "a7f2d844-0923-46bc-932d-6bcbdc35b429",
+                          "Name":  "Ноль карандашей",
+                          "Input":  "0",
+                          "ExpectedOutput":  "мало",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "409e4139-4c8f-449f-bbc4-98ebfa76fac3",
+        "Order":  10,
+        "Chapter":  6,
+        "Title":  "H. Полная корзина",
+        "Direction":  "Ветвление",
+        "Location":  "Класс 2",
+        "Description":  "В корзину помещается не больше 10 ягод. Если ягод больше, нужно написать 10.",
+        "StoryIntro":  "В корзину помещается не больше 10 ягод. Если ягод больше, нужно написать 10.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Если входное число больше 10, выведите 10, иначе оставьте входное число без изменений.",
+        "InputDescription":  "Целое число от 0 до 15 — сколько ягод принесли.",
+        "OutputDescription":  "Число ягод, которое поместится в корзину.",
+        "Hint":  "Условие: \u003e 10. В синей ветке используйте set 10, в красной ветке можно сразу вести к выходу.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Condition",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Condition"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  null,
+        "MaxOperationBlocks":  1,
+        "Tests":  [
+                      {
+                          "Id":  "a22cb335-e3ef-47c5-aec4-1108d2c49707",
+                          "Name":  "Пять ягод",
+                          "Input":  "5",
+                          "ExpectedOutput":  "5",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "a76dac92-7d61-4575-8303-c30d2cde7a02",
+                          "Name":  "Десять ягод",
+                          "Input":  "10",
+                          "ExpectedOutput":  "10",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "db6e107d-4c71-4cbf-baac-ef1b9f11c6d7",
+                          "Name":  "Двенадцать ягод",
+                          "Input":  "12",
+                          "ExpectedOutput":  "10",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "a71c00e9-4263-4d2c-a11a-2ddb7cc0f381",
+                          "Name":  "Пятнадцать ягод",
+                          "Input":  "15",
+                          "ExpectedOutput":  "10",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "0cb1df61-ca62-4274-a09c-7871af8ba819",
+        "Order":  11,
+        "Chapter":  6,
+        "Title":  "I. Пустая тарелка",
+        "Direction":  "Ветвление",
+        "Location":  "Класс 1",
+        "Description":  "На тарелке могут быть печенья. Нужно сказать, пустая тарелка или нет.",
+        "StoryIntro":  "На тарелке могут быть печенья. Нужно сказать, пустая тарелка или нет.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Если входное число равно 0, выведите пусто, иначе выведите есть.",
+        "InputDescription":  "Целое число от 0 до 9 — сколько печений на тарелке.",
+        "OutputDescription":  "Слово пусто или есть.",
+        "Hint":  "Условие: == 0. В синей ветке set пусто, в красной — set есть.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Condition",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Condition"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  null,
+        "MaxOperationBlocks":  2,
+        "Tests":  [
+                      {
+                          "Id":  "3d8ac28f-1b97-4492-88fe-65d9529870f4",
+                          "Name":  "Пусто",
+                          "Input":  "0",
+                          "ExpectedOutput":  "пусто",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "1a6ccfe6-3b8f-4c3e-a9c6-07809f65e901",
+                          "Name":  "Одно печенье",
+                          "Input":  "1",
+                          "ExpectedOutput":  "есть",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "63878240-7db2-4832-8a13-d27c5f2e5544",
+                          "Name":  "Пять печений",
+                          "Input":  "5",
+                          "ExpectedOutput":  "есть",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "2595875e-8bd4-459b-a2cb-38bf8550eef3",
+                          "Name":  "Девять печений",
+                          "Input":  "9",
+                          "ExpectedOutput":  "есть",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "2c12e1c0-eb0e-43ee-a505-db826308090c",
+        "Order":  12,
+        "Chapter":  6,
+        "Title":  "J. Два прыжка по два",
+        "Direction":  "Циклы",
+        "Location":  "Класс 2",
+        "Description":  "Лягушка делает два прыжка. Каждый прыжок прибавляет 2.",
+        "StoryIntro":  "Лягушка делает два прыжка. Каждый прыжок прибавляет 2.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Повторите команду + 2 ровно 2 раза и выведите результат.",
+        "InputDescription":  "Целое число от 0 до 10 — начальная клетка.",
+        "OutputDescription":  "Номер клетки после двух прыжков.",
+        "Hint":  "Поставьте цикл на 2 повтора. В тело цикла положите операцию + 2.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Loop",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Loop"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  1,
+        "MaxOperationBlocks":  1,
+        "Tests":  [
+                      {
+                          "Id":  "7643fafd-e21b-486c-bd6f-685d5ab43697",
+                          "Name":  "Старт 0",
+                          "Input":  "0",
+                          "ExpectedOutput":  "4",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "369acbe6-0fdc-4922-972d-b65317beb245",
+                          "Name":  "Старт 1",
+                          "Input":  "1",
+                          "ExpectedOutput":  "5",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "f211aaf0-29cb-454c-bca5-fadd948eb794",
+                          "Name":  "Старт 5",
+                          "Input":  "5",
+                          "ExpectedOutput":  "9",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "785b4a57-3d41-4ab2-beee-ad614322e0c5",
+                          "Name":  "Старт 10",
+                          "Input":  "10",
+                          "ExpectedOutput":  "14",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "c03be926-7b2d-483e-b62d-64dd76bb6c5a",
+        "Order":  13,
+        "Chapter":  6,
+        "Title":  "K. Три восклицания",
+        "Direction":  "Циклы",
+        "Location":  "Класс 2",
+        "Description":  "К сообщению нужно добавить три весёлых восклицательных знака.",
+        "StoryIntro":  "К сообщению нужно добавить три весёлых восклицательных знака.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Повторите команду append ! ровно 3 раза.",
+        "InputDescription":  "Короткое слово или фраза.",
+        "OutputDescription":  "Та же строка с тремя знаками ! в конце.",
+        "Hint":  "Цикл должен повториться 3 раза. Внутри цикла используйте операцию append !",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Loop",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Loop"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  1,
+        "MaxOperationBlocks":  1,
+        "Tests":  [
+                      {
+                          "Id":  "3e7bddd6-7c70-4060-81e1-a9fa2ee86540",
+                          "Name":  "Ура",
+                          "Input":  "ура",
+                          "ExpectedOutput":  "ура!!!",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "9e25b6d8-6bc4-4f91-8a7e-f25d2de18458",
+                          "Name":  "Привет",
+                          "Input":  "привет",
+                          "ExpectedOutput":  "привет!!!",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "ef55e47e-1591-4366-9885-cea814ab6e4a",
+                          "Name":  "Да",
+                          "Input":  "да",
+                          "ExpectedOutput":  "да!!!",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "adb744d6-76a3-41ac-bba7-87b10203490c",
+                          "Name":  "Класс",
+                          "Input":  "класс",
+                          "ExpectedOutput":  "класс!!!",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "02dce46e-75ad-4a6b-9f1e-6f941cf17cab",
+        "Order":  14,
+        "Chapter":  6,
+        "Title":  "L. Столько же шагов",
+        "Direction":  "Циклы",
+        "Location":  "Класс 3",
+        "Description":  "Робот стоит на числе N и делает ещё N шагов. Получается в два раза дальше.",
+        "StoryIntro":  "Робот стоит на числе N и делает ещё N шагов. Получается в два раза дальше.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Повторите команду + 1 столько раз, какое число пришло на вход.",
+        "InputDescription":  "Целое число от 1 до 8 — начальное число и количество шагов.",
+        "OutputDescription":  "Число после таких же дополнительных шагов.",
+        "Hint":  "В цикле укажите input. В тело цикла положите операцию + 1.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Loop",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Loop"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  1,
+        "MaxOperationBlocks":  1,
+        "Tests":  [
+                      {
+                          "Id":  "4935fe3c-2260-497c-84d6-4e7af9cc0e09",
+                          "Name":  "Один шаг",
+                          "Input":  "1",
+                          "ExpectedOutput":  "2",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "ddc80482-ab38-40ef-9842-41e992c27090",
+                          "Name":  "Два шага",
+                          "Input":  "2",
+                          "ExpectedOutput":  "4",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "7231f248-35ed-4921-b5ce-cb958ddc48e0",
+                          "Name":  "Пять шагов",
+                          "Input":  "5",
+                          "ExpectedOutput":  "10",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "bffebe2b-052a-4823-bf30-7a5327b6fcf2",
+                          "Name":  "Восемь шагов",
+                          "Input":  "8",
+                          "ExpectedOutput":  "16",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "07f98dab-edc9-4362-80d4-c31ed2708a1f",
+        "Order":  15,
+        "Chapter":  6,
+        "Title":  "M. Маленькому числу — два шага",
+        "Direction":  "Условие и цикл",
+        "Location":  "Класс 3",
+        "Description":  "Если число маленькое, робот помогает ему подрасти на два шага. Большие числа не трогает.",
+        "StoryIntro":  "Если число маленькое, робот помогает ему подрасти на два шага. Большие числа не трогает.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Если входное число меньше 5, прибавьте к нему 1 два раза. Иначе выведите число без изменений.",
+        "InputDescription":  "Целое число от 0 до 9.",
+        "OutputDescription":  "Изменённое число: маленькие числа увеличиваются на 2, остальные не меняются.",
+        "Hint":  "Сначала условие \u003c 5. В синей ветке поставьте цикл на 2 повтора с операцией + 1. Красную ветку ведите к выходу.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Condition",
+                              "Loop",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Condition",
+                               "Loop"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  1,
+        "MaxOperationBlocks":  1,
+        "Tests":  [
+                      {
+                          "Id":  "d7aaa59c-d018-4c04-85a0-b632b0c3bc0b",
+                          "Name":  "Ноль",
+                          "Input":  "0",
+                          "ExpectedOutput":  "2",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "400134e6-bbee-4e63-86db-b57d53197d0f",
+                          "Name":  "Четыре",
+                          "Input":  "4",
+                          "ExpectedOutput":  "6",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "61ab186e-f6ef-425a-825e-d60d2b2da69d",
+                          "Name":  "Пять",
+                          "Input":  "5",
+                          "ExpectedOutput":  "5",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "30a440c5-8218-4f97-b50b-63b25aa25653",
+                          "Name":  "Девять",
+                          "Input":  "9",
+                          "ExpectedOutput":  "9",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "46cb2bf8-cd65-4ba9-bb4a-bc4a80e18888",
+        "Order":  16,
+        "Chapter":  6,
+        "Title":  "N. Копилка с тремя монетами",
+        "Direction":  "Переменные",
+        "Location":  "Класс 3",
+        "Description":  "В копилке уже лежат 3 монеты. Нужно добавить монеты, которые пришли на вход.",
+        "StoryIntro":  "В копилке уже лежат 3 монеты. Нужно добавить монеты, которые пришли на вход.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Создайте переменную с начальным значением 3, добавьте к ней входное число и выведите результат.",
+        "InputDescription":  "Целое число от 0 до 9 — сколько монет добавили.",
+        "OutputDescription":  "Сколько монет стало в копилке.",
+        "Hint":  "Создайте переменную, например A, со значением 3. Затем используйте блок работы с переменной: добавить вход.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Variable",
+                              "VariableAction",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Variable",
+                               "VariableAction"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  null,
+        "MaxOperationBlocks":  null,
+        "Tests":  [
+                      {
+                          "Id":  "b5770aab-ae9b-495e-89dd-a590b2d9cd2e",
+                          "Name":  "Добавили 0",
+                          "Input":  "0",
+                          "ExpectedOutput":  "3",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "79d22b08-62bb-4b2b-b58e-5cf46d49d02d",
+                          "Name":  "Добавили 2",
+                          "Input":  "2",
+                          "ExpectedOutput":  "5",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "e3831089-f3e0-4726-846c-4953c6210579",
+                          "Name":  "Добавили 5",
+                          "Input":  "5",
+                          "ExpectedOutput":  "8",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "721ee8ac-0cec-4d95-9ca6-201af49299d3",
+                          "Name":  "Добавили 9",
+                          "Input":  "9",
+                          "ExpectedOutput":  "12",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "d174c94b-5f1e-4152-a92d-a4fb4e1003be",
+        "Order":  17,
+        "Chapter":  6,
+        "Title":  "O. Секретное число пять",
+        "Direction":  "Переменные",
+        "Location":  "Класс 3",
+        "Description":  "В памяти спрятано число 5. Его нужно прочитать и увеличить на входное число.",
+        "StoryIntro":  "В памяти спрятано число 5. Его нужно прочитать и увеличить на входное число.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "Создайте переменную со значением 5, добавьте к ней входное число и выведите результат.",
+        "InputDescription":  "Целое число от 1 до 8 — сколько нужно прибавить.",
+        "OutputDescription":  "Секретное число 5 плюс входное число.",
+        "Hint":  "Переменная хранит 5. Блок работы с переменной должен прибавить входное число.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Variable",
+                              "VariableAction",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Variable",
+                               "VariableAction"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  null,
+        "MaxOperationBlocks":  null,
+        "Tests":  [
+                      {
+                          "Id":  "ef213981-583c-4c05-ab2c-c065c7426b93",
+                          "Name":  "Плюс 1",
+                          "Input":  "1",
+                          "ExpectedOutput":  "6",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "9943e8c3-e03c-45d4-91a8-65bfac2eddbf",
+                          "Name":  "Плюс 3",
+                          "Input":  "3",
+                          "ExpectedOutput":  "8",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "383d06d5-2e02-4701-b757-aaae469b7923",
+                          "Name":  "Плюс 6",
+                          "Input":  "6",
+                          "ExpectedOutput":  "11",
+                          "Hidden":  true
+                      },
+                      {
+                          "Id":  "dbda5062-e245-457e-a071-2b66e7c81de4",
+                          "Name":  "Плюс 8",
+                          "Input":  "8",
+                          "ExpectedOutput":  "13",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "e8e6dec5-c2a3-4fe8-9a7f-caa39b683866",
+        "Order":  18,
+        "Chapter":  6,
+        "Title":  "P. Копилка и проверка",
+        "Direction":  "Переменные и ветвление",
+        "Location":  "Класс 3",
+        "Description":  "В копилке было 5 монет. После добавления нужно сказать, стало ли монет больше 10.",
+        "StoryIntro":  "В копилке было 5 монет. После добавления нужно сказать, стало ли монет больше 10.",
+        "StorySuccess":  "Отлично! Задание решено, можно идти дальше.",
+        "Objective":  "К переменной со значением 5 добавьте входное число. Если результат больше 10, выведите много, иначе выведите нормально.",
+        "InputDescription":  "Целое число от 0 до 9 — сколько монет добавили.",
+        "OutputDescription":  "Слово много или нормально.",
+        "Hint":  "Сначала прибавьте вход к переменной 5. Потом поставьте условие \u003e 10. Синяя ветка: set много, красная: set нормально.",
+        "AllowedBlocks":  [
+                              "Input",
+                              "Variable",
+                              "VariableAction",
+                              "Condition",
+                              "Operation",
+                              "Output"
+                          ],
+        "RequiredBlocks":  [
+                               "Variable",
+                               "VariableAction",
+                               "Condition"
+                           ],
+        "RequiredLoopCount":  null,
+        "RequiredLoopBodyOperationCount":  null,
+        "MaxOperationBlocks":  2,
+        "Tests":  [
+                      {
+                          "Id":  "83eaab51-2d80-47bf-aee3-d1cc2da52bdf",
+                          "Name":  "Добавили 0",
+                          "Input":  "0",
+                          "ExpectedOutput":  "нормально",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "2189fb0a-709c-4f5e-ae2c-1f1bcfa2f629",
+                          "Name":  "Добавили 5",
+                          "Input":  "5",
+                          "ExpectedOutput":  "нормально",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "a234bfe6-04bc-4149-99bb-0cf7eafcbb29",
+                          "Name":  "Добавили 6",
+                          "Input":  "6",
+                          "ExpectedOutput":  "много",
+                          "Hidden":  false
+                      },
+                      {
+                          "Id":  "d33c21b8-ae20-477e-8cb5-640dbe64d3d9",
+                          "Name":  "Добавили 9",
+                          "Input":  "9",
+                          "ExpectedOutput":  "много",
+                          "Hidden":  true
+                      }
+                  ],
+        "IntroSteps":  [
+
+                       ]
+    },
+    {
+        "Id":  "f72c9291-3033-4b92-acf6-8c3bc22f3699",
+        "Order":  19,
         "Chapter":  1,
         "Title":  "Стабилизация сигнала",
         "Direction":  "Условия и ветвление",
@@ -579,7 +1187,7 @@
     },
     {
         "Id":  "14a90a23-b537-41b8-a9ce-539701a975cb",
-        "Order":  10,
+        "Order":  20,
         "Chapter":  1,
         "Title":  "Импульсный каскад",
         "Direction":  "Алгоритмы",
@@ -647,7 +1255,7 @@
     },
     {
         "Id":  "44d91579-dbcf-45ca-a76d-ff0641e4fd72",
-        "Order":  11,
+        "Order":  21,
         "Chapter":  4,
         "Title":  "Степени двойки",
         "Direction":  "Память программы",
@@ -731,7 +1339,7 @@
     },
     {
         "Id":  "bfc1d242-3f4d-4d66-a4ba-292bdf0613ba",
-        "Order":  12,
+        "Order":  22,
         "Chapter":  4,
         "Title":  "Степени двойки 2",
         "Direction":  "Память программы",
@@ -822,7 +1430,7 @@
     },
     {
         "Id":  "8621be12-246d-4ac3-a568-918b8af94315",
-        "Order":  13,
+        "Order":  23,
         "Chapter":  5,
         "Title":  "Безопасный диапазон",
         "Direction":  "Составные ветвления",
@@ -903,7 +1511,7 @@
     },
     {
         "Id":  "b9fa9ff4-0ff5-498c-9590-af2815442384",
-        "Order":  14,
+        "Order":  24,
         "Chapter":  5,
         "Title":  "Индикатор пакетов",
         "Direction":  "Строки, циклы и память",
@@ -974,7 +1582,7 @@
     },
     {
         "Id":  "4ebdc707-2f91-4050-955a-1f0c65fa7d42",
-        "Order":  15,
+        "Order":  25,
         "Chapter":  5,
         "Title":  "Шлюз телеметрии",
         "Direction":  "Типы и вложенные условия",
@@ -1055,7 +1663,7 @@
     },
     {
         "Id":  "bf339c66-ab33-4b75-a992-ccdc52b2ec68",
-        "Order":  16,
+        "Order":  26,
         "Chapter":  6,
         "Title":  "Маска доступа",
         "Direction":  "Алгоритмы с памятью",
