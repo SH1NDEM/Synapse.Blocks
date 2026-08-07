@@ -17,7 +17,11 @@
     --red: #ff7474;
 }
 
-* { box-sizing: border-box; }
+* {
+    box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+}
 html, body, #app { min-height: 100%; }
 html { background: var(--bg); }
 body {
@@ -35,7 +39,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     outline: 2px solid var(--green);
     outline-offset: 2px;
 }
-::selection { background: var(--green); color: #0a0d0b; }
+::selection { background: transparent; color: inherit; }
 code { color: #d7efaf; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 
 .app-shell { min-height: 100dvh; background: radial-gradient(circle at 78% 12%, rgba(183,237,99,.055), transparent 28rem), var(--bg); }
