@@ -2,6 +2,7 @@
 @layout AdminLayout
 @using System.Text
 @inject LevelStore LevelStore
+@inject CampaignModeStore CampaignModeStore
 @inject IJSRuntime JS
 
 <PageTitle>Редактор уровней — Синапс</PageTitle>
@@ -17,6 +18,14 @@ else
             <div class="level-list-head">
                 <div><small>КАМПАНИЯ</small><strong>@_levels.Count уровней</strong></div>
                 <button type="button" @onclick="AddLevel" title="Добавить уровень">＋</button>
+            </div>
+            <div class="editor-campaign-switch" aria-label="Редактируемая кампания">
+                @foreach (var mode in EditorModes)
+                {
+                    <button type="button" class="@(_editorMode == mode ? "active" : "")" @onclick="() => ChangeEditorModeAsync(mode)">
+                        @CampaignModeStore.Info(mode).Label
+                    </button>
+                }
             </div>
             <div class="level-list-scroll">
                 @foreach (var item in _levels)
@@ -212,13 +221,14 @@ else
     private bool _loading = true;
     private string _message = "";
     private bool _messageIsError;
+    private CampaignMode _editorMode = CampaignMode.Adult;
+    private static readonly CampaignMode[] EditorModes = [CampaignMode.Adult, CampaignMode.Kids];
 
     private LevelDefinition? Selected => _levels.FirstOrDefault(level => level.Id == _selectedId) ?? _levels.FirstOrDefault();
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadEditorAsync();
-        _selectedId = _levels.FirstOrDefault()?.Id;
+        await LoadEditorModeAsync();
         _loading = false;
     }
 
@@ -231,7 +241,7 @@ else
     private async Task ExportLevels()
     {
         var json = LevelStore.Export(_levels);
-        await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", json);
+        await JS.InvokeVoidAsync("synapseDownloadText", CampaignModeStore.Info(_editorMode).LevelsFile, json);
     }
 
     private void AddLevel()
@@ -449,7 +459,7 @@ else
         }
         Renumber();
         await ExportLevels();
-        _message = "JSON скачан. Замените им файл wwwroot/levels.json — после публикации игру получат новые уровни.";
+        _message = $"JSON скачан. Замените им файл wwwroot/{CampaignModeStore.Info(_editorMode).LevelsFile} — после публикации игру получат новые уровни.";
         _messageIsError = false;
     }
 
@@ -473,9 +483,9 @@ else
 
     private async Task ResetLevels()
     {
-        if (!await JS.InvokeAsync<bool>("confirm", "Отменить несохранённые изменения и заново загрузить levels.json?")) return;
-        _levels = await LevelStore.LoadEditorAsync();
-        _selectedId = _levels.First().Id;
+        var file = CampaignModeStore.Info(_editorMode).LevelsFile;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Отменить несохранённые изменения и заново загрузить {file}?")) return;
+        await LoadEditorModeAsync();
         _message = "Примеры восстановлены.";
         _messageIsError = false;
     }
@@ -489,5 +499,22 @@ else
     {
         _message = message;
         _messageIsError = true;
+    }
+
+    private async Task ChangeEditorModeAsync(CampaignMode mode)
+    {
+        if (mode == _editorMode) return;
+        var next = CampaignModeStore.Info(mode).Label;
+        if (!await JS.InvokeAsync<bool>("confirm", $"Перейти в набор «{next}»? Несохранённые изменения текущего набора будут потеряны.")) return;
+        _editorMode = mode;
+        await LoadEditorModeAsync();
+        _message = $"Открыт набор: {CampaignModeStore.Info(_editorMode).Label}.";
+        _messageIsError = false;
+    }
+
+    private async Task LoadEditorModeAsync()
+    {
+        _levels = await LevelStore.LoadEditorAsync(_editorMode);
+        _selectedId = _levels.FirstOrDefault()?.Id;
     }
 }
