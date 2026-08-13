@@ -4,28 +4,29 @@ using Synapse.Blocks.Serialization;
 
 namespace Synapse.Blocks.Services;
 
-public sealed class LevelStore(HttpClient http)
+public sealed class LevelStore(HttpClient http, CampaignModeStore campaignModeStore)
 {
-    public Task<List<LevelDefinition>> LoadGameAsync()
+    public async Task<List<LevelDefinition>> LoadGameAsync()
     {
-        return LoadFromJsonAsync();
+        return await LoadFromJsonAsync(await campaignModeStore.GetAsync());
     }
 
-    public Task<List<LevelDefinition>> LoadEditorAsync()
+    public Task<List<LevelDefinition>> LoadEditorAsync(CampaignMode mode = CampaignMode.Adult)
     {
-        return LoadFromJsonAsync();
+        return LoadFromJsonAsync(mode);
     }
 
-    private async Task<List<LevelDefinition>> LoadFromJsonAsync()
+    private async Task<List<LevelDefinition>> LoadFromJsonAsync(CampaignMode mode)
     {
-        var json = await http.GetStringAsync("levels.json");
+        var file = CampaignModeStore.Info(mode).LevelsFile;
+        var json = await http.GetStringAsync(file);
 
         var levels = JsonSerializer.Deserialize(
             json,
             AppJsonSerializerContext.Default.ListLevelDefinition);
 
         if (levels is null)
-            throw new InvalidOperationException("Не удалось прочитать levels.json.");
+            throw new InvalidOperationException($"Не удалось прочитать {file}.");
 
         return Normalize(levels);
     }

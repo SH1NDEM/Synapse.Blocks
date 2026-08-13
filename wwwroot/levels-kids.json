@@ -1,0 +1,243 @@
+[
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0601",
+    "Order": 1,
+    "Chapter": 1,
+    "Title": "Передай число",
+    "Direction": "Первые блоки",
+    "Location": "Мастерская сигналов",
+    "Description": "Робот получил число. Помогите ему передать это же число дальше.",
+    "StoryIntro": "Сначала соберём самую короткую программу: она ничего не меняет, а только передаёт данные.",
+    "StorySuccess": "Сигнал дошёл без потерь.",
+    "Objective": "Верните на выходе то же число, которое программа получила на входе.",
+    "InputDescription": "Одно число от 0 до 10.",
+    "OutputDescription": "То же самое число.",
+    "Hint": "Поставьте «Вход» и «Выход». Потяните линию от выхода первого блока ко входу второго.",
+    "AllowedBlocks": ["Input", "Output"],
+    "RequiredBlocks": [],
+    "RequiredLoopCount": null,
+    "RequiredLoopBodyOperationCount": null,
+    "MaxOperationBlocks": null,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100001000001", "Name": "Один кубик", "Input": "1", "ExpectedOutput": "1", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100001000002", "Name": "Четыре кубика", "Input": "4", "ExpectedOutput": "4", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100001000003", "Name": "Пустая коробка", "Input": "0", "ExpectedOutput": "0", "Hidden": true }
+    ],
+    "IntroSteps": [
+      {
+        "Id": "c0a1f101-a001-4001-8001-000000000001",
+        "Title": "Соедини два блока",
+        "Body": "Программа начинает путь во «Входе» и заканчивает его в «Выходе». Потяните линию из зелёной точки «выход» первого блока к зелёной точке «вход» второго.",
+        "MediaUrl": "",
+        "FieldKind": "None",
+        "FieldValue": "",
+        "HighlightTarget": "Workspace"
+      }
+    ]
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0602",
+    "Order": 2,
+    "Chapter": 1,
+    "Title": "Усиль сигнал",
+    "Direction": "Действия",
+    "Location": "Мастерская сигналов",
+    "Description": "Усилитель делает каждый сигнал в три раза больше.",
+    "StoryIntro": "Теперь между входом и выходом появится блок «Действие».",
+    "StorySuccess": "Усилитель заработал.",
+    "Objective": "Умножьте входное число на 3.",
+    "InputDescription": "Одно число от 0 до 3.",
+    "OutputDescription": "Число, увеличенное в 3 раза.",
+    "Hint": "Добавьте блок «Действие», выберите умножение и впишите число 3.",
+    "AllowedBlocks": ["Input", "Operation", "Output"],
+    "RequiredBlocks": [],
+    "RequiredLoopCount": null,
+    "RequiredLoopBodyOperationCount": null,
+    "MaxOperationBlocks": null,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100002000001", "Name": "Ноль", "Input": "0", "ExpectedOutput": "0", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100002000002", "Name": "Один сигнал", "Input": "1", "ExpectedOutput": "3", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100002000003", "Name": "Два сигнала", "Input": "2", "ExpectedOutput": "6", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100002000004", "Name": "Три сигнала", "Input": "3", "ExpectedOutput": "9", "Hidden": true }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0603",
+    "Order": 3,
+    "Chapter": 1,
+    "Title": "Ещё один кубик",
+    "Direction": "Действия",
+    "Location": "Комната кубиков",
+    "Description": "В коробку всегда кладут ещё один кубик.",
+    "StoryIntro": "Посчитаем, сколько кубиков станет после одного подарка.",
+    "StorySuccess": "В каждой коробке появился новый кубик.",
+    "Objective": "Прибавьте к входному числу 1.",
+    "InputDescription": "Одно число от 0 до 9.",
+    "OutputDescription": "Число на 1 больше.",
+    "Hint": "В блоке «Действие» выберите сложение и напишите 1.",
+    "AllowedBlocks": ["Input", "Operation", "Output"],
+    "RequiredBlocks": [],
+    "RequiredLoopCount": null,
+    "RequiredLoopBodyOperationCount": null,
+    "MaxOperationBlocks": 1,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100003000001", "Name": "Пустая коробка", "Input": "0", "ExpectedOutput": "1", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100003000002", "Name": "Два кубика", "Input": "2", "ExpectedOutput": "3", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100003000003", "Name": "Девять кубиков", "Input": "9", "ExpectedOutput": "10", "Hidden": true }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0604",
+    "Order": 4,
+    "Chapter": 1,
+    "Title": "Две наклейки",
+    "Direction": "Действия",
+    "Location": "Почта роботов",
+    "Description": "На каждую посылку кладут две яркие наклейки.",
+    "StoryIntro": "Сделаем действие, которое прибавляет сразу два.",
+    "StorySuccess": "Посылки готовы к отправке.",
+    "Objective": "Прибавьте к входному числу 2.",
+    "InputDescription": "Одно число от 0 до 8.",
+    "OutputDescription": "Число на 2 больше.",
+    "Hint": "В блоке «Действие» выберите сложение и напишите 2.",
+    "AllowedBlocks": ["Input", "Operation", "Output"],
+    "RequiredBlocks": [],
+    "RequiredLoopCount": null,
+    "RequiredLoopBodyOperationCount": null,
+    "MaxOperationBlocks": 1,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100004000001", "Name": "Ни одной наклейки", "Input": "0", "ExpectedOutput": "2", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100004000002", "Name": "Одна наклейка", "Input": "1", "ExpectedOutput": "3", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100004000003", "Name": "Восемь наклеек", "Input": "8", "ExpectedOutput": "10", "Hidden": true }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0605",
+    "Order": 5,
+    "Chapter": 2,
+    "Title": "Высокая башня",
+    "Direction": "Условия",
+    "Location": "Площадь башен",
+    "Description": "Фонарик загорается только рядом с башней выше пяти кубиков.",
+    "StoryIntro": "Условие помогает программе выбрать один из двух путей.",
+    "StorySuccess": "Фонарики правильно узнали высокие башни.",
+    "Objective": "Если кубиков больше 5, верните 1. Во всех остальных случаях верните 0.",
+    "InputDescription": "Высота башни: число от 0 до 10.",
+    "OutputDescription": "1 — фонарик включён, 0 — фонарик выключен.",
+    "Hint": "Поставьте условие > 5. Синюю ветку соедините с действием «задать 1», красную — с действием «задать 0».",
+    "AllowedBlocks": ["Input", "Condition", "Operation", "Output"],
+    "RequiredBlocks": ["Condition"],
+    "RequiredLoopCount": null,
+    "RequiredLoopBodyOperationCount": null,
+    "MaxOperationBlocks": 2,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100005000001", "Name": "Низкая башня", "Input": "2", "ExpectedOutput": "0", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100005000002", "Name": "Ровно пять", "Input": "5", "ExpectedOutput": "0", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100005000003", "Name": "Высокая башня", "Input": "6", "ExpectedOutput": "1", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100005000004", "Name": "Самая высокая", "Input": "10", "ExpectedOutput": "1", "Hidden": true }
+    ],
+    "IntroSteps": [
+      {
+        "Id": "c0a1f101-a001-4001-8001-000000000005",
+        "Title": "Как работает условие",
+        "Body": "Блок «Условие» проверяет число и выбирает только один путь. Если ответ «да», программа идёт по синему выходу «усл. вып.». Если ответ «нет» — по красному выходу «усл. не вып.». Здесь проверьте: число больше 5?",
+        "MediaUrl": "",
+        "FieldKind": "Condition",
+        "FieldValue": "> 5",
+        "HighlightTarget": "Workspace"
+      }
+    ]
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0606",
+    "Order": 6,
+    "Chapter": 2,
+    "Title": "Три шага",
+    "Direction": "Повторения",
+    "Location": "Дорожка робота",
+    "Description": "Робот делает три одинаковых шага. Каждый шаг прибавляет 1.",
+    "StoryIntro": "Цикл повторяет целую маленькую цепочку блоков.",
+    "StorySuccess": "Робот прошёл дорожку.",
+    "Objective": "Три раза прибавьте к входному числу 1.",
+    "InputDescription": "Одно число от 0 до 7.",
+    "OutputDescription": "Число на 3 больше.",
+    "Hint": "В цикле выберите «Число» и поставьте 3. От выхода «тело» проведите линию к действию + 1. От выхода «после цикла» — к результату.",
+    "AllowedBlocks": ["Input", "Loop", "Operation", "Output"],
+    "RequiredBlocks": ["Loop"],
+    "RequiredLoopCount": 3,
+    "RequiredLoopBodyOperationCount": 1,
+    "MaxOperationBlocks": 1,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100006000001", "Name": "Старт с нуля", "Input": "0", "ExpectedOutput": "3", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100006000002", "Name": "Два шага до старта", "Input": "2", "ExpectedOutput": "5", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100006000003", "Name": "Семь до старта", "Input": "7", "ExpectedOutput": "10", "Hidden": true }
+    ],
+    "IntroSteps": [
+      {
+        "Id": "c0a1f101-a001-4001-8001-000000000006",
+        "Title": "Как работает цикл",
+        "Body": "Блок «Цикл» повторяет цепочку блоков несколько раз. Из выхода «тело» начинается повторяемая цепочка. Последний блок в ней можно оставить без линии: программа сама вернётся к циклу. Из выхода «после цикла» программа идёт дальше, когда все повторы закончились.",
+        "MediaUrl": "",
+        "FieldKind": "Loop",
+        "FieldValue": "3",
+        "HighlightTarget": "Workspace"
+      }
+    ]
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0607",
+    "Order": 7,
+    "Chapter": 2,
+    "Title": "Удвоитель",
+    "Direction": "Повторения",
+    "Location": "Комната зеркал",
+    "Description": "В зеркальной комнате число получает столько же новых кубиков, сколько уже было.",
+    "StoryIntro": "Пусть число само скажет циклу, сколько раз повторять действие.",
+    "StorySuccess": "Зеркальная комната удвоила все наборы кубиков.",
+    "Objective": "Повторите «прибавить 1» столько раз, сколько дано на входе.",
+    "InputDescription": "Одно число от 0 до 5.",
+    "OutputDescription": "Число, увеличенное в 2 раза.",
+    "Hint": "В цикле выберите «Вход». В его теле поставьте одно действие + 1. Цикл запомнит, сколько раз повторить действие.",
+    "AllowedBlocks": ["Input", "Loop", "Operation", "Output"],
+    "RequiredBlocks": ["Loop"],
+    "RequiredLoopCount": null,
+    "RequiredLoopBodyOperationCount": 1,
+    "MaxOperationBlocks": 1,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100007000001", "Name": "Пусто", "Input": "0", "ExpectedOutput": "0", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100007000002", "Name": "Один кубик", "Input": "1", "ExpectedOutput": "2", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100007000003", "Name": "Два кубика", "Input": "2", "ExpectedOutput": "4", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100007000004", "Name": "Пять кубиков", "Input": "5", "ExpectedOutput": "10", "Hidden": true }
+    ],
+    "IntroSteps": []
+  },
+  {
+    "Id": "0d6c2aec-0e77-49c6-8b0d-bd8b0f1b0608",
+    "Order": 8,
+    "Chapter": 2,
+    "Title": "Шесть конфет",
+    "Direction": "Повторения",
+    "Location": "Конфетная фабрика",
+    "Description": "Автомат три раза кладёт в коробку по две конфеты.",
+    "StoryIntro": "В одном повторе можно делать любое действие — здесь добавим сразу две конфеты.",
+    "StorySuccess": "Каждая коробка получила шесть конфет.",
+    "Objective": "Три раза прибавьте к входному числу 2.",
+    "InputDescription": "Одно число от 0 до 4.",
+    "OutputDescription": "Число на 6 больше.",
+    "Hint": "Настройте цикл на 3 повтора. В его теле поставьте действие + 2.",
+    "AllowedBlocks": ["Input", "Loop", "Operation", "Output"],
+    "RequiredBlocks": ["Loop"],
+    "RequiredLoopCount": 3,
+    "RequiredLoopBodyOperationCount": 1,
+    "MaxOperationBlocks": 1,
+    "Tests": [
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100008000001", "Name": "Пустая коробка", "Input": "0", "ExpectedOutput": "6", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100008000002", "Name": "Одна конфета", "Input": "1", "ExpectedOutput": "7", "Hidden": false },
+      { "Id": "bd33fdc7-cfb0-46f5-8d8a-100008000003", "Name": "Четыре конфеты", "Input": "4", "ExpectedOutput": "10", "Hidden": true }
+    ],
+    "IntroSteps": []
+  }
+]

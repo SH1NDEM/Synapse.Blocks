@@ -4,6 +4,7 @@
 @inject LevelStore LevelStore
 @inject ProgressStore ProgressStore
 @inject SolutionStore SolutionStore
+@inject CampaignModeStore CampaignModeStore
 @inject BlockProgramRunner Runner
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -30,7 +31,7 @@ else
             <select value="@ActiveLevel.Id" @onchange="SelectLevel">
                 @foreach (var level in _levels)
                 {
-                    <option value="@level.Id">@(_completed.Contains(level.Id) ? "✓" : "○") @level.Order.ToString("00") · @level.Title</option>
+                    <option value="@level.Id">@(_completed.Contains(level.Id) ? "✓" : "○") @LevelLabel(level) · @level.Title</option>
                 }
             </select>
         </div>
@@ -80,7 +81,7 @@ else
                 else
                 {
                     <span class="direction-pill">@ActiveLevel.Direction</span>
-                    <p class="operation-number">ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00")</p>
+                    <p class="operation-number">ОПЕРАЦИЯ @LevelLabel(ActiveLevel)</p>
                     <h1>@ActiveLevel.Title</h1>
                     <p class="mission-description">@ActiveLevel.Description</p>
 
@@ -593,6 +594,7 @@ else
     private List<string> _graphIssues = [];
     private string _lastVariableSlot = "A";
     private HashSet<Guid> _completed = [];
+    private CampaignMode _campaignMode = CampaignMode.Adult;
     private double _connectionStartClientX;
     private double _connectionStartClientY;
     private double _connectionStartWorldX;
@@ -649,6 +651,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _campaignMode = await CampaignModeStore.GetAsync();
         _levels = await LevelStore.LoadGameAsync();
         if (IsSandbox)
             _levels = _levels.Select(CloneForSandbox).ToList();
@@ -659,8 +662,13 @@ else
         _loading = false;
         await LoadSolutionAsync();
         if (!IsSandbox)
-            ShowLevelIntro();
+        ShowLevelIntro();
     }
+
+    private string LevelLabel(LevelDefinition level)
+        => _campaignMode == CampaignMode.Kids && level.Order is >= 3 and <= 8
+            ? ((char)('A' + level.Order - 3)).ToString()
+            : level.Order.ToString("00");
 
     private static LevelDefinition CloneForSandbox(LevelDefinition source) => new()
     {
