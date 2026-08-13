@@ -6,16 +6,18 @@ using Synapse.Blocks.Serialization;
 namespace Synapse.Blocks.Services;
 
 /// <summary>Хранит черновик графа отдельно для каждого уровня на этом устройстве.</summary>
-public sealed class SolutionStore(IJSRuntime js)
+public sealed class SolutionStore(IJSRuntime js, CampaignModeStore campaignModeStore)
 {
-    private const string StoragePrefix = "synapse-solution-v1-";
-    private static string Key(Guid levelId) => $"{StoragePrefix}{levelId:N}";
+    private static string Key(string prefix, Guid levelId) => $"{prefix}{levelId:N}";
+
+    private async Task<string> PrefixAsync()
+        => CampaignModeStore.Info(await campaignModeStore.GetAsync()).SolutionStoragePrefix;
 
     public async Task<BlockProgram?> LoadAsync(Guid levelId)
     {
         try
         {
-            var json = await js.InvokeAsync<string?>("localStorage.getItem", Key(levelId));
+            var json = await js.InvokeAsync<string?>("localStorage.getItem", Key(await PrefixAsync(), levelId));
             return string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.BlockProgram);
         }
         catch { return null; }
@@ -25,14 +27,14 @@ public sealed class SolutionStore(IJSRuntime js)
     {
         try
         {
-            await js.InvokeVoidAsync("localStorage.setItem", Key(levelId), JsonSerializer.Serialize(program, AppJsonSerializerContext.Default.BlockProgram));
+            await js.InvokeVoidAsync("localStorage.setItem", Key(await PrefixAsync(), levelId), JsonSerializer.Serialize(program, AppJsonSerializerContext.Default.BlockProgram));
         }
         catch (JSException) { }
     }
 
-    public async Task RemoveAsync(Guid levelId) => await js.InvokeVoidAsync("localStorage.removeItem", Key(levelId));
+    public async Task RemoveAsync(Guid levelId) => await js.InvokeVoidAsync("localStorage.removeItem", Key(await PrefixAsync(), levelId));
 
     /// <summary>Удаляет черновики всех уровней перед передачей компьютера следующему игроку.</summary>
     public async Task ResetAllAsync()
-        => await js.InvokeVoidAsync("synapseStorage.removeByPrefix", StoragePrefix);
+        => await js.InvokeVoidAsync("synapseStorage.removeByPrefix", await PrefixAsync());
 }

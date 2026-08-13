@@ -4,15 +4,14 @@ using Synapse.Blocks.Serialization;
 
 namespace Synapse.Blocks.Services;
 
-public sealed class ProgressStore(IJSRuntime js)
+public sealed class ProgressStore(IJSRuntime js, CampaignModeStore campaignModeStore)
 {
-    private const string StorageKey = "synapse-csharp-progress-v1";
-
     public async Task<HashSet<Guid>> LoadAsync()
     {
         try
         {
-            var json = await js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            var key = CampaignModeStore.Info(await campaignModeStore.GetAsync()).ProgressStorageKey;
+            var json = await js.InvokeAsync<string?>("localStorage.getItem", key);
             if (string.IsNullOrWhiteSpace(json)) return [];
             return JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.HashSetGuid) ?? [];
         }
@@ -28,9 +27,10 @@ public sealed class ProgressStore(IJSRuntime js)
         completed.Add(levelId);
         try
         {
+            var key = CampaignModeStore.Info(await campaignModeStore.GetAsync()).ProgressStorageKey;
             await js.InvokeVoidAsync(
                 "localStorage.setItem",
-                StorageKey,
+                key,
                 JsonSerializer.Serialize(completed, AppJsonSerializerContext.Default.HashSetGuid));
         }
         catch (JSException)
@@ -40,5 +40,8 @@ public sealed class ProgressStore(IJSRuntime js)
     }
 
     public async Task ResetAsync()
-        => await js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+    {
+        var key = CampaignModeStore.Info(await campaignModeStore.GetAsync()).ProgressStorageKey;
+        await js.InvokeVoidAsync("localStorage.removeItem", key);
+    }
 }
