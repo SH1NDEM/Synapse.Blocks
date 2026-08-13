@@ -2,7 +2,9 @@
 @implements IAsyncDisposable
 @inject LevelStore LevelStore
 @inject ProgressStore ProgressStore
+@inject CampaignModeStore CampaignModeStore
 @inject CitySceneStore CitySceneStore
+@inject NavigationManager Navigation
 @inject IJSRuntime JS
 
 <PageTitle>Синапс — Город Ноль</PageTitle>
@@ -19,6 +21,17 @@ else
                 <span class="signal-eyebrow"><i></i> СЕТЬ ГОРОДА НОЛЬ / ONLINE</span>
                 <h1>Здесь программы<br /><em>меняют мир.</em></h1>
                 <p>Получайте данные, собирайте логику из блоков и возвращайте городу правильный ответ. Каждая рабочая схема оживляет новый сектор.</p>
+                <div class="campaign-mode-picker" aria-label="Выберите версию игры">
+                    @foreach (var mode in CampaignModes)
+                    {
+                        var info = CampaignModeStore.Info(mode);
+                        <button type="button" class="@(_mode == mode ? "active" : "")" @onclick="() => SelectModeAsync(mode)">
+                            <small>@(mode == CampaignMode.Kids ? "1–3 КЛАСС" : "ПОЛНАЯ КАМПАНИЯ")</small>
+                            <strong>@info.Label</strong>
+                            <span>@info.Description</span>
+                        </button>
+                    }
+                </div>
                 <div class="signal-actions">
                     <a class="signal-start" href="game">@(_completed.Count > 0 ? "Продолжить с последней операции" : "Запустить первую операцию") <b>→</b></a>
                     <a class="signal-guide" href="guide">Сначала разобраться</a>
@@ -41,7 +54,7 @@ else
                         var level = _levels[index];
                         var complete = _completed.Contains(level.Id);
                         <a class="city-system-label @(complete ? "complete" : "")" data-system-index="@index" href="game?level=@level.Id" aria-label="Открыть уровень @level.Title">
-                            <strong>@((index + 1).ToString("00"))</strong>
+                            <strong>@LevelLabel(level)</strong>
                         </a>
                     }
                     <div class="city-webgl-fallback">3D-сцена недоступна в этом браузере</div>
@@ -62,7 +75,7 @@ else
                 {
                     var complete = _completed.Contains(level.Id);
                     <a class="mission-ticket @(complete ? "complete" : "")" href="game?level=@level.Id">
-                        <span>@level.Order.ToString("00")</span><div><small>@level.Direction · @level.Tests.Count проверок</small><h3>@level.Title</h3><p>@level.Objective</p></div><b>@(complete ? "✓" : "→")</b>
+                        <span>@LevelLabel(level)</span><div><small>@level.Direction · @level.Tests.Count проверок</small><h3>@level.Title</h3><p>@level.Objective</p></div><b>@(complete ? "✓" : "→")</b>
                     </a>
                 }
             </div>
@@ -76,11 +89,14 @@ else
     private bool _loading = true;
     private bool _cityStarted;
     private string _citySceneJson = "";
+    private CampaignMode _mode = CampaignMode.Adult;
+    private static readonly CampaignMode[] CampaignModes = [CampaignMode.Kids, CampaignMode.Adult];
     private int ProgressPercent => _levels.Count == 0 ? 0 : (int)Math.Round(_completed.Count * 100d / _levels.Count);
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            _mode = await CampaignModeStore.GetAsync();
             _levels = await LevelStore.LoadGameAsync();
             _completed = await ProgressStore.LoadAsync();
             var cityScene = await CitySceneStore.LoadAsync();
@@ -104,4 +120,15 @@ else
         if (_cityStarted)
             await JS.InvokeVoidAsync("synapseCity3d.stop", "synapse-city-webgl");
     }
+
+    private async Task SelectModeAsync(CampaignMode mode)
+    {
+        await CampaignModeStore.SetAsync(mode);
+        Navigation.NavigateTo("game", forceLoad: true);
+    }
+
+    private string LevelLabel(LevelDefinition level)
+        => _mode == CampaignMode.Kids && level.Order is >= 3 and <= 8
+            ? ((char)('A' + level.Order - 3)).ToString()
+            : level.Order.ToString("00");
 }
