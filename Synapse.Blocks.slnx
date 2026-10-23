@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="Synapse.Blocks.csproj" />
+  <Project Path="Client/Synapse.Blocks.csproj" />
+  <Project Path="Server/Synapse.Blocks.Server.csproj" />
+  <Project Path="Shared/Synapse.Blocks.Shared.csproj" />
 </Solution>

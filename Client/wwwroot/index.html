@@ -6,11 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Синапс — блочное программирование</title>
     <base href="/" />
-    <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="Synapse.Blocks.styles.css" rel="stylesheet" />
-    <script type="importmap"></script>
 </head>
 
 <body>
@@ -18,7 +16,7 @@
         <main class="boot-screen" aria-label="Загрузка игры">
             <div class="boot-brand"><i class="brand-mark" aria-hidden="true"></i><span><b>СИНАПС</b></span></div>
             <div class="boot-copy">
-                <small>ГОРОД НОЛЬ / ПОДКЛЮЧЕНИЕ</small>
+                <small>СИНАПС / ПОДКЛЮЧЕНИЕ</small>
                 <h1>Готовим рабочее поле</h1>
                 <p>Загружаем блоки и ваши сохранённые уровни…</p>
                 <div class="boot-line"><i></i></div>
@@ -33,8 +31,7 @@
     </div>
     <!-- Небольшой нативный помощник даёт плавно двигать большое нодовое поле мышью. -->
     <script src="js/canvas-pan.js"></script>
-    <script src="js/city3d.js"></script>
-    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
 </body>
 
 </html>

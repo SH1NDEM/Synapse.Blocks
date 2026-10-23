@@ -8,6 +8,10 @@
 {
     <div class="page-loading"><span></span><p>Открываю панель разработчика…</p></div>
 }
+else if (_error.Length > 0)
+{
+    <section class="admin-page"><h1>Кампания недоступна</h1><p role="alert">@_error</p><button type="button" @onclick="OnInitializedAsync">Повторить</button></section>
+}
 else
 {
     <section class="admin-page">
@@ -18,8 +22,7 @@ else
                 <p>Настройте кампанию в редакторе или проверьте блоки и тесты в песочнице.</p>
             </div>
             <div class="admin-hero-actions">
-                <a class="admin-primary" href="editor">Редактировать JSON <span>→</span></a>
-                <a class="admin-secondary" href="admin/city">Настроить 3D-город</a>
+                <a class="admin-primary" href="editor">Редактировать уровни <span>→</span></a>
                 <a class="admin-secondary" href="sandbox">Открыть песочницу</a>
             </div>
         </header>
@@ -33,7 +36,7 @@ else
 
         <aside class="admin-local-note">
             <i>i</i>
-            <p><b>Источник кампании.</b> Игра читает <code>wwwroot/levels.json</code>. Редактор скачивает готовый JSON: замените этим файлом текущий <code>levels.json</code>, затем отправьте изменения в GitHub.</p>
+            <p><b>Общая кампания.</b> Создавайте уровни в редакторе и сохраняйте кампанию. Игроки увидят изменения при следующем открытии или обновлении игры.</p>
         </aside>
     </section>
 }
@@ -41,13 +44,17 @@ else
 @code {
     private List<LevelDefinition> _levels = [];
     private bool _loading = true;
+    private string _error = "";
     private int TestCount => _levels.Sum(level => level.Tests.Count);
     private int IntroCount => _levels.Sum(level => level.IntroSteps.Count);
     private int ChapterCount => _levels.Select(level => level.Chapter).Distinct().Count();
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadGameAsync();
-        _loading = false;
+        _loading = true;
+        _error = "";
+        try { _levels = await LevelStore.LoadEditorAsync(); }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _loading = false; }
     }
 }

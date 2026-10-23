@@ -1,0 +1,72 @@
+@page "/"
+@inject LevelStore LevelStore
+@inject ProgressStore ProgressStore
+
+<PageTitle>Синапс — блочное программирование</PageTitle>
+
+@if (_loading)
+{
+    <div class="page-loading"><span></span><p>Загружаю задания…</p></div>
+}
+else if (_error.Length > 0)
+{
+    <section class="admin-page"><h1>Не удалось загрузить задания</h1><p role="alert">@_error</p><button type="button" class="save-button" @onclick="OnInitializedAsync">Повторить</button></section>
+}
+else
+{
+    <div class="signal-home">
+        <section class="signal-hero learning-hero">
+            <div class="signal-copy">
+                <span class="signal-eyebrow"><i></i> СИНАПС / УЧИСЬ СОЗДАВАТЬ</span>
+                <h1>Собери логику.<br /><em>Найди решение.</em></h1>
+                <p>Программирование начинается с простых шагов. Соединяйте блоки, проверяйте идеи и решайте задания в своём темпе.</p>
+                <div class="signal-actions">
+                    <a class="signal-start" href="@NextLevelUrl">@(CompletedCount > 0 ? "Продолжить обучение" : "Начать обучение") <b>→</b></a>
+                    <a class="signal-guide" href="guide">Как это работает</a>
+                </div>
+            </div>
+            <aside class="learning-progress" aria-label="Прогресс обучения">
+                <small>ВАШ ПРОГРЕСС</small>
+                <strong>@CompletedCount <span>/ @_levels.Count</span></strong>
+                <p>уровней пройдено</p>
+                <progress value="@CompletedCount" max="@Math.Max(1, _levels.Count)">@ProgressPercent%</progress>
+                <span>@(CompletedCount == _levels.Count ? "Все задания выполнены. Можно пройти их ещё раз." : "Каждая схема — ещё один шаг вперёд.")</span>
+            </aside>
+        </section>
+        <section class="mission-feed">
+            <header><div><small>ПРАКТИКА</small><h2>Выберите задание</h2></div><p>Разные схемы могут привести к правильному ответу. Экспериментируйте и проверяйте результат.</p></header>
+            <div class="mission-feed-grid">
+                @foreach (var level in _levels)
+                {
+                    var complete = _completed.Contains(level.Id);
+                    <a class="mission-ticket @(complete ? "complete" : "")" href="game?level=@level.Id">
+                        <span>@level.Order.ToString("00")</span><div><small>@level.Direction · @level.Tests.Count проверок</small><h3>@level.Title</h3><p>@level.Objective</p></div><b aria-label="@(complete ? "Пройден" : "Открыть")">@(complete ? "✓" : "→")</b>
+                    </a>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private List<LevelDefinition> _levels = [];
+    private HashSet<Guid> _completed = [];
+    private bool _loading = true;
+    private string _error = "";
+    private int CompletedCount => _levels.Count(level => _completed.Contains(level.Id));
+    private int ProgressPercent => _levels.Count == 0 ? 0 : (int)Math.Round(CompletedCount * 100d / _levels.Count);
+    private string NextLevelUrl => $"game?level={(_levels.FirstOrDefault(level => !_completed.Contains(level.Id)) ?? _levels.FirstOrDefault())?.Id}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        _error = "";
+        try
+        {
+            _levels = await LevelStore.LoadGameAsync();
+            _completed = await ProgressStore.LoadAsync();
+        }
+        catch { _error = "Нет связи с сервером. Проверьте подключение и повторите загрузку."; }
+        finally { _loading = false; }
+    }
+}

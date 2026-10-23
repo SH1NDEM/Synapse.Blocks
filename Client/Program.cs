@@ -11,7 +11,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<LevelStore>();
 builder.Services.AddScoped<ProgressStore>();
 builder.Services.AddScoped<SolutionStore>();
-builder.Services.AddScoped<CitySceneStore>();
+builder.Services.AddScoped<AdminSession>();
 builder.Services.AddSingleton<BlockProgramRunner>();
 
 await builder.Build().RunAsync();

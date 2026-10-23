@@ -1,4 +1,5 @@
 @page "/editor"
+@page "/admin/levels"
 @layout AdminLayout
 @using System.Text
 @inject LevelStore LevelStore
@@ -9,6 +10,10 @@
 @if (_loading)
 {
     <div class="page-loading"><span></span><p>Открываю редактор…</p></div>
+}
+else if (_loadError.Length > 0)
+{
+    <section class="admin-page"><h1>Не удалось открыть редактор</h1><p role="alert">@_loadError</p><button type="button" @onclick="OnInitializedAsync">Повторить</button></section>
 }
 else
 {
@@ -30,7 +35,7 @@ else
             <div class="file-actions">
                 <button type="button" @onclick="ExportLevels">Экспорт JSON</button>
                 <label>Импорт JSON<InputFile OnChange="ImportFile" accept="application/json,.json" /></label>
-                <button type="button" @onclick="ResetLevels">Перезагрузить JSON</button>
+                <button type="button" @onclick="ResetLevels" disabled="@_saving">Загрузить с сервера</button>
             </div>
         </aside>
 
@@ -162,7 +167,7 @@ else
                                         <label><span>Ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
                                         <label><span>Или загрузить файл</span><InputFile OnChange="args => UploadIntroMedia(introIndex, args)" accept="image/gif,image/png,image/jpeg,image/webp" /></label>
                                     </div>
-                                    <p class="intro-media-note">GIF лучше добавлять по ссылке: файл попадёт в скачиваемый JSON. Локальный файл ограничен 4 МБ.</p>
+                                    <p class="intro-media-note">GIF лучше добавлять по ссылке. Загруженные изображения сохраняются вместе с кампанией; файл ограничен 4 МБ.</p>
 
                                     @if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
                                     {
@@ -198,8 +203,8 @@ else
                 </section>
 
                 <footer class="editor-savebar">
-                    <div><strong>@level.Tests.Count тестов</strong><span> · @level.IntroSteps.Count вступительных окон · @level.AllowedBlocks.Count типов блоков · источник: JSON</span></div>
-                    <button type="button" class="save-button" @onclick="Save">Скачать JSON</button>
+                    <div><strong>@level.Tests.Count тестов</strong><span> · @level.IntroSteps.Count вступительных окон · @level.AllowedBlocks.Count типов блоков · общая кампания</span></div>
+                    <button type="button" class="save-button" @onclick="Save" disabled="@_saving">@(_saving ? "Сохранение…" : "Сохранить кампанию")</button>
                 </footer>
             </main>
         }
@@ -212,14 +217,22 @@ else
     private bool _loading = true;
     private string _message = "";
     private bool _messageIsError;
+    private bool _saving;
+    private string _loadError = "";
 
     private LevelDefinition? Selected => _levels.FirstOrDefault(level => level.Id == _selectedId) ?? _levels.FirstOrDefault();
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadEditorAsync();
-        _selectedId = _levels.FirstOrDefault()?.Id;
-        _loading = false;
+        _loading = true;
+        _loadError = "";
+        try
+        {
+            _levels = await LevelStore.LoadEditorAsync();
+            _selectedId = _levels.FirstOrDefault()?.Id;
+        }
+        catch (Exception exception) { _loadError = exception.Message; }
+        finally { _loading = false; }
     }
 
     private void Select(Guid id)
@@ -307,7 +320,8 @@ else
         _levels.Remove(level);
         Renumber();
         _selectedId = _levels.FirstOrDefault()?.Id;
-        await Save();
+        _message = "Уровень удалён из черновика. Сохраните кампанию, чтобы применить изменения.";
+        _messageIsError = false;
     }
 
     private void MoveUp()
@@ -431,6 +445,7 @@ else
 
     private async Task Save()
     {
+        if (_saving) return;
         _message = "";
         if (_levels.Any(level => string.IsNullOrWhiteSpace(level.Title)))
         {
@@ -442,27 +457,28 @@ else
             ShowError("У каждого уровня должна быть хотя бы одна проверка.");
             return;
         }
-        if (_levels.SelectMany(level => level.Tests).Any(test => string.IsNullOrWhiteSpace(test.ExpectedOutput)))
-        {
-            ShowError("Заполните ожидаемый выход во всех проверках.");
-            return;
-        }
         Renumber();
-        await ExportLevels();
-        _message = "JSON скачан. Замените им файл wwwroot/levels.json — после публикации игру получат новые уровни.";
-        _messageIsError = false;
+        _saving = true;
+        try
+        {
+            await LevelStore.SaveAsync(_levels);
+            _message = "Кампания сохранена. Игроки увидят изменения после обновления игры.";
+            _messageIsError = false;
+        }
+        catch (Exception exception) { ShowError(exception is HttpRequestException ? "Нет связи с сервером. Правки остались в редакторе; повторите сохранение." : exception.Message); }
+        finally { _saving = false; }
     }
 
     private async Task ImportFile(InputFileChangeEventArgs args)
     {
         try
         {
-            await using var stream = args.File.OpenReadStream(2 * 1024 * 1024);
+            await using var stream = args.File.OpenReadStream(32 * 1024 * 1024);
             using var reader = new StreamReader(stream, Encoding.UTF8);
             var json = await reader.ReadToEndAsync();
             _levels = LevelStore.Import(json);
             _selectedId = _levels.First().Id;
-            _message = $"Импортировано уровней: {_levels.Count}. После правок скачайте новый JSON.";
+            _message = $"Импортировано уровней: {_levels.Count}. Сохраните кампанию, чтобы опубликовать их для игроков.";
             _messageIsError = false;
         }
         catch (Exception exception)
@@ -473,11 +489,15 @@ else
 
     private async Task ResetLevels()
     {
-        if (!await JS.InvokeAsync<bool>("confirm", "Отменить несохранённые изменения и заново загрузить levels.json?")) return;
-        _levels = await LevelStore.LoadEditorAsync();
-        _selectedId = _levels.First().Id;
-        _message = "Примеры восстановлены.";
-        _messageIsError = false;
+        if (!await JS.InvokeAsync<bool>("confirm", "Отменить несохранённые изменения и загрузить кампанию с сервера?")) return;
+        try
+        {
+            _levels = await LevelStore.LoadEditorAsync();
+            _selectedId = _levels.First().Id;
+            _message = "Кампания загружена с сервера.";
+            _messageIsError = false;
+        }
+        catch (Exception exception) { ShowError(exception.Message); }
     }
 
     private void Renumber()

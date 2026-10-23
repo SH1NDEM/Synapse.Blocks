@@ -12,5 +12,6 @@ namespace Synapse.Blocks.Serialization;
 [JsonSerializable(typeof(List<LevelDefinition>))]
 [JsonSerializable(typeof(HashSet<Guid>))]
 [JsonSerializable(typeof(BlockProgram))]
-[JsonSerializable(typeof(CitySceneDefinition))]
+[JsonSerializable(typeof(AdminLoginRequest))]
+[JsonSerializable(typeof(AdminSessionInfo))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext;

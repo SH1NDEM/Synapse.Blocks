@@ -37,8 +37,7 @@
         try { await SolutionStore.ResetAllAsync(); }
         catch { }
 
-        // BaseUri корректно возвращает на главную и на localhost, и при публикации
-        // сайта в подпапке GitHub Pages.
+        // BaseUri возвращает на главную текущего приложения.
         Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
     }
 }

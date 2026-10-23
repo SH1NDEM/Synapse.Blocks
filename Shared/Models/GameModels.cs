@@ -103,48 +103,6 @@ public sealed class LevelTestCase
     public bool Hidden { get; set; }
 }
 
-public sealed class CitySceneDefinition
-{
-    public double CameraSize { get; set; } = 10.4;
-    public string GroundColor { get; set; } = "#07110B";
-    public string GridColor { get; set; } = "#294A32";
-    public CityCoreDefinition Core { get; set; } = new();
-    public List<CityChipDefinition> Chips { get; set; } = [];
-    public List<CityRouteDefinition> Routes { get; set; } = [];
-}
-
-public sealed class CityCoreDefinition
-{
-    public double X { get; set; }
-    public double Z { get; set; }
-    public double Width { get; set; } = 5.35;
-    public double Depth { get; set; } = 3.88;
-    public string Color { get; set; } = "#245235";
-}
-
-public sealed class CityChipDefinition
-{
-    public int Number { get; set; }
-    public double X { get; set; }
-    public double Z { get; set; }
-    public double Width { get; set; } = 3.18;
-    public double Depth { get; set; } = 1.92;
-    public string Color { get; set; } = "#21492F";
-}
-
-public sealed class CityRouteDefinition
-{
-    public int ChipNumber { get; set; }
-    public string Color { get; set; } = "#B7ED63";
-    public List<CityRoutePoint> Points { get; set; } = [];
-}
-
-public sealed class CityRoutePoint
-{
-    public double X { get; set; }
-    public double Z { get; set; }
-}
-
 public sealed class BlockNode
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -1,0 +1,74 @@
+@inherits LayoutComponentBase
+@inject AdminSession Session
+
+<div class="app-shell admin-shell">
+    <header class="app-header admin-header">
+        <a class="brand" href="admin">
+            <span class="brand-mark admin-mark" aria-hidden="true"></span>
+            <span><b>СИНАПС</b><small>ПАНЕЛЬ РАЗРАБОТЧИКА</small></span>
+        </a>
+        <nav class="main-nav admin-nav" aria-label="Навигация разработчика">
+            <NavLink href="admin" Match="NavLinkMatch.All"><b>Главная</b></NavLink>
+            <NavLink href="editor"><b>Уровни</b></NavLink>
+            <NavLink href="sandbox"><b>Песочница</b></NavLink>
+        </nav>
+        <a class="runtime-badge developer-exit" href="">← Детская версия</a>
+    </header>
+    <main class="app-main">
+        @if (_checking)
+        {
+            <div class="page-loading"><span></span><p>Проверяю вход…</p></div>
+        }
+        else if (!_authenticated)
+        {
+            <section class="admin-login">
+                <small>СИНАПС / АДМИНИСТРИРОВАНИЕ</small>
+                <h1>Вход в админку</h1>
+                <p>Введите пароль, чтобы управлять уровнями кампании.</p>
+                <form @onsubmit="Login" @onsubmit:preventDefault>
+                    <label for="admin-password">Пароль</label>
+                    <input id="admin-password" type="password" autocomplete="current-password" required maxlength="1024" @bind="_password" @bind:event="oninput" />
+                    @if (_error.Length > 0) { <p class="editor-message error" role="alert">@_error</p> }
+                    <button class="save-button" type="submit" disabled="@_busy">@(_busy ? "Вход…" : "Войти")</button>
+                </form>
+            </section>
+        }
+        else
+        {
+            <div class="admin-session"><span>Вы вошли как администратор</span><button type="button" @onclick="Logout" disabled="@_busy">Выйти</button></div>
+            @if (_error.Length > 0) { <p class="editor-message error" role="alert">@_error</p> }
+            @Body
+        }
+    </main>
+</div>
+
+@code {
+    private bool _checking = true, _authenticated, _busy;
+    private string _password = "", _error = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _authenticated = await Session.IsAuthenticatedAsync(); }
+        catch { _error = "Не удалось связаться с сервером. Попробуйте войти ещё раз."; }
+        finally { _checking = false; }
+    }
+
+    private async Task Login()
+    {
+        if (_busy) return;
+        _busy = true;
+        _error = "";
+        try { await Session.LoginAsync(_password); _authenticated = true; }
+        catch (Exception exception) { _error = exception is HttpRequestException ? "Нет связи с сервером." : exception.Message; }
+        finally { _password = ""; _busy = false; }
+    }
+
+    private async Task Logout()
+    {
+        _busy = true;
+        _error = "";
+        try { await Session.LogoutAsync(); _authenticated = false; }
+        catch { _error = "Не удалось выйти. Проверьте соединение и повторите."; }
+        finally { _busy = false; }
+    }
+}

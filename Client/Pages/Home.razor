@@ -14,12 +14,16 @@
 {
     <div class="page-loading"><span></span><p>Загружаю уровни…</p></div>
 }
+else if (_loadError.Length > 0)
+{
+    <section class="empty-state"><h1>Не удалось загрузить игру</h1><p role="alert">@_loadError</p><button type="button" class="save-button" @onclick="OnInitializedAsync">Повторить</button></section>
+}
 else if (ActiveLevel is null)
 {
     <section class="empty-state">
         <h1>Уровней пока нет</h1>
         <p>Попросите разработчика добавить первое задание в кампанию.</p>
-        <a class="primary-link" href="">Вернуться в город</a>
+        <a class="primary-link" href="">На главную</a>
     </section>
 }
 else
@@ -563,6 +567,7 @@ else
     private BlockKind? _dragTemplate;
     private double _zoom = 1;
     private bool _loading = true;
+    private string _loadError = "";
     private bool _showSuccess;
     private bool _running;
     private BlockKind? _helpKind;
@@ -649,17 +654,24 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _levels = await LevelStore.LoadGameAsync();
-        if (IsSandbox)
-            _levels = _levels.Select(CloneForSandbox).ToList();
-        _completed = await ProgressStore.LoadAsync();
-        _activeLevelId = RequestedLevel is Guid requested && _levels.Any(level => level.Id == requested)
-            ? requested
-            : _levels.FirstOrDefault(level => !_completed.Contains(level.Id))?.Id ?? _levels.FirstOrDefault()?.Id;
-        _loading = false;
-        await LoadSolutionAsync();
-        if (!IsSandbox)
-            ShowLevelIntro();
+        _loading = true;
+        _loadError = "";
+        try
+        {
+            _levels = await LevelStore.LoadGameAsync();
+            if (IsSandbox)
+                _levels = _levels.Select(CloneForSandbox).ToList();
+            _completed = await ProgressStore.LoadAsync();
+            _activeLevelId = RequestedLevel is Guid requested && _levels.Any(level => level.Id == requested)
+                ? requested
+                : _levels.FirstOrDefault(level => !_completed.Contains(level.Id))?.Id ?? _levels.FirstOrDefault()?.Id;
+            _loading = false;
+            await LoadSolutionAsync();
+            if (!IsSandbox)
+                ShowLevelIntro();
+        }
+        catch { _loadError = "Не удалось связаться с сервером. Проверьте подключение и повторите загрузку."; }
+        finally { _loading = false; }
     }
 
     private static LevelDefinition CloneForSandbox(LevelDefinition source) => new()

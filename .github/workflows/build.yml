@@ -1,0 +1,33 @@
+name: Сборка и проверка
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Сборка решения
+        run: dotnet build Synapse.Blocks.slnx
+      - name: Проверка API и сохранения кампании
+        shell: pwsh
+        run: ./tests/smoke.ps1
+      - name: Сборка сервера и фронтенда
+        run: dotnet publish Server -c Release -o artifacts/server
+      - name: Проверка опубликованной сборки
+        shell: pwsh
+        run: ./tests/smoke.ps1 -ServerDirectory artifacts/server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synapse-server
+          path: artifacts/server/

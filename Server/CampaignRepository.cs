@@ -1,0 +1,106 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Synapse.Blocks.Models;
+
+namespace Synapse.Blocks.Server;
+
+public sealed class CampaignConflictException : Exception;
+public sealed record CampaignSnapshot(byte[] Json, string ETag);
+
+// One server process owns the campaign; replace-on-save keeps the last valid file intact.
+public sealed class CampaignRepository(IWebHostEnvironment environment, IConfiguration configuration)
+{
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly string _directory = Path.GetFullPath(configuration["Storage:Directory"] ??
+        Path.Combine(environment.ContentRootPath, "App_Data"));
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+    private string FilePath => Path.Combine(_directory, "levels.json");
+
+    public async Task<CampaignSnapshot> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try { return await ReadCoreAsync(cancellationToken); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<CampaignSnapshot> ReadCoreAsync(CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_directory);
+        if (!File.Exists(FilePath))
+        {
+            var seed = await File.ReadAllTextAsync(Path.Combine(environment.ContentRootPath, "Data", "seed-levels.json"), cancellationToken);
+            await WriteAtomicAsync(Encoding.UTF8.GetBytes(seed), cancellationToken);
+        }
+        var json = await File.ReadAllBytesAsync(FilePath, cancellationToken);
+        return new(json, ETag(json));
+    }
+
+    public async Task<string> SaveAsync(List<LevelDefinition> levels, string expectedETag, CancellationToken cancellationToken = default)
+    {
+        Validate(levels);
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var current = await ReadCoreAsync(cancellationToken);
+            if (string.IsNullOrEmpty(expectedETag) || expectedETag != current.ETag) throw new CampaignConflictException();
+            var json = JsonSerializer.SerializeToUtf8Bytes(levels.OrderBy(level => level.Order).ToList(), JsonOptions);
+            await WriteAtomicAsync(json, cancellationToken);
+            return ETag(json);
+        }
+        finally { _gate.Release(); }
+    }
+
+    private async Task WriteAtomicAsync(byte[] json, CancellationToken cancellationToken)
+    {
+        var temporary = Path.Combine(_directory, $"{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await File.WriteAllBytesAsync(temporary, json, cancellationToken);
+            File.Move(temporary, FilePath, overwrite: true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    private static string ETag(byte[] json) => $"\"{Convert.ToHexString(SHA256.HashData(json))}\"";
+
+    private static void Validate(List<LevelDefinition> levels)
+    {
+        if (levels is null || levels.Count is < 1 or > 500)
+            throw new ArgumentException("Кампания должна содержать от 1 до 500 уровней.");
+        var ids = new HashSet<Guid>();
+        foreach (var level in levels)
+        {
+            if (level is null || level.Id == Guid.Empty || !ids.Add(level.Id))
+                throw new ArgumentException("Уровням нужны уникальные непустые идентификаторы.");
+            if (string.IsNullOrWhiteSpace(level.Title) || level.Title.Length > 200)
+                throw new ArgumentException("У каждого уровня должно быть название до 200 символов.");
+            if (level.Tests is null || level.Tests.Count is < 1 or > 200 || level.Tests.Any(test =>
+                    test is null || test.Input is null || test.ExpectedOutput is null || test.Name is null))
+                throw new ArgumentException("У каждого уровня должно быть от 1 до 200 заполненных проверок.");
+            if (level.Tests.Any(test => test.Id == Guid.Empty) || level.Tests.Select(test => test.Id).Distinct().Count() != level.Tests.Count)
+                throw new ArgumentException("Проверкам нужны уникальные непустые идентификаторы.");
+            if (level.AllowedBlocks is null || level.AllowedBlocks.Any(kind => !Enum.IsDefined(kind)) ||
+                !level.AllowedBlocks.Contains(BlockKind.Input) || !level.AllowedBlocks.Contains(BlockKind.Output) ||
+                level.RequiredBlocks is null || level.RequiredBlocks.Any(kind => !level.AllowedBlocks.Contains(kind)))
+                throw new ArgumentException("Проверьте доступные и обязательные блоки; «Вход» и «Выход» обязательны.");
+            if (level.Chapter < 1 || level.RequiredLoopCount < 0 || level.RequiredLoopBodyOperationCount < 0 || level.MaxOperationBlocks < 0)
+                throw new ArgumentException("Номер главы и ограничения блоков содержат недопустимые значения.");
+            if (level.IntroSteps is null || level.IntroSteps.Count > 100 || level.IntroSteps.Any(step => step is null ||
+                    step.Title is null || step.Body is null || step.FieldValue is null || step.MediaUrl is null ||
+                    !Enum.IsDefined(step.FieldKind) || !Enum.IsDefined(step.HighlightTarget)))
+                throw new ArgumentException("Проверьте вступительные окна (не более 100 на уровень).");
+            if (new[] { level.Direction, level.Location, level.Description, level.StoryIntro, level.StorySuccess,
+                level.Objective, level.InputDescription, level.OutputDescription, level.Hint }.Any(value => value is null))
+                throw new ArgumentException("Текстовые поля уровня не должны быть null.");
+        }
+        if (levels.Select(level => level.Order).Distinct().Count() != levels.Count || levels.Any(level => level.Order < 1))
+            throw new ArgumentException("Порядок уровней должен содержать уникальные положительные числа.");
+    }
+}
