@@ -53,7 +53,8 @@ public enum IntroHighlightTarget
     Tests,
     Workspace,
     BlockLibrary,
-    RunPanel
+    RunPanel,
+    Description
 }
 
 public sealed class LevelDefinition

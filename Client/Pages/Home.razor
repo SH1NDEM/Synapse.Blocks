@@ -86,17 +86,13 @@ else
                     <span class="direction-pill">@ActiveLevel.Direction</span>
                     <p class="operation-number">ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00")</p>
                     <h1>@ActiveLevel.Title</h1>
-                    <p class="mission-description">@ActiveLevel.Description</p>
-
-                    <details class="story-card child-story-card">
-                        <summary>@ActiveLevel.Location</summary>
-                        <p>@ActiveLevel.StoryIntro</p>
-                    </details>
 
                 <div class="objective-card @IntroHighlightClass(IntroHighlightTarget.Objective)">
                     <small>ЦЕЛЬ</small>
                     <strong>@ActiveLevel.Objective</strong>
                 </div>
+
+                <button type="button" class="mission-description-button @IntroHighlightClass(IntroHighlightTarget.Description)" @onclick="() => _showDescription = true"><AdminIcon Name="levels" /><span>Описание</span><AdminIcon Name="arrow" /></button>
 
                 @if (HasSolutionRules)
                 {
@@ -108,11 +104,6 @@ else
                         }
                     </div>
                 }
-
-                <dl class="data-contract">
-                    <div class="@IntroHighlightClass(IntroHighlightTarget.InputData)"><dt>Вход</dt><dd>@ActiveLevel.InputDescription</dd></div>
-                    <div class="@IntroHighlightClass(IntroHighlightTarget.OutputData)"><dt>Выход</dt><dd>@ActiveLevel.OutputDescription</dd></div>
-                </dl>
 
                 <div class="test-list-head"><span>ОТКРЫТЫЕ ТЕСТЫ</span><b>@ActiveLevel.Tests.Count(test => !test.Hidden)</b></div>
                 <div class="test-list @IntroHighlightClass(IntroHighlightTarget.Tests)">
@@ -129,10 +120,6 @@ else
                     }
                 </div>
 
-                    <details class="hint-box">
-                        <summary>Показать подсказку</summary>
-                        <p>@ActiveLevel.Hint</p>
-                    </details>
                 }
             </div>
         </aside>
@@ -435,6 +422,11 @@ else
         </aside>
     </div>
 
+    @if (!IsSandbox && _showDescription)
+    {
+        <LevelDescriptionDialog Title="@ActiveLevel.Title" Markdown="@ActiveLevel.Description" OnClose="() => _showDescription = false" />
+    }
+
     @if (!IsSandbox && ActiveIntroStep is LevelIntroStep introStep)
     {
         <div class="level-intro-backdrop" role="presentation"></div>
@@ -503,13 +495,12 @@ else
         <div class="level-complete-backdrop" role="presentation">
             <section class="level-complete-modal" role="dialog" aria-modal="true" aria-labelledby="complete-title">
                 <div class="complete-signal"><i></i><i></i><i></i></div>
-                <small>ОПЕРАЦИЯ @ActiveLevel.Order.ToString("00") ЗАВЕРШЕНА</small>
-                <h2 id="complete-title">@ActiveLevel.Title</h2>
-                <p>@ActiveLevel.StorySuccess</p>
+                <small>@ActiveLevel.Title</small>
+                <h2 id="complete-title">Уровень пройден</h2>
                 <div class="complete-stats"><span><b>@_results.Count</b> тестов пройдено</span><span><b>@_program.Nodes.Count</b> блоков в решении</span></div>
                 <div class="complete-actions">
                     <button type="button" class="secondary" @onclick="CloseSuccess">Посмотреть схему</button>
-                    <button type="button" class="primary" @onclick="GoToNextLevel">@(HasNextLevel ? "Следующий уровень →" : "Вернуться в город →")</button>
+                    <button type="button" class="primary" @onclick="GoToNextLevel">@(HasNextLevel ? "Следующий уровень →" : "На главную →")</button>
                 </div>
             </section>
         </div>
@@ -569,6 +560,7 @@ else
     private bool _loading = true;
     private string _loadError = "";
     private bool _showSuccess;
+    private bool _showDescription;
     private bool _running;
     private BlockKind? _helpKind;
     private int? _introStepIndex;
@@ -760,6 +752,7 @@ else
     {
         if (Guid.TryParse(args.Value?.ToString(), out var id))
         {
+            _showDescription = false;
             _activeLevelId = id;
             ClearProgram();
             await LoadSolutionAsync();
@@ -1474,7 +1467,12 @@ else
     };
 
     private string IntroHighlightClass(IntroHighlightTarget target)
-        => ActiveIntroStep?.HighlightTarget == target ? "intro-highlighted" : "";
+    {
+        var activeTarget = ActiveIntroStep?.HighlightTarget;
+        if (activeTarget is IntroHighlightTarget.InputData or IntroHighlightTarget.OutputData)
+            activeTarget = IntroHighlightTarget.Description;
+        return activeTarget == target ? "intro-highlighted" : "";
+    }
 
     private static string IntroFieldKicker(IntroFieldKind kind) => kind switch
     {

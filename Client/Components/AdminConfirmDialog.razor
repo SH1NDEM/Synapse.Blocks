@@ -1,0 +1,33 @@
+@inject IJSRuntime JS
+
+<dialog class="admin-dialog" @ref="_dialog" aria-labelledby="admin-dialog-title" @onkeydown="HandleKey">
+    <div class="admin-dialog-icon @(Danger ? "danger" : "")"><AdminIcon Name="@(Danger ? "trash" : "upload")" /></div>
+    <h2 id="admin-dialog-title">@Title</h2>
+    <p>@Description</p>
+    @ChildContent
+    <footer>
+        <button class="admin-btn secondary" type="button" @onclick="OnCancel" disabled="@Busy">Отмена</button>
+        <button class="admin-btn @(Danger ? "destructive" : "primary")" type="button" @onclick="OnConfirm" disabled="@Busy">@(Busy ? "Сохранение…" : ConfirmLabel)</button>
+    </footer>
+</dialog>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string ConfirmLabel { get; set; } = "Подтвердить";
+    [Parameter] public bool Danger { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private ElementReference _dialog;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await JS.InvokeVoidAsync("synapseAdmin.openDialog", _dialog);
+    }
+    private async Task HandleKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape" && !Busy) await OnCancel.InvokeAsync();
+        else if (args.Key == "Escape" && Busy) await JS.InvokeVoidAsync("synapseAdmin.keepDialogOpen", _dialog);
+    }
+}

@@ -1,0 +1,50 @@
+@page "/admin/chapters"
+@layout AdminLayout
+@inject LevelStore LevelStore
+
+<PageTitle>Главы кампании — Синапс</PageTitle>
+
+<section class="admin-page-content">
+    <AdminPageHeader Title="Главы кампании" Subtitle="Объединяйте задания по темам и выстраивайте маршрут обучения.">
+        <a class="admin-btn primary" href="editor?new=true"><AdminIcon Name="plus" />Создать уровень</a>
+    </AdminPageHeader>
+    @if (_loading)
+    {
+        <div class="page-loading"><span></span><p>Загружаем главы…</p></div>
+    }
+    else if (_error.Length > 0)
+    {
+        <div class="admin-empty admin-panel"><h2>Не удалось загрузить главы</h2><p role="alert">@_error</p><button class="admin-btn secondary" @onclick="Load">Повторить</button></div>
+    }
+    else
+    {
+        <div class="admin-chapter-grid">
+            @foreach (var chapter in _levels.GroupBy(level => level.Chapter).OrderBy(group => group.Key))
+            {
+                <article class="admin-panel admin-chapter-card">
+                    <header><span class="admin-chapter-symbol"><AdminIcon Name="layers" /></span><span class="admin-tag">@chapter.Count() уровней</span></header>
+                    <p class="admin-eyebrow">УЧЕБНЫЙ МАРШРУТ</p><h2>Глава @chapter.Key</h2><p class="admin-chapter-summary">@chapter.Sum(level => level.Tests.Count) проверок · @chapter.Sum(level => level.IntroSteps.Count) пояснений</p>
+                    <ol>@foreach (var level in chapter.Take(3)) { <li><span>@level.Order.ToString("00")</span><a href="editor?level=@level.Id">@level.Title</a></li> }</ol>
+                    @if (chapter.Count() > 3) { <p class="admin-chapter-more">И ещё @(chapter.Count() - 3) уровней</p> }
+                    <footer><a class="admin-text-link" href="admin/levels?chapter=@chapter.Key">Открыть главу <AdminIcon Name="arrow" /></a><a class="admin-icon-button" href="editor?new=true&chapter=@chapter.Key" title="Добавить уровень в главу" aria-label="Добавить уровень в главу @chapter.Key"><AdminIcon Name="plus" /></a></footer>
+                </article>
+            }
+        </div>
+        <aside class="admin-inline-tip"><AdminIcon Name="help" /><p>Чтобы перенести уровень в другую главу, измените номер главы в его описании. Новая глава появится после сохранения первого уровня.</p></aside>
+    }
+</section>
+
+@code {
+    private List<LevelDefinition> _levels = [];
+    private bool _loading = true;
+    private string _error = "";
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load()
+    {
+        _loading = true;
+        _error = "";
+        try { _levels = await LevelStore.LoadEditorAsync(); }
+        catch (Exception exception) { _error = exception.Message; }
+        finally { _loading = false; }
+    }
+}

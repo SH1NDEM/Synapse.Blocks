@@ -69,7 +69,7 @@ try {
     Assert-Status $taskPublic 200 'Public campaign'
     $taskLevels = @($taskPublic.Content | ConvertFrom-Json)
     if ($taskLevels.Count -lt 1) { throw 'Seed campaign is empty.' }
-    foreach ($taskRoute in @('/', '/game', '/admin', '/admin/levels', '/editor', '/css/app.css')) {
+    foreach ($taskRoute in @('/', '/game', '/admin', '/admin/levels', '/admin/chapters', '/admin/editor', '/editor', '/css/app.css', '/css/admin.css', '/css/markdown.css', '/js/admin-ui.js')) {
         Assert-Status (Invoke-WebRequest ($taskUrl + $taskRoute) -SkipHttpErrorCheck) 200 "Hosted frontend $taskRoute"
     }
     $taskHtml = (Invoke-WebRequest $taskUrl).Content

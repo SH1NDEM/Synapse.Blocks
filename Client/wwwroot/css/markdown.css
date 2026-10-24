@@ -1,0 +1,60 @@
+body:has(dialog[open]) { overflow:hidden; }
+.child-game-layout .mission-pane .objective-card { margin-top:20px; }
+.mission-description-button { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; margin:16px 0 25px; padding:11px 13px; border:1px solid rgba(107,219,196,.24); border-radius:9px; background:rgba(107,219,196,.055); color:var(--cyan); font-size:13px; font-weight:600; text-align:left; }
+.mission-description-button:hover { border-color:rgba(107,219,196,.5); background:rgba(107,219,196,.1); }
+.mission-description-button .admin-icon { width:17px; height:17px; }
+.mission-description-button > span { flex:1; }
+.level-description-dialog { width:min(760px,calc(100% - 40px)); max-height:calc(100dvh - 56px); margin:auto; padding:0; overflow:auto; scrollbar-width:thin; color:var(--text); background:#111713; border:1px solid rgba(107,219,196,.25); border-radius:18px; box-shadow:0 30px 120px #0009; }
+.level-description-dialog::backdrop { background:rgba(3,8,5,.76); backdrop-filter:blur(5px); }
+.level-description-dialog { color-scheme:dark; scrollbar-color:#36483b #111713; }
+.level-description-dialog::-webkit-scrollbar { width:7px; }
+.level-description-dialog::-webkit-scrollbar-track { background:transparent; }
+.level-description-dialog::-webkit-scrollbar-thumb { background:#36483b; border-radius:8px; }
+.level-description-header { display:flex; justify-content:space-between; align-items:start; gap:22px; position:sticky; top:0; z-index:1; padding:27px 30px 23px; background:#111713f7; border-bottom:1px solid rgba(255,255,255,.09); backdrop-filter:blur(12px); }
+.level-description-header small { color:var(--cyan); font:10px/1.4 ui-monospace,monospace; letter-spacing:.12em; }
+.level-description-header h2 { margin:10px 0 0; color:var(--text); font-size:26px; line-height:1.25; letter-spacing:-.035em; overflow-wrap:anywhere; }
+.level-description-close { width:34px; height:34px; display:grid; place-items:center; flex-shrink:0; padding:7px; border:1px solid rgba(255,255,255,.1); border-radius:9px; color:#a4b3a9; background:#1a231d; }
+.level-description-close:hover { color:var(--cyan); background:#23372c; border-color:rgba(107,219,196,.35); }
+.level-description-body { padding:24px 30px 32px; }
+.description-empty { color:var(--muted); font-size:14px; line-height:1.7; }
+.markdown-content { color:var(--text); font-size:15px; line-height:1.8; overflow-wrap:anywhere; }
+.markdown-content,.markdown-content * { -webkit-user-select:text; user-select:text; }
+.markdown-content ::selection { background:#6bdbc43b; color:inherit; }
+.markdown-content > :first-child { margin-top:0; }
+.markdown-content > :last-child { margin-bottom:0; }
+.markdown-content p { margin:0 0 16px; line-height:inherit; }
+.markdown-content h1,.markdown-content h2,.markdown-content h3,.markdown-content h4 { margin:28px 0 13px; color:inherit; font-weight:650; line-height:1.35; letter-spacing:-.025em; }
+.markdown-content h1 { font-size:27px; }.markdown-content h2 { font-size:23px; }.markdown-content h3 { font-size:19px; }.markdown-content h4 { font-size:16px; }
+.markdown-content ul,.markdown-content ol { padding-left:24px; margin:12px 0 20px; }
+.markdown-content li { margin:6px 0; padding-left:3px; }
+.markdown-content a { color:var(--cyan); text-decoration:underline; text-underline-offset:3px; }
+.markdown-content code { padding:3px 6px; border:1px solid var(--line); border-radius:5px; background:var(--panel-3); color:var(--cyan); font: .88em/1.6 ui-monospace,SFMono-Regular,Consolas,monospace; }
+.markdown-content pre { max-width:100%; margin:18px 0; padding:18px; overflow-x:auto; border:1px solid var(--line-strong); border-radius:10px; background:var(--bg); white-space:pre; }
+.markdown-content pre code { padding:0; border:0; border-radius:0; background:transparent; color:inherit; }
+.markdown-content blockquote { margin:18px 0; padding:12px 18px; border-left:3px solid var(--cyan); border-radius:0 7px 7px 0; background:#6bdbc40a; color:var(--muted); }
+.markdown-content blockquote > :last-child { margin-bottom:0; }
+.markdown-content table { display:block; max-width:100%; margin:20px 0; overflow-x:auto; border-collapse:collapse; font-size:14px; }
+.markdown-content th,.markdown-content td { padding:10px 14px; border:1px solid var(--line-strong); text-align:left; }
+.markdown-content th { background:var(--panel-3); font-weight:650; }
+.markdown-content hr { margin:25px 0; border:0; border-top:1px solid var(--line-strong); }
+.markdown-content img { display:block; max-width:100%; height:auto; margin:18px 0; border-radius:9px; }
+.admin-markdown-editor { margin-top:24px; border:1px solid #dce6d2; border-radius:10px; overflow:hidden; }
+.admin-markdown-editor > header { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:12px 15px; background:#f7faf2; border-bottom:1px solid #e4ecdc; color:#738b5d; font-size:12px; }
+.admin-markdown-editor > header > div { display:flex; align-items:center; gap:3px; }
+.admin-markdown-editor > header button { padding:6px 10px; border:1px solid transparent; border-radius:6px; background:transparent; color:#8c9e7b; font-size:11px; }
+.admin-markdown-editor > header button.active { border-color:#d4e4c3; color:#58783c; background:#edf5e4; }
+.admin-shell .admin-markdown-source { width:100%; display:block; min-height:280px; margin:0; padding:17px; border:0; border-radius:0; background:#fff; color:#465d36; font:13px/1.75 ui-monospace,Consolas,monospace; resize:vertical; }
+.admin-shell .admin-markdown-source:focus { outline:2px solid #a8c78b; outline-offset:-2px; }
+.admin-markdown-preview { min-height:280px; padding:19px; background:#fff; }
+.admin-markdown-editor > p { margin:0; padding:11px 15px; color:#8a9c78; background:#fcfdf9; border-top:1px solid #e9efdf; font-size:10px; }
+.admin-shell .markdown-content { --cyan:#338d77; color:#48583d; font-size:14px; }
+.admin-shell .markdown-content p { color:inherit; line-height:1.8; }
+.admin-shell .markdown-content blockquote { color:#7b8f68; }
+@media(max-width:600px) {
+    .level-description-dialog { width:calc(100% - 24px); max-height:calc(100dvh - 24px); border-radius:13px; }
+    .level-description-header { padding:22px 20px 18px; gap:15px; }
+    .level-description-header h2 { font-size:23px; }
+    .level-description-body { padding:20px; }
+    .markdown-content { font-size:14px; }
+    .admin-markdown-editor > header { flex-wrap:wrap; gap:8px; }
+}

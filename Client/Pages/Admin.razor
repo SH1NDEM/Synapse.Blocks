@@ -2,54 +2,51 @@
 @layout AdminLayout
 @inject LevelStore LevelStore
 
-<PageTitle>Панель разработчика — Синапс</PageTitle>
+<PageTitle>Мой кабинет — Синапс</PageTitle>
 
-@if (_loading)
-{
-    <div class="page-loading"><span></span><p>Открываю панель разработчика…</p></div>
-}
-else if (_error.Length > 0)
-{
-    <section class="admin-page"><h1>Кампания недоступна</h1><p role="alert">@_error</p><button type="button" @onclick="OnInitializedAsync">Повторить</button></section>
-}
-else
-{
-    <section class="admin-page">
-        <header class="admin-hero admin-hero-compact">
-            <div>
-                <small>ПАНЕЛЬ РАЗРАБОТЧИКА</small>
-                <h1>Уровни и проверка</h1>
-                <p>Настройте кампанию в редакторе или проверьте блоки и тесты в песочнице.</p>
-            </div>
-            <div class="admin-hero-actions">
-                <a class="admin-primary" href="editor">Редактировать уровни <span>→</span></a>
-                <a class="admin-secondary" href="sandbox">Открыть песочницу</a>
-            </div>
-        </header>
-
-        <section class="admin-stats" aria-label="Состояние кампании">
-            <article><small>УРОВНЕЙ</small><strong>@_levels.Count</strong><span>в кампании</span></article>
-            <article><small>ПРОВЕРОК</small><strong>@TestCount</strong><span>всего тестов</span></article>
-            <article><small>ПОЯСНЕНИЙ</small><strong>@IntroCount</strong><span>перед уровнями</span></article>
-            <article><small>ГЛАВ</small><strong>@ChapterCount</strong><span>сюжетных секторов</span></article>
+<section class="admin-page-content">
+    <AdminPageHeader Title="Мой кабинет" Subtitle="Всё для вашего следующего занятия — в одном пространстве." Eyebrow="ПРОСТРАНСТВО ПРЕПОДАВАТЕЛЯ">
+        <a class="admin-btn primary" href="editor?new=true"><AdminIcon Name="plus" />Создать уровень</a>
+    </AdminPageHeader>
+    @if (_loading)
+    {
+        <div class="page-loading"><span></span><p>Открываем кабинет…</p></div>
+    }
+    else if (_error.Length > 0)
+    {
+        <div class="admin-panel admin-empty"><h2>Кампания недоступна</h2><p role="alert">@_error</p><button class="admin-btn secondary" @onclick="Load">Повторить</button></div>
+    }
+    else
+    {
+        <AdminStats Levels="_levels" />
+        <section class="admin-welcome">
+            <div><span class="admin-eyebrow">ОТ ИДЕИ К РЕШЕНИЮ</span><h2>Хороший урок начинается<br />с интересной задачи.</h2><p>Добавляйте задания, объясняйте сложное простыми шагами<br class="desktop-break" /> и помогайте ученикам находить собственные решения.</p><a class="admin-btn dark" href="admin/levels">Перейти к уровням <AdminIcon Name="arrow" /></a></div>
+            <div class="admin-welcome-diagram" aria-hidden="true"><span class="welcome-node"><AdminIcon Name="levels" /><b>Задание</b></span><i></i><span class="welcome-node mint"><AdminIcon Name="test" /><b>Проверка</b></span><i></i><span class="welcome-node result"><AdminIcon Name="check" /><b>Решение</b></span></div>
         </section>
-
-        <aside class="admin-local-note">
-            <i>i</i>
-            <p><b>Общая кампания.</b> Создавайте уровни в редакторе и сохраняйте кампанию. Игроки увидят изменения при следующем открытии или обновлении игры.</p>
-        </aside>
-    </section>
-}
+        <div class="admin-dashboard-grid">
+            <section class="admin-panel">
+                <header class="admin-panel-heading"><div><h2>Ваша кампания</h2><p>Первые задания на пути ученика.</p></div><a class="admin-text-link" href="admin/levels">Все уровни <AdminIcon Name="arrow" /></a></header>
+                <div class="admin-dashboard-levels">
+                    @foreach (var level in _levels.Take(5))
+                    {
+                        <a href="editor?level=@level.Id"><span class="admin-level-number">@level.Order.ToString("00")</span><div><strong>@level.Title</strong><small>@level.Direction · @level.Tests.Count проверок</small></div><span class="admin-tag">Глава @level.Chapter</span><AdminIcon Name="chevron" /></a>
+                    }
+                </div>
+            </section>
+            <div class="admin-dashboard-aside">
+                <section class="admin-panel admin-quick-actions"><h2>Быстрый переход</h2><a href="editor?new=true"><i><AdminIcon Name="plus" /></i><span><b>Новое задание</b><small>Начните с чистого листа</small></span><AdminIcon Name="chevron" /></a><a href="sandbox"><i class="mint"><AdminIcon Name="flask" /></i><span><b>Песочница</b><small>Проверьте идею на практике</small></span><AdminIcon Name="chevron" /></a><a href="admin/chapters"><i><AdminIcon Name="layers" /></i><span><b>Главы кампании</b><small>Посмотрите структуру курса</small></span><AdminIcon Name="chevron" /></a></section>
+                <section class="admin-campaign-status"><span class="admin-status-dot"></span><div><h3>Кампания доступна</h3><p>@_levels.Count уровней готовы к прохождению.<br />Изменения публикуются после сохранения.</p><a href="">Открыть игру <AdminIcon Name="arrow" /></a></div></section>
+            </div>
+        </div>
+    }
+</section>
 
 @code {
     private List<LevelDefinition> _levels = [];
     private bool _loading = true;
     private string _error = "";
-    private int TestCount => _levels.Sum(level => level.Tests.Count);
-    private int IntroCount => _levels.Sum(level => level.IntroSteps.Count);
-    private int ChapterCount => _levels.Select(level => level.Chapter).Distinct().Count();
-
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load()
     {
         _loading = true;
         _error = "";

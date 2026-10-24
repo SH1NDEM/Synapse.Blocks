@@ -1,0 +1,195 @@
+@page "/admin/levels"
+@layout AdminLayout
+@using System.Text
+@inject LevelStore LevelStore
+@inject IJSRuntime JS
+
+<PageTitle>Мои уровни — Синапс</PageTitle>
+
+<section class="admin-page-content">
+    <AdminPageHeader Title="Мои уровни" Subtitle="Создавайте задания, настраивайте проверки и собирайте свою кампанию.">
+        <a class="admin-btn primary" href="editor?new=true"><AdminIcon Name="plus" />Создать уровень</a>
+    </AdminPageHeader>
+
+    @if (_loading)
+    {
+        <div class="page-loading"><span></span><p>Загружаем уровни…</p></div>
+    }
+    else if (_loadError.Length > 0)
+    {
+        <div class="admin-empty admin-panel"><AdminIcon Name="levels" /><h2>Не удалось загрузить уровни</h2><p role="alert">@_loadError</p><button class="admin-btn secondary" @onclick="Load">Повторить</button></div>
+    }
+    else
+    {
+        <AdminStats Levels="_levels" />
+        @if (_message.Length > 0) { <div class="admin-notice @(_error ? "error" : "success")" role="status">@_message</div> }
+        <section class="admin-panel">
+            <header class="admin-panel-heading">
+                <div><h2>Библиотека уровней <span class="admin-count">@_levels.Count</span></h2><p>Все задания в одном месте. Откройте уровень, чтобы внести изменения.</p></div>
+                <div class="admin-panel-actions">
+                    <button class="admin-btn secondary compact" disabled="@_busy" @onclick="Export"><AdminIcon Name="download" />Экспорт</button>
+                    <label class="admin-btn secondary compact admin-upload @(_busy ? "is-disabled" : "")"><AdminIcon Name="upload" />Импорт<InputFile OnChange="PrepareImport" accept="application/json,.json" disabled="@_busy" aria-label="Импортировать кампанию из JSON" /></label>
+                </div>
+            </header>
+            <div class="admin-table-toolbar">
+                <label class="admin-search"><AdminIcon Name="search" /><input type="search" placeholder="Название или направление" aria-label="Поиск уровней" @bind="Search" @bind:event="oninput" /></label>
+                <div class="admin-table-filters">
+                    <select aria-label="Фильтр по главе" @bind="ChapterFilter"><option value="">Все главы</option>@foreach (var chapter in _levels.Select(level => level.Chapter).Distinct().Order()) { <option value="@chapter">Глава @chapter</option> }</select>
+                    <select aria-label="Сортировка уровней" @bind="Sort"><option value="order">По порядку</option><option value="title">По названию</option><option value="tests">По числу проверок</option></select>
+                </div>
+            </div>
+            <div class="admin-table-scroll">
+                <table class="admin-table">
+                    <thead><tr><th class="number-column">№</th><th>Уровень</th><th>Глава</th><th>Проверки</th><th>Блоки</th><th class="actions-column">Действия</th></tr></thead>
+                    <tbody>
+                        @foreach (var level in PageLevels)
+                        {
+                            <tr @key="level.Id">
+                                <td><span class="admin-level-number">@level.Order.ToString("00")</span></td>
+                                <td class="admin-title-cell"><a href="editor?level=@level.Id">@level.Title</a><span>@level.Direction</span></td>
+                                <td><span class="admin-tag">Глава @level.Chapter</span></td>
+                                <td><span class="admin-tests-count"><i></i>@level.Tests.Count тестов</span><small>@level.Tests.Count(test => test.Hidden) скрытых</small></td>
+                                <td><span class="admin-block-count">@level.AllowedBlocks.Count типов</span></td>
+                                <td><div class="admin-row-actions">
+                                    <a class="admin-icon-button" href="editor?level=@level.Id" title="Редактировать" aria-label="Редактировать @level.Title"><AdminIcon Name="edit" /></a>
+                                    <button class="admin-icon-button" title="Создать копию" aria-label="Копировать @level.Title" disabled="@_busy" @onclick="() => Duplicate(level)"><AdminIcon Name="copy" /></button>
+                                    <button class="admin-icon-button danger" title="Удалить" aria-label="Удалить @level.Title" disabled="@(_busy || _levels.Count == 1)" @onclick="() => _deleting = level"><AdminIcon Name="trash" /></button>
+                                </div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (Filtered.Count == 0)
+                {
+                    <div class="admin-empty"><AdminIcon Name="search" /><h3>Ничего не найдено</h3><p>Попробуйте другое название или выберите другую главу.</p><button class="admin-btn secondary compact" @onclick="ClearFilters">Сбросить фильтры</button></div>
+                }
+            </div>
+            <footer class="admin-table-footer">
+                <span>@(Filtered.Count == 0 ? "0" : $"{(_page - 1) * PageSize + 1}–{Math.Min(_page * PageSize, Filtered.Count)}") из @Filtered.Count уровней</span>
+                <div class="admin-pagination"><button class="admin-icon-button" aria-label="Предыдущая страница" disabled="@(_page <= 1)" @onclick="() => _page--"><AdminIcon Name="back" /></button><span>Страница @_page из @PageCount</span><button class="admin-icon-button" aria-label="Следующая страница" disabled="@(_page >= PageCount)" @onclick="() => _page++"><AdminIcon Name="arrow" /></button></div>
+            </footer>
+        </section>
+        <aside class="admin-inline-tip"><AdminIcon Name="help" /><p>Сохранённые уровни сразу доступны в кампании. Игрокам достаточно обновить страницу игры.</p><a href="sandbox">Проверить в песочнице <AdminIcon Name="arrow" /></a></aside>
+    }
+</section>
+
+@if (_deleting is not null)
+{
+    <AdminConfirmDialog Title="Удалить уровень?" Description="@($"«{_deleting.Title}» будет удалён из общей кампании. Перед удалением можно отменить действие и скачать экспорт.")" ConfirmLabel="Удалить уровень" Danger="true" Busy="_busy" OnCancel="CancelDialog" OnConfirm="Delete">
+        @if (_dialogError.Length > 0) { <div class="admin-notice error" role="alert">@_dialogError</div> }
+    </AdminConfirmDialog>
+}
+@if (_importing is not null)
+{
+    <AdminConfirmDialog Title="Заменить кампанию?" Description="@($"В файле {_importing.Count} уровней. Импорт заменит текущие {_levels.Count} уровней. Скачайте экспорт, если хотите сохранить прежнюю версию.")" ConfirmLabel="Импортировать кампанию" Busy="_busy" OnCancel="CancelDialog" OnConfirm="ConfirmImport">
+        @if (_dialogError.Length > 0) { <div class="admin-notice error" role="alert">@_dialogError</div> }
+    </AdminConfirmDialog>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "chapter")] public int? RequestedChapter { get; set; }
+    private List<LevelDefinition> _levels = [];
+    private List<LevelDefinition>? _importing;
+    private LevelDefinition? _deleting;
+    private bool _loading = true, _busy, _error;
+    private string _loadError = "", _message = "", _dialogError = "", _search = "", _chapter = "", _sort = "order";
+    private int _page = 1;
+    private bool _queryApplied;
+    private int? _lastRequestedChapter;
+    private const int PageSize = 10;
+    private string Search { get => _search; set { _search = value; _page = 1; } }
+    private string ChapterFilter { get => _chapter; set { _chapter = value; _page = 1; } }
+    private string Sort { get => _sort; set { _sort = value; _page = 1; } }
+    private List<LevelDefinition> Filtered
+    {
+        get
+        {
+            var query = _levels.Where(level => (_chapter.Length == 0 || level.Chapter.ToString() == _chapter) &&
+                (_search.Length == 0 || level.Title.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) || level.Direction.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)));
+            return (_sort switch { "title" => query.OrderBy(level => level.Title), "tests" => query.OrderByDescending(level => level.Tests.Count), _ => query.OrderBy(level => level.Order) }).ToList();
+        }
+    }
+    private int PageCount => Math.Max(1, (int)Math.Ceiling(Filtered.Count / (double)PageSize));
+    private IEnumerable<LevelDefinition> PageLevels => Filtered.Skip((_page - 1) * PageSize).Take(PageSize);
+    protected override Task OnInitializedAsync() => Load();
+    protected override void OnParametersSet()
+    {
+        if (_queryApplied && _lastRequestedChapter == RequestedChapter) return;
+        _queryApplied = true;
+        _lastRequestedChapter = RequestedChapter;
+        ChapterFilter = RequestedChapter?.ToString() ?? "";
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        _loadError = "";
+        try { _levels = await LevelStore.LoadEditorAsync(); }
+        catch (Exception exception) { _loadError = exception.Message; }
+        finally { _loading = false; }
+    }
+
+    private void ClearFilters() { Search = ""; ChapterFilter = ""; }
+    private async Task Export() => await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", LevelStore.Export(_levels));
+    private void CancelDialog() { if (_busy) return; _deleting = null; _importing = null; _dialogError = ""; }
+
+    private async Task<bool> Persist(List<LevelDefinition> updated, string message)
+    {
+        if (_busy) return false;
+        _busy = true;
+        _dialogError = "";
+        _message = "";
+        try
+        {
+            await LevelStore.SaveAsync(updated);
+            _levels = updated.OrderBy(level => level.Order).ToList();
+            _page = Math.Min(_page, PageCount);
+            _error = false;
+            _message = message;
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _error = true;
+            _dialogError = _message = exception is HttpRequestException ? "Нет связи с сервером. Попробуйте ещё раз." : exception.Message;
+            return false;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task Duplicate(LevelDefinition level)
+    {
+        var copy = LevelDrafts.Duplicate(level, _levels.Count + 1);
+        await Persist([.. _levels, copy], $"Копия «{copy.Title}» создана и сохранена.");
+    }
+
+    private async Task Delete()
+    {
+        if (_deleting is null || _levels.Count == 1) return;
+        // Clone first: a failed save must not change order in the visible campaign.
+        var updated = LevelDrafts.Snapshot(_levels.Where(level => level.Id != _deleting.Id));
+        if (await Persist(updated, "Уровень удалён из кампании.")) _deleting = null;
+    }
+
+    private async Task PrepareImport(InputFileChangeEventArgs args)
+    {
+        if (_busy) return;
+        try
+        {
+            await using var stream = args.File.OpenReadStream(32 * 1024 * 1024);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            _importing = LevelStore.Import(await reader.ReadToEndAsync());
+            _dialogError = "";
+        }
+        catch (Exception exception) { _error = true; _message = $"Не удалось прочитать файл: {exception.Message}"; }
+    }
+
+    private async Task ConfirmImport()
+    {
+        if (_importing is not null && await Persist(_importing, "Кампания импортирована и сохранена."))
+        {
+            _importing = null;
+            ClearFilters();
+        }
+    }
+}

@@ -84,20 +84,17 @@ public sealed class LevelStore(HttpClient http)
             var level = ordered[index];
             level.Order = index + 1;
             level.Chapter = Math.Max(1, level.Chapter);
-            if (string.IsNullOrWhiteSpace(level.Location))
-                level.Location = "Город Ноль";
-            if (string.IsNullOrWhiteSpace(level.StoryIntro))
-                level.StoryIntro = level.Description;
-            if (string.IsNullOrWhiteSpace(level.StorySuccess))
-                level.StorySuccess =
-                    "Операция завершена. В городе восстановлен ещё один участок сети.";
             level.AllowedBlocks = level.AllowedBlocks.Distinct().ToList();
             if (!level.AllowedBlocks.Contains(BlockKind.Input)) level.AllowedBlocks.Insert(0, BlockKind.Input);
             if (!level.AllowedBlocks.Contains(BlockKind.Output)) level.AllowedBlocks.Add(BlockKind.Output);
             level.Tests ??= [];
             level.IntroSteps ??= [];
             foreach (var step in level.IntroSteps)
+            {
                 step.MediaUrl ??= "";
+                if (step.HighlightTarget is IntroHighlightTarget.InputData or IntroHighlightTarget.OutputData)
+                    step.HighlightTarget = IntroHighlightTarget.Description;
+            }
         }
         return ordered;
     }

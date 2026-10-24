@@ -1,9 +1,9 @@
 @page "/editor"
-@page "/admin/levels"
+@page "/admin/editor"
 @layout AdminLayout
-@using System.Text
 @inject LevelStore LevelStore
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
 <PageTitle>Редактор уровней — Синапс</PageTitle>
 
@@ -13,72 +13,68 @@
 }
 else if (_loadError.Length > 0)
 {
-    <section class="admin-page"><h1>Не удалось открыть редактор</h1><p role="alert">@_loadError</p><button type="button" @onclick="OnInitializedAsync">Повторить</button></section>
+    <section class="admin-panel admin-empty"><h1>Не удалось открыть редактор</h1><p role="alert">@_loadError</p><button class="admin-btn secondary" type="button" @onclick="OnInitializedAsync">Повторить</button></section>
 }
 else
 {
-    <div class="editor-shell">
-        <aside class="level-list-pane">
-            <div class="level-list-head">
-                <div><small>КАМПАНИЯ</small><strong>@_levels.Count уровней</strong></div>
-                <button type="button" @onclick="AddLevel" title="Добавить уровень">＋</button>
-            </div>
-            <div class="level-list-scroll">
-                @foreach (var item in _levels)
-                {
-                    <button type="button" class="level-row @(Selected?.Id == item.Id ? "active" : "")" @onclick="() => Select(item.Id)">
-                        <span>@item.Order.ToString("00")</span>
-                        <div><strong>@item.Title</strong><small>@item.Direction · @item.Tests.Count тестов</small></div>
-                    </button>
-                }
-            </div>
-            <div class="file-actions">
-                <button type="button" @onclick="ExportLevels">Экспорт JSON</button>
-                <label>Импорт JSON<InputFile OnChange="ImportFile" accept="application/json,.json" /></label>
-                <button type="button" @onclick="ResetLevels" disabled="@_saving">Загрузить с сервера</button>
-            </div>
-        </aside>
-
+    <NavigationLock ConfirmExternalNavigation="_dirty" OnBeforeInternalNavigation="ConfirmNavigation" />
+    <div class="editor-shell" inert="@(_saving ? "" : null)" @oninput="MarkDirty" @onchange="MarkDirty">
         @if (Selected is LevelDefinition level)
         {
-            <main class="level-form-pane">
+            <div class="level-form-pane">
+                <div class="admin-editor-breadcrumb"><a href="admin/levels"><AdminIcon Name="back" />Мои уровни</a><span>/</span><span>Редактор уровня</span></div>
                 <header class="form-header">
-                    <div><small>УРОВЕНЬ @level.Order.ToString("00")</small><h1>@level.Title</h1></div>
-                    <div>
-                        <button type="button" @onclick="MoveUp" disabled="@(level.Order == 1)">↑</button>
-                        <button type="button" @onclick="MoveDown" disabled="@(level.Order == _levels.Count)">↓</button>
-                        <button type="button" @onclick="DuplicateLevel">Создать копию</button>
-                        <button type="button" class="danger" @onclick="DeleteLevel" disabled="@(_levels.Count == 1)">Удалить</button>
+                    <div><small>УРОВЕНЬ @level.Order.ToString("00") · ГЛАВА @level.Chapter</small><h1>@(string.IsNullOrWhiteSpace(level.Title) ? "Новый уровень" : level.Title)</h1><p>Настройте задание и сохраните изменения для учеников.</p></div>
+                    <div class="admin-editor-tools">
+                        <button type="button" @onclick="MoveUp" disabled="@(level.Order == 1 || _saving)" title="Переместить выше" aria-label="Переместить уровень выше">↑</button>
+                        <button type="button" @onclick="MoveDown" disabled="@(level.Order == _levels.Count || _saving)" title="Переместить ниже" aria-label="Переместить уровень ниже">↓</button>
+                        <button type="button" @onclick="DuplicateLevel" disabled="@_saving"><AdminIcon Name="copy" />Копировать</button>
+                        <button type="button" @onclick="ExportLevels" disabled="@_saving" title="Скачать резервную копию кампании" aria-label="Экспортировать кампанию"><AdminIcon Name="download" /></button>
+                        <button type="button" class="danger" @onclick="DeleteLevel" disabled="@(_levels.Count == 1 || _saving)" title="Удалить уровень" aria-label="Удалить уровень"><AdminIcon Name="trash" /></button>
                     </div>
                 </header>
+                <div class="admin-editor-tabs" role="tablist" aria-label="Разделы редактора">
+                    @foreach (var tab in EditorTabs)
+                    {
+                        <button type="button" id="tab-@tab.Key" role="tab" aria-selected="@(_activeTab == tab.Key)" aria-controls="panel-@tab.Key" class="@(_activeTab == tab.Key ? "active" : "")" @onclick="() => _activeTab = tab.Key"><AdminIcon Name="@tab.Icon" />@tab.Label</button>
+                    }
+                </div>
 
                 @if (!string.IsNullOrWhiteSpace(_message))
                 {
-                    <div class="editor-message @(_messageIsError ? "error" : "ok")">@_message</div>
+                    <div class="editor-message @(_messageIsError ? "error" : "ok")" role="status">@_message</div>
                 }
 
-                <section class="form-section">
-                    <div class="section-heading"><span>01</span><div><h2>Описание задания</h2><p>Текст, который увидит игрок слева от рабочего поля.</p></div></div>
+                @if (_activeTab == "description")
+                {
+                <section role="tabpanel" id="panel-description" aria-labelledby="tab-description" class="form-section">
+                    <div class="section-heading"><span>01</span><div><h2>Описание задания</h2><p>Цель видна рядом с игрой. Подробное описание открывается отдельной панелью.</p></div></div>
                     <div class="field-grid two">
                         <label><span>Название уровня</span><input @bind="level.Title" /></label>
                         <label><span>Направление</span><input @bind="level.Direction" list="directions" /><datalist id="directions"><option>Программирование</option><option>Кибербезопасность</option><option>Заказ клиента</option></datalist></label>
                     </div>
                     <div class="field-grid two">
                         <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label>
-                        <label><span>Место действия</span><input @bind="level.Location" placeholder="Например: Лабораторный шлюз B-4" /></label>
                     </div>
-                    <label class="wide-field"><span>Сюжет и контекст</span><textarea @bind="level.Description" rows="3"></textarea></label>
-                    <label class="wide-field"><span>Сюжет перед заданием</span><textarea @bind="level.StoryIntro" rows="3" placeholder="Что произошло и почему игроку нужна эта программа?"></textarea></label>
-                    <label class="wide-field"><span>Сюжет после успешного решения</span><textarea @bind="level.StorySuccess" rows="3" placeholder="Что изменилось в городе после прохождения?"></textarea></label>
                     <label class="wide-field"><span>Что нужно сделать</span><textarea @bind="level.Objective" rows="2"></textarea></label>
-                    <div class="field-grid two">
-                        <label><span>Какие данные получает программа</span><textarea @bind="level.InputDescription" rows="3"></textarea></label>
-                        <label><span>Что программа должна вернуть</span><textarea @bind="level.OutputDescription" rows="3"></textarea></label>
+                    <div class="admin-markdown-editor">
+                        <header><span>Подробное описание</span><div role="group" aria-label="Режим описания"><button type="button" class="@(!_previewDescription ? "active" : "")" @onclick="() => _previewDescription = false">Markdown</button><button type="button" class="@(_previewDescription ? "active" : "")" @onclick="() => _previewDescription = true">Предпросмотр</button></div></header>
+                        @if (_previewDescription)
+                        {
+                            <div class="admin-markdown-preview">@if (string.IsNullOrWhiteSpace(level.Description)) { <p>Добавьте текст во вкладке Markdown.</p> } else { <MarkdownContent Text="@level.Description" /> }</div>
+                        }
+                        else
+                        {
+                            <textarea class="admin-markdown-source" aria-label="Описание уровня в Markdown" @bind="level.Description" @bind:event="oninput" rows="12" placeholder="## Описание задания&#10;&#10;Объясните задачу, добавьте **важные детали**, списки и примеры кода."></textarea>
+                        }
+                        <p>Поддерживаются заголовки, списки, выделение, таблицы, ссылки, изображения и блоки кода.</p>
                     </div>
-                    <label class="wide-field"><span>Подсказка</span><textarea @bind="level.Hint" rows="2"></textarea></label>
                 </section>
+                }
 
-                <section class="form-section">
+                @if (_activeTab == "blocks")
+                {
+                <section role="tabpanel" id="panel-blocks" aria-labelledby="tab-blocks" class="form-section">
                     <div class="section-heading"><span>02</span><div><h2>Доступные блоки</h2><p>«Вход» и «Выход» обязательны. Остальные типы можно включать для конкретного уровня.</p></div></div>
                     <div class="block-toggle-grid">
                         @foreach (var kind in Enum.GetValues<BlockKind>())
@@ -90,9 +86,27 @@ else
                             </label>
                         }
                     </div>
+                    <details class="admin-editor-details">
+                        <summary>Требования к решению <span>Дополнительно</span></summary>
+                        <p>Выберите блоки, которые ученик должен использовать. Числовые ограничения можно оставить пустыми.</p>
+                        <div class="admin-required-blocks">
+                            @foreach (var kind in level.AllowedBlocks.Where(kind => kind is not BlockKind.Input and not BlockKind.Output))
+                            {
+                                <label><input type="checkbox" checked="@level.RequiredBlocks.Contains(kind)" @onchange="e => ToggleRequired(kind, e.Value is true)" />@BlockCatalog.Label(kind)</label>
+                            }
+                        </div>
+                        <div class="field-grid two">
+                            <label><span>Число повторений цикла</span><input type="number" min="0" @bind="level.RequiredLoopCount" placeholder="Без ограничения" /></label>
+                            <label><span>Операций в теле цикла</span><input type="number" min="0" @bind="level.RequiredLoopBodyOperationCount" placeholder="Без ограничения" /></label>
+                            <label><span>Максимум блоков «Операция»</span><input type="number" min="0" @bind="level.MaxOperationBlocks" placeholder="Без ограничения" /></label>
+                        </div>
+                    </details>
                 </section>
+                }
 
-                <section class="form-section tests-section">
+                @if (_activeTab == "tests")
+                {
+                <section role="tabpanel" id="panel-tests" aria-labelledby="tab-tests" class="form-section tests-section">
                     <div class="section-heading with-action">
                         <span>03</span>
                         <div><h2>Тесты программы</h2><p>Один граф запускается @level.Tests.Count раз. Прохождение засчитывается, только если совпали все выходы.</p></div>
@@ -110,7 +124,7 @@ else
                                 <input @bind="test.Name" aria-label="Название теста" />
                                 <textarea @bind="test.Input" rows="2" aria-label="Входные данные"></textarea>
                                 <textarea @bind="test.ExpectedOutput" rows="2" aria-label="Ожидаемый результат"></textarea>
-                                <label class="hidden-switch"><input type="checkbox" @bind="test.Hidden" /><span></span></label>
+                                <label class="hidden-switch"><input type="checkbox" @bind="test.Hidden" aria-label="Скрытая проверка" /><span></span></label>
                                 <button type="button" class="row-delete" @onclick="() => RemoveTest(testIndex)" aria-label="Удалить тест">×</button>
                             </div>
                         }
@@ -121,8 +135,11 @@ else
                     }
                     <div class="format-note"><b>Форматы данных:</b> числа — <code>20</code>, текст — <code>blocked</code>, логические значения — <code>true</code>, массивы и объекты — обычный JSON.</div>
                 </section>
+                }
 
-                <section class="form-section intro-editor-section">
+                @if (_activeTab == "intro")
+                {
+                <section role="tabpanel" id="panel-intro" aria-labelledby="tab-intro" class="form-section intro-editor-section">
                     <div class="section-heading with-action">
                         <span>04</span>
                         <div><h2>Вступительные окна</h2><p>Показываются по порядку перед уровнем. Можно вставить пример поля и подсветить нужную часть настоящего интерфейса.</p></div>
@@ -154,7 +171,7 @@ else
                                         <label><span>Заголовок</span><input @bind="intro.Title" /></label>
                                         <label><span>Что подсветить в игре</span>
                                             <select @bind="intro.HighlightTarget">
-                                                @foreach (var target in Enum.GetValues<IntroHighlightTarget>())
+                                                @foreach (var target in Enum.GetValues<IntroHighlightTarget>().Where(target => target is not IntroHighlightTarget.InputData and not IntroHighlightTarget.OutputData))
                                                 {
                                                     <option value="@target">@IntroTargetLabel(target)</option>
                                                 }
@@ -201,17 +218,27 @@ else
                         </div>
                     }
                 </section>
+                }
 
                 <footer class="editor-savebar">
-                    <div><strong>@level.Tests.Count тестов</strong><span> · @level.IntroSteps.Count вступительных окон · @level.AllowedBlocks.Count типов блоков · общая кампания</span></div>
-                    <button type="button" class="save-button" @onclick="Save" disabled="@_saving">@(_saving ? "Сохранение…" : "Сохранить кампанию")</button>
+                    <div class="admin-save-status"><i class="@(_dirty ? "unsaved" : "")"></i><div><strong>@(_dirty ? "Есть несохранённые изменения" : "Все изменения сохранены")</strong><span>@level.Tests.Count проверок · @level.IntroSteps.Count пояснений</span></div></div>
+                    <button type="button" class="save-button" @onclick="Save" disabled="@_saving">@(_saving ? "Сохранение…" : "Сохранить изменения")</button>
                 </footer>
-            </main>
+            </div>
         }
     </div>
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "level")] public Guid? RequestedLevel { get; set; }
+    [SupplyParameterFromQuery(Name = "new")] public bool? CreateNew { get; set; }
+    [SupplyParameterFromQuery(Name = "chapter")] public int? RequestedChapter { get; set; }
+    private bool _dirty;
+    private bool _previewDescription;
+    private string _activeTab = "description";
+    private string? _appliedRequest;
+    private static readonly (string Key, string Label, string Icon)[] EditorTabs =
+        [("description", "Описание", "levels"), ("blocks", "Блоки", "layers"), ("tests", "Проверки", "test"), ("intro", "Пояснения", "message")];
     private List<LevelDefinition> _levels = [];
     private Guid? _selectedId;
     private bool _loading = true;
@@ -221,6 +248,24 @@ else
     private string _loadError = "";
 
     private LevelDefinition? Selected => _levels.FirstOrDefault(level => level.Id == _selectedId) ?? _levels.FirstOrDefault();
+
+    protected override void OnParametersSet()
+    {
+        if (_loading || _loadError.Length > 0) return;
+        var request = $"{RequestedLevel}/{CreateNew}/{RequestedChapter}";
+        if (_appliedRequest == request) return;
+        _appliedRequest = request;
+        if (CreateNew == true) AddLevel();
+        else if (RequestedLevel is Guid id && _levels.Any(level => level.Id == id)) _selectedId = id;
+    }
+
+    private void MarkDirty() => _dirty = true;
+
+    private async Task ConfirmNavigation(LocationChangingContext context)
+    {
+        if (_dirty && !await JS.InvokeAsync<bool>("confirm", "Есть несохранённые изменения. Покинуть редактор без сохранения?"))
+            context.PreventNavigation();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -232,13 +277,7 @@ else
             _selectedId = _levels.FirstOrDefault()?.Id;
         }
         catch (Exception exception) { _loadError = exception.Message; }
-        finally { _loading = false; }
-    }
-
-    private void Select(Guid id)
-    {
-        _selectedId = id;
-        _message = "";
+        finally { _loading = false; OnParametersSet(); }
     }
 
     private async Task ExportLevels()
@@ -249,75 +288,31 @@ else
 
     private void AddLevel()
     {
-        var level = new LevelDefinition
-        {
-            Order = _levels.Count + 1,
-            Chapter = 1,
-            Title = $"Новый уровень {_levels.Count + 1}",
-            Location = "Новый сектор",
-            Description = "Опишите ситуацию, которую решает игрок.",
-            StoryIntro = "Опишите событие перед началом операции.",
-            StorySuccess = "Опишите последствия успешного решения.",
-            Objective = "Опишите требуемый результат программы.",
-            InputDescription = "Какие данные получит программа.",
-            OutputDescription = "Что должна вернуть программа.",
-            Hint = "Подсказка по сборке схемы.",
-            Tests = [new() { Name = "Основная проверка", Input = "0", ExpectedOutput = "0" }]
-        };
+        var level = LevelDrafts.Create(_levels.Count + 1, Math.Max(1, RequestedChapter ?? 1));
         _levels.Add(level);
         _selectedId = level.Id;
-        _message = "Новый уровень добавлен. Заполните поля и сохраните кампанию.";
+        _activeTab = "description";
+        MarkDirty();
+        _message = "Новый уровень создан. Добавьте описание, настройте проверки и сохраните изменения.";
         _messageIsError = false;
     }
-
     private void DuplicateLevel()
     {
         if (Selected is not LevelDefinition source) return;
-        var copy = new LevelDefinition
-        {
-            Order = _levels.Count + 1,
-            Chapter = source.Chapter,
-            Title = $"{source.Title} — копия",
-            Direction = source.Direction,
-            Location = source.Location,
-            Description = source.Description,
-            StoryIntro = source.StoryIntro,
-            StorySuccess = source.StorySuccess,
-            Objective = source.Objective,
-            InputDescription = source.InputDescription,
-            OutputDescription = source.OutputDescription,
-            Hint = source.Hint,
-            AllowedBlocks = [.. source.AllowedBlocks],
-            RequiredBlocks = [.. source.RequiredBlocks],
-            RequiredLoopCount = source.RequiredLoopCount,
-            RequiredLoopBodyOperationCount = source.RequiredLoopBodyOperationCount,
-            MaxOperationBlocks = source.MaxOperationBlocks,
-            IntroSteps = source.IntroSteps.Select(step => new LevelIntroStep
-            {
-                Title = step.Title,
-                Body = step.Body,
-                MediaUrl = step.MediaUrl,
-                FieldKind = step.FieldKind,
-                FieldValue = step.FieldValue,
-                HighlightTarget = step.HighlightTarget
-            }).ToList(),
-            Tests = source.Tests.Select(test => new LevelTestCase
-            {
-                Name = test.Name,
-                Input = test.Input,
-                ExpectedOutput = test.ExpectedOutput,
-                Hidden = test.Hidden
-            }).ToList()
-        };
+        var copy = LevelDrafts.Duplicate(source, _levels.Count + 1);
         _levels.Add(copy);
         _selectedId = copy.Id;
+        _activeTab = "description";
+        MarkDirty();
+        _message = "Копия создана. Сохраните изменения, чтобы добавить её в кампанию.";
+        _messageIsError = false;
     }
-
     private async Task DeleteLevel()
     {
         if (Selected is not LevelDefinition level || _levels.Count == 1) return;
         if (!await JS.InvokeAsync<bool>("confirm", $"Удалить уровень «{level.Title}»?")) return;
         _levels.Remove(level);
+        MarkDirty();
         Renumber();
         _selectedId = _levels.FirstOrDefault()?.Id;
         _message = "Уровень удалён из черновика. Сохраните кампанию, чтобы применить изменения.";
@@ -326,6 +321,7 @@ else
 
     private void MoveUp()
     {
+        MarkDirty();
         if (Selected is not LevelDefinition level) return;
         var index = _levels.IndexOf(level);
         if (index <= 0) return;
@@ -335,6 +331,7 @@ else
 
     private void MoveDown()
     {
+        MarkDirty();
         if (Selected is not LevelDefinition level) return;
         var index = _levels.IndexOf(level);
         if (index < 0 || index >= _levels.Count - 1) return;
@@ -344,24 +341,40 @@ else
 
     private void ToggleBlock(BlockKind kind, bool enabled)
     {
+        MarkDirty();
         if (Selected is not LevelDefinition level || kind is BlockKind.Input or BlockKind.Output) return;
         if (enabled && !level.AllowedBlocks.Contains(kind)) level.AllowedBlocks.Add(kind);
-        if (!enabled) level.AllowedBlocks.Remove(kind);
+        if (!enabled)
+        {
+            level.AllowedBlocks.Remove(kind);
+            level.RequiredBlocks.Remove(kind);
+        }
+    }
+
+    private void ToggleRequired(BlockKind kind, bool enabled)
+    {
+        if (Selected is null) return;
+        MarkDirty();
+        if (enabled && !Selected.RequiredBlocks.Contains(kind)) Selected.RequiredBlocks.Add(kind);
+        if (!enabled) Selected.RequiredBlocks.Remove(kind);
     }
 
     private void AddTest()
     {
+        MarkDirty();
         Selected?.Tests.Add(new LevelTestCase { Name = $"Проверка {(Selected?.Tests.Count ?? 0) + 1}" });
     }
 
     private void RemoveTest(int index)
     {
+        MarkDirty();
         if (Selected is null || index < 0 || index >= Selected.Tests.Count) return;
         Selected.Tests.RemoveAt(index);
     }
 
     private void AddIntroStep()
     {
+        MarkDirty();
         if (Selected is not LevelDefinition level) return;
         level.IntroSteps.Add(new LevelIntroStep
         {
@@ -388,6 +401,7 @@ else
             await using var stream = file.OpenReadStream(4 * 1024 * 1024);
             using var buffer = new MemoryStream();
             await stream.CopyToAsync(buffer);
+            MarkDirty();
             level.IntroSteps[index].MediaUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer.ToArray())}";
             _message = $"Анимация «{file.Name}» добавлена в это пояснение.";
             _messageIsError = false;
@@ -400,18 +414,21 @@ else
 
     private void ClearIntroMedia(int index)
     {
+        MarkDirty();
         if (Selected is not LevelDefinition level || index < 0 || index >= level.IntroSteps.Count) return;
         level.IntroSteps[index].MediaUrl = "";
     }
 
     private void RemoveIntroStep(int index)
     {
+        MarkDirty();
         if (Selected is null || index < 0 || index >= Selected.IntroSteps.Count) return;
         Selected.IntroSteps.RemoveAt(index);
     }
 
     private void MoveIntroStep(int index, int direction)
     {
+        MarkDirty();
         if (Selected is null) return;
         var next = index + direction;
         if (index < 0 || index >= Selected.IntroSteps.Count || next < 0 || next >= Selected.IntroSteps.Count) return;
@@ -434,8 +451,7 @@ else
         IntroHighlightTarget.None => "Ничего не подсвечивать",
         IntroHighlightTarget.Mission => "Описание задания",
         IntroHighlightTarget.Objective => "Цель уровня",
-        IntroHighlightTarget.InputData => "Описание входа",
-        IntroHighlightTarget.OutputData => "Описание выхода",
+        IntroHighlightTarget.Description => "Кнопка описания",
         IntroHighlightTarget.Tests => "Открытые тесты",
         IntroHighlightTarget.Workspace => "Рабочее поле",
         IntroHighlightTarget.BlockLibrary => "Панель блоков",
@@ -462,42 +478,13 @@ else
         try
         {
             await LevelStore.SaveAsync(_levels);
+            _dirty = false;
+            Navigation.NavigateTo($"editor?level={Selected?.Id}", replace: true);
             _message = "Кампания сохранена. Игроки увидят изменения после обновления игры.";
             _messageIsError = false;
         }
         catch (Exception exception) { ShowError(exception is HttpRequestException ? "Нет связи с сервером. Правки остались в редакторе; повторите сохранение." : exception.Message); }
         finally { _saving = false; }
-    }
-
-    private async Task ImportFile(InputFileChangeEventArgs args)
-    {
-        try
-        {
-            await using var stream = args.File.OpenReadStream(32 * 1024 * 1024);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            var json = await reader.ReadToEndAsync();
-            _levels = LevelStore.Import(json);
-            _selectedId = _levels.First().Id;
-            _message = $"Импортировано уровней: {_levels.Count}. Сохраните кампанию, чтобы опубликовать их для игроков.";
-            _messageIsError = false;
-        }
-        catch (Exception exception)
-        {
-            ShowError($"Не удалось импортировать файл: {exception.Message}");
-        }
-    }
-
-    private async Task ResetLevels()
-    {
-        if (!await JS.InvokeAsync<bool>("confirm", "Отменить несохранённые изменения и загрузить кампанию с сервера?")) return;
-        try
-        {
-            _levels = await LevelStore.LoadEditorAsync();
-            _selectedId = _levels.First().Id;
-            _message = "Кампания загружена с сервера.";
-            _messageIsError = false;
-        }
-        catch (Exception exception) { ShowError(exception.Message); }
     }
 
     private void Renumber()

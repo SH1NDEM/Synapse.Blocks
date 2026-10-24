@@ -1,0 +1,10 @@
+<section class="admin-metrics" aria-label="Статистика кампании">
+    <article><div><span>Уровни</span><i><AdminIcon Name="levels" /></i></div><strong>@Levels.Count</strong><small>доступны в кампании</small></article>
+    <article><div><span>Проверки</span><i class="mint"><AdminIcon Name="test" /></i></div><strong>@Levels.Sum(level => level.Tests.Count)</strong><small>тестов для проверки решений</small></article>
+    <article><div><span>Главы</span><i><AdminIcon Name="layers" /></i></div><strong>@Levels.Select(level => level.Chapter).Distinct().Count()</strong><small>тематических разделов</small></article>
+    <article><div><span>Пояснения</span><i class="mint"><AdminIcon Name="message" /></i></div><strong>@Levels.Sum(level => level.IntroSteps.Count)</strong><small>шагов перед заданиями</small></article>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<LevelDefinition> Levels { get; set; } = [];
+}

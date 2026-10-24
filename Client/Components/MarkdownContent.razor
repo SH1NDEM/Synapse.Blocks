@@ -1,0 +1,15 @@
+@using Synapse.Blocks.Text
+
+<div class="markdown-content">@((MarkupString)_html)</div>
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    private string? _previous;
+    private string _html = "";
+    protected override void OnParametersSet()
+    {
+        if (_previous == Text) return;
+        _previous = Text;
+        _html = LevelMarkdown.Render(Text);
+    }
+}

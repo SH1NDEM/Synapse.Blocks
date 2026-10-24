@@ -1,0 +1,15 @@
+<header class="admin-page-heading">
+    <div>
+        <p class="admin-eyebrow">@Eyebrow</p>
+        <h1>@Title</h1>
+        <p class="admin-subtitle">@Subtitle</p>
+    </div>
+    @if (ChildContent is not null) { <div class="admin-heading-actions">@ChildContent</div> }
+</header>
+
+@code {
+    [Parameter] public string Eyebrow { get; set; } = "УПРАВЛЕНИЕ ОБУЧЕНИЕМ";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Subtitle { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

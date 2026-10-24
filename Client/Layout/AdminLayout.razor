@@ -1,56 +1,78 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject AdminSession Session
+@inject NavigationManager Navigation
 
-<div class="app-shell admin-shell">
-    <header class="app-header admin-header">
-        <a class="brand" href="admin">
-            <span class="brand-mark admin-mark" aria-hidden="true"></span>
-            <span><b>СИНАПС</b><small>ПАНЕЛЬ РАЗРАБОТЧИКА</small></span>
-        </a>
-        <nav class="main-nav admin-nav" aria-label="Навигация разработчика">
-            <NavLink href="admin" Match="NavLinkMatch.All"><b>Главная</b></NavLink>
-            <NavLink href="editor"><b>Уровни</b></NavLink>
-            <NavLink href="sandbox"><b>Песочница</b></NavLink>
+<div class="admin-shell">
+    <div class="admin-mobilebar">
+        <a href="admin" class="admin-mobile-brand"><span class="admin-brand-symbol">С</span><b>СИНАПС</b></a>
+        <button type="button" class="admin-icon-button" aria-label="Открыть меню" aria-expanded="@_menuOpen" @onclick="() => _menuOpen = !_menuOpen"><AdminIcon Name="@(_menuOpen ? "close" : "menu")" /></button>
+    </div>
+    @if (_menuOpen) { <button type="button" class="admin-menu-backdrop" aria-label="Закрыть меню" @onclick="() => _menuOpen = false"></button> }
+    <aside class="admin-sidebar @(_menuOpen ? "is-open" : "")" aria-label="Панель преподавателя">
+        <a class="admin-brand" href="admin"><span class="admin-brand-symbol">С</span><span><b>СИНАПС</b><small>учебная платформа</small></span></a>
+        <div class="admin-account"><span class="admin-account-avatar"><AdminIcon Name="user" /></span><span><b>Администратор</b><small>Управление платформой</small></span><span class="admin-account-dot" title="@(_authenticated ? "Вход выполнен" : "Требуется вход")"></span></div>
+        <nav class="admin-side-nav" aria-label="Навигация администратора">
+            <p>МОЁ ПРЕПОДАВАНИЕ</p>
+            <NavLink href="admin" Match="NavLinkMatch.All"><AdminIcon Name="home" /><span>Мой кабинет</span></NavLink>
+            <NavLink href="admin/levels" class="@(IsEditor ? "active" : "")"><AdminIcon Name="levels" /><span>Мои уровни</span></NavLink>
+            <NavLink href="admin/chapters"><AdminIcon Name="layers" /><span>Главы кампании</span></NavLink>
+            <p>ИНСТРУМЕНТЫ</p>
+            <NavLink href="sandbox"><AdminIcon Name="flask" /><span>Песочница</span></NavLink>
+            <a href="guide"><AdminIcon Name="help" /><span>Справка по блокам</span></a>
         </nav>
-        <a class="runtime-badge developer-exit" href="">← Детская версия</a>
-    </header>
-    <main class="app-main">
+        <div class="admin-sidebar-bottom">
+            <a href=""><AdminIcon Name="eye" /><span>Открыть игру</span><AdminIcon Name="arrow" /></a>
+            @if (_authenticated) { <button type="button" @onclick="Logout" disabled="@_busy"><AdminIcon Name="logout" /><span>Выйти из аккаунта</span></button> }
+            <small>ПРОСТРАНСТВО ПРЕПОДАВАТЕЛЯ</small>
+        </div>
+    </aside>
+    <main class="admin-workspace" id="admin-main">
         @if (_checking)
         {
-            <div class="page-loading"><span></span><p>Проверяю вход…</p></div>
+            <div class="page-loading"><span></span><p>Открываем рабочее пространство…</p></div>
         }
         else if (!_authenticated)
         {
-            <section class="admin-login">
-                <small>СИНАПС / АДМИНИСТРИРОВАНИЕ</small>
-                <h1>Вход в админку</h1>
-                <p>Введите пароль, чтобы управлять уровнями кампании.</p>
+            <section class="admin-login-card">
+                <span class="admin-login-symbol"><AdminIcon Name="user" /></span>
+                <p class="admin-eyebrow">РАДЫ ВАС ВИДЕТЬ</p>
+                <h1>Вход в кабинет</h1>
+                <p>Ваше пространство для создания заданий и управления обучением.</p>
                 <form @onsubmit="Login" @onsubmit:preventDefault>
-                    <label for="admin-password">Пароль</label>
-                    <input id="admin-password" type="password" autocomplete="current-password" required maxlength="1024" @bind="_password" @bind:event="oninput" />
-                    @if (_error.Length > 0) { <p class="editor-message error" role="alert">@_error</p> }
-                    <button class="save-button" type="submit" disabled="@_busy">@(_busy ? "Вход…" : "Войти")</button>
+                    <label for="admin-password">Пароль администратора</label>
+                    <input id="admin-password" type="password" autocomplete="current-password" required maxlength="1024" placeholder="Введите пароль" @bind="_password" @bind:event="oninput" />
+                    @if (_error.Length > 0) { <div class="admin-notice error" role="alert">@_error</div> }
+                    <button class="admin-btn primary" type="submit" disabled="@_busy">@(_busy ? "Входим…" : "Войти в кабинет")<AdminIcon Name="arrow" /></button>
                 </form>
+                <a class="admin-login-back" href="">Вернуться к игре <AdminIcon Name="arrow" /></a>
             </section>
         }
         else
         {
-            <div class="admin-session"><span>Вы вошли как администратор</span><button type="button" @onclick="Logout" disabled="@_busy">Выйти</button></div>
-            @if (_error.Length > 0) { <p class="editor-message error" role="alert">@_error</p> }
+            @if (_error.Length > 0) { <div class="admin-notice error" role="alert">@_error</div> }
             @Body
         }
     </main>
 </div>
 
 @code {
-    private bool _checking = true, _authenticated, _busy;
+    private bool _checking = true, _authenticated, _busy, _menuOpen;
     private string _password = "", _error = "";
+    private bool IsEditor => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0] is "editor" or "admin/editor";
 
     protected override async Task OnInitializedAsync()
     {
+        Navigation.LocationChanged += OnLocationChanged;
         try { _authenticated = await Session.IsAuthenticatedAsync(); }
         catch { _error = "Не удалось связаться с сервером. Попробуйте войти ещё раз."; }
         finally { _checking = false; }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _menuOpen = false;
+        _ = InvokeAsync(StateHasChanged);
     }
 
     private async Task Login()
@@ -65,10 +87,13 @@
 
     private async Task Logout()
     {
+        if (_busy) return;
         _busy = true;
         _error = "";
         try { await Session.LogoutAsync(); _authenticated = false; }
         catch { _error = "Не удалось выйти. Проверьте соединение и повторите."; }
         finally { _busy = false; }
     }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }

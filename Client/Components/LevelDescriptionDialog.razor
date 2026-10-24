@@ -1,0 +1,29 @@
+@inject IJSRuntime JS
+
+<dialog class="level-description-dialog" @ref="_dialog" aria-labelledby="level-description-title" @onkeydown="HandleKey">
+    <header class="level-description-header">
+        <div><small>ОПИСАНИЕ УРОВНЯ</small><h2 id="level-description-title">@Title</h2></div>
+        <button type="button" class="level-description-close" aria-label="Закрыть описание" title="Закрыть" @onclick="Close"><AdminIcon Name="close" /></button>
+    </header>
+    <div class="level-description-body">
+        @if (string.IsNullOrWhiteSpace(Markdown)) { <p class="description-empty">Описание этого уровня пока не добавлено.</p> }
+        else { <MarkdownContent Text="@Markdown" /> }
+    </div>
+</dialog>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Markdown { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+    private ElementReference _dialog;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await JS.InvokeVoidAsync("synapseDialogs.open", _dialog);
+    }
+    private async Task HandleKey(KeyboardEventArgs args) { if (args.Key == "Escape") await Close(); }
+    private async Task Close()
+    {
+        await JS.InvokeVoidAsync("synapseDialogs.close", _dialog);
+        await OnClose.InvokeAsync();
+    }
+}
