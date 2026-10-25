@@ -8,32 +8,42 @@ namespace Synapse.Blocks.Services;
 public sealed class LevelStore(HttpClient http)
 {
     private string? _editorETag;
-    public Task<List<LevelDefinition>> LoadGameAsync()
+    private sealed record CachedCampaign(string ETag, List<LevelDefinition> Levels, DateTimeOffset CheckedAt);
+    private CachedCampaign? _gameCache, _editorCache;
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(15);
+    public Task<List<LevelDefinition>> LoadGameAsync(bool force = false)
     {
-        return LoadAsync("api/levels");
+        return LoadAsync("api/levels", force: force);
     }
 
-    public Task<List<LevelDefinition>> LoadEditorAsync()
+    public Task<List<LevelDefinition>> LoadEditorAsync(bool force = false)
     {
-        return LoadAsync("api/admin/levels", editor: true);
+        return LoadAsync("api/admin/levels", editor: true, force: force);
     }
 
-    private async Task<List<LevelDefinition>> LoadAsync(string path, bool editor = false)
+    private async Task<List<LevelDefinition>> LoadAsync(string path, bool editor = false, bool force = false)
     {
-        using var response = await http.GetAsync(path);
-        await EnsureSuccessAsync(response);
-        var json = await response.Content.ReadAsStringAsync();
-
-        var levels = JsonSerializer.Deserialize(
-            json,
-            AppJsonSerializerContext.Default.ListLevelDefinition);
-
-        if (levels is null)
-            throw new InvalidOperationException("Не удалось прочитать кампанию с сервера.");
-
-        var normalized = Normalize(levels);
-        if (editor) _editorETag = response.Headers.ETag?.ToString();
-        return normalized;
+        var cache = editor ? _editorCache : _gameCache;
+        if (force || cache is null || DateTimeOffset.UtcNow - cache.CheckedAt >= CacheLifetime)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, path);
+            if (cache is not null) request.Headers.TryAddWithoutValidation("If-None-Match", cache.ETag);
+            using var response = await http.SendAsync(request);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotModified && cache is not null)
+                cache = cache with { CheckedAt = DateTimeOffset.UtcNow };
+            else
+            {
+                await EnsureSuccessAsync(response);
+                var levels = await response.Content.ReadFromJsonAsync(AppJsonSerializerContext.Default.ListLevelDefinition)
+                    ?? throw new InvalidOperationException("Не удалось прочитать кампанию с сервера.");
+                cache = new(response.Headers.ETag?.ToString() ?? "", Normalize(levels), DateTimeOffset.UtcNow);
+            }
+            if (editor) _editorCache = cache;
+            else _gameCache = cache;
+        }
+        if (editor) _editorETag = cache.ETag;
+        // Pages edit their own copy; the cached campaign stays unchanged.
+        return LevelDrafts.Snapshot(cache.Levels);
     }
 
     public async Task SaveAsync(List<LevelDefinition> levels)
@@ -48,6 +58,29 @@ public sealed class LevelStore(HttpClient http)
         using var response = await http.SendAsync(request);
         await EnsureSuccessAsync(response);
         _editorETag = response.Headers.ETag?.ToString();
+        _gameCache = _editorCache = null;
+    }
+
+    public void ClearEditorCache() { _editorCache = null; _editorETag = null; }
+
+    public async Task<string> ExportAsync(IEnumerable<LevelDefinition> levels)
+    {
+        var copy = LevelDrafts.Snapshot(levels);
+        var embedded = new Dictionary<string, string>();
+        foreach (var step in copy.SelectMany(level => level.IntroSteps))
+        {
+            if (!step.MediaUrl.StartsWith("/api/media/", StringComparison.Ordinal)) continue;
+            if (!embedded.TryGetValue(step.MediaUrl, out var data))
+            {
+                using var response = await http.GetAsync(step.MediaUrl);
+                response.EnsureSuccessStatusCode();
+                var mime = response.Content.Headers.ContentType?.MediaType ?? "image/gif";
+                data = $"data:{mime};base64,{Convert.ToBase64String(await response.Content.ReadAsByteArrayAsync())}";
+                embedded[step.MediaUrl] = data;
+            }
+            step.MediaUrl = data;
+        }
+        return Export(copy);
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response)

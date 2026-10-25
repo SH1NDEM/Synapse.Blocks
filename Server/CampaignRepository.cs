@@ -10,7 +10,7 @@ public sealed class CampaignConflictException : Exception;
 public sealed record CampaignSnapshot(byte[] Json, string ETag);
 
 // One server process owns the campaign; replace-on-save keeps the last valid file intact.
-public sealed class CampaignRepository(IWebHostEnvironment environment, IConfiguration configuration)
+public sealed class CampaignRepository(IWebHostEnvironment environment, IConfiguration configuration, CampaignMediaStore media)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _directory = Path.GetFullPath(configuration["Storage:Directory"] ??
@@ -22,6 +22,9 @@ public sealed class CampaignRepository(IWebHostEnvironment environment, IConfigu
         Converters = { new JsonStringEnumConverter() }
     };
     private string FilePath => Path.Combine(_directory, "levels.json");
+    private CampaignSnapshot? _cached;
+    private (long WriteTime, long Length) _stamp;
+    private static readonly JsonSerializerOptions WireOptions = new(JsonOptions) { WriteIndented = false };
 
     public async Task<CampaignSnapshot> ReadAsync(CancellationToken cancellationToken = default)
     {
@@ -38,8 +41,17 @@ public sealed class CampaignRepository(IWebHostEnvironment environment, IConfigu
             var seed = await File.ReadAllTextAsync(Path.Combine(environment.ContentRootPath, "Data", "seed-levels.json"), cancellationToken);
             await WriteAtomicAsync(Encoding.UTF8.GetBytes(seed), cancellationToken);
         }
+        var info = new FileInfo(FilePath);
+        var stamp = (info.LastWriteTimeUtc.Ticks, info.Length);
+        if (_cached is not null && stamp == _stamp) return _cached;
         var json = await File.ReadAllBytesAsync(FilePath, cancellationToken);
-        return new(json, ETag(json));
+        var levels = JsonSerializer.Deserialize<List<LevelDefinition>>(json, JsonOptions)
+            ?? throw new InvalidOperationException("Не удалось прочитать кампанию.");
+        Validate(levels);
+        await media.ExternalizeAsync(levels, cancellationToken);
+        _cached = new(JsonSerializer.SerializeToUtf8Bytes(levels, WireOptions), ETag(json));
+        _stamp = stamp;
+        return _cached;
     }
 
     public async Task<string> SaveAsync(List<LevelDefinition> levels, string expectedETag, CancellationToken cancellationToken = default)
@@ -50,8 +62,10 @@ public sealed class CampaignRepository(IWebHostEnvironment environment, IConfigu
         {
             var current = await ReadCoreAsync(cancellationToken);
             if (string.IsNullOrEmpty(expectedETag) || expectedETag != current.ETag) throw new CampaignConflictException();
+            await media.ExternalizeAsync(levels, cancellationToken);
             var json = JsonSerializer.SerializeToUtf8Bytes(levels.OrderBy(level => level.Order).ToList(), JsonOptions);
             await WriteAtomicAsync(json, cancellationToken);
+            _cached = null;
             return ETag(json);
         }
         finally { _gate.Release(); }

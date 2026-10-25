@@ -1089,7 +1089,7 @@ else
     private async Task ExportSandboxJson()
     {
         if (!IsSandbox) return;
-        var json = LevelStore.Export(_levels);
+        var json = await LevelStore.ExportAsync(_levels);
         await JS.InvokeVoidAsync("synapseDownloadText", "synapse-sandbox-levels.json", json);
     }
 

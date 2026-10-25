@@ -3,7 +3,9 @@
 @inject AdminSession Session
 @inject NavigationManager Navigation
 
-<div class="admin-shell">
+<div class="admin-shell @(_authenticated ? "" : "admin-auth-shell")">
+    @if (_authenticated)
+    {
     <div class="admin-mobilebar">
         <a href="admin" class="admin-mobile-brand"><span class="admin-brand-symbol">С</span><b>СИНАПС</b></a>
         <button type="button" class="admin-icon-button" aria-label="Открыть меню" aria-expanded="@_menuOpen" @onclick="() => _menuOpen = !_menuOpen"><AdminIcon Name="@(_menuOpen ? "close" : "menu")" /></button>
@@ -11,7 +13,7 @@
     @if (_menuOpen) { <button type="button" class="admin-menu-backdrop" aria-label="Закрыть меню" @onclick="() => _menuOpen = false"></button> }
     <aside class="admin-sidebar @(_menuOpen ? "is-open" : "")" aria-label="Панель преподавателя">
         <a class="admin-brand" href="admin"><span class="admin-brand-symbol">С</span><span><b>СИНАПС</b><small>учебная платформа</small></span></a>
-        <div class="admin-account"><span class="admin-account-avatar"><AdminIcon Name="user" /></span><span><b>Администратор</b><small>Управление платформой</small></span><span class="admin-account-dot" title="@(_authenticated ? "Вход выполнен" : "Требуется вход")"></span></div>
+        <div class="admin-account"><span class="admin-account-avatar"><AdminIcon Name="user" /></span><span><b>@(Session.Username ?? "Администратор")</b><small>Управление платформой</small></span><span class="admin-account-dot" title="@(_authenticated ? "Вход выполнен" : "Требуется вход")"></span></div>
         <nav class="admin-side-nav" aria-label="Навигация администратора">
             <p>МОЁ ПРЕПОДАВАНИЕ</p>
             <NavLink href="admin" Match="NavLinkMatch.All"><AdminIcon Name="home" /><span>Мой кабинет</span></NavLink>
@@ -27,7 +29,8 @@
             <small>ПРОСТРАНСТВО ПРЕПОДАВАТЕЛЯ</small>
         </div>
     </aside>
-    <main class="admin-workspace" id="admin-main">
+    }
+    <main class="@(_authenticated ? "admin-workspace" : "admin-auth-workspace")" id="admin-main">
         @if (_checking)
         {
             <div class="page-loading"><span></span><p>Открываем рабочее пространство…</p></div>
@@ -40,6 +43,8 @@
                 <h1>Вход в кабинет</h1>
                 <p>Ваше пространство для создания заданий и управления обучением.</p>
                 <form @onsubmit="Login" @onsubmit:preventDefault>
+                    <label for="admin-username">Логин</label>
+                    <input id="admin-username" type="text" autocomplete="username" required maxlength="128" placeholder="Введите логин" @bind="_username" @bind:event="oninput" />
                     <label for="admin-password">Пароль администратора</label>
                     <input id="admin-password" type="password" autocomplete="current-password" required maxlength="1024" placeholder="Введите пароль" @bind="_password" @bind:event="oninput" />
                     @if (_error.Length > 0) { <div class="admin-notice error" role="alert">@_error</div> }
@@ -58,7 +63,7 @@
 
 @code {
     private bool _checking = true, _authenticated, _busy, _menuOpen;
-    private string _password = "", _error = "";
+    private string _username = "", _password = "", _error = "";
     private bool IsEditor => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0] is "editor" or "admin/editor";
 
     protected override async Task OnInitializedAsync()
@@ -80,7 +85,7 @@
         if (_busy) return;
         _busy = true;
         _error = "";
-        try { await Session.LoginAsync(_password); _authenticated = true; }
+        try { await Session.LoginAsync(_username, _password); _authenticated = true; }
         catch (Exception exception) { _error = exception is HttpRequestException ? "Нет связи с сервером." : exception.Message; }
         finally { _password = ""; _busy = false; }
     }

@@ -130,7 +130,14 @@
     }
 
     private void ClearFilters() { Search = ""; ChapterFilter = ""; }
-    private async Task Export() => await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", LevelStore.Export(_levels));
+    private async Task Export()
+    {
+        if (_busy) return;
+        _busy = true;
+        try { await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", await LevelStore.ExportAsync(_levels)); }
+        catch { _error = true; _message = "Не удалось скачать изображения для экспорта. Проверьте подключение и повторите."; }
+        finally { _busy = false; }
+    }
     private void CancelDialog() { if (_busy) return; _deleting = null; _importing = null; _dialogError = ""; }
 
     private async Task<bool> Persist(List<LevelDefinition> updated, string message)

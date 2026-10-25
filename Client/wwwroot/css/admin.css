@@ -274,6 +274,8 @@ body:has(.admin-shell) { background:#f5f6f3; }
 .admin-login-card .admin-btn { margin-top:6px; }
 .admin-login-back { display:flex; justify-content:center; align-items:center; gap:8px; color:#a3b28e !important; font-size:11px; text-decoration:none; }
 .admin-login-back .admin-icon { width:14px; height:14px; }
+.admin-auth-shell .admin-auth-workspace { display:grid; place-items:center; min-height:100dvh; width:100%; margin:0; padding:28px; }
+.admin-auth-shell .admin-login-card { width:min(420px,100%); max-width:420px; margin:0; }
 .admin-mobilebar,.admin-menu-backdrop { display:none; }
 /* The sandbox keeps the game's dark palette inside the light workspace. */
 .admin-sandbox { --bg:#080b0a; --panel:#101412; --panel-2:#151a17; --panel-3:#1a201c; --text:#f1f5f2; --muted:#929d97; --dim:#5f6b65; --line:rgba(255,255,255,.1); --line-strong:rgba(255,255,255,.17); margin:-20px; padding:12px; overflow-x:auto; color:var(--text); background:var(--bg); border-radius:14px; }

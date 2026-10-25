@@ -273,7 +273,7 @@ else
         _loadError = "";
         try
         {
-            _levels = await LevelStore.LoadEditorAsync();
+            _levels = await LevelStore.LoadEditorAsync(force: true);
             _selectedId = _levels.FirstOrDefault()?.Id;
         }
         catch (Exception exception) { _loadError = exception.Message; }
@@ -282,8 +282,12 @@ else
 
     private async Task ExportLevels()
     {
-        var json = LevelStore.Export(_levels);
-        await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", json);
+        try
+        {
+            var json = await LevelStore.ExportAsync(_levels);
+            await JS.InvokeVoidAsync("synapseDownloadText", "synapse-levels.json", json);
+        }
+        catch { ShowError("Не удалось загрузить изображения для экспорта. Проверьте подключение и повторите."); }
     }
 
     private void AddLevel()

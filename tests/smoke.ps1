@@ -31,6 +31,7 @@ function Start-TestServer {
     $taskStart.Environment['ASPNETCORE_ENVIRONMENT'] = 'Development'
     $taskStart.Environment['ASPNETCORE_URLS'] = $taskUrl
     $taskStart.Environment['Admin__Password'] = $taskPassword
+    $taskStart.Environment['Admin__Username'] = 'smoke-admin'
     $taskStart.Environment['Storage__Directory'] = $taskStorage
     $script:taskProcess = [Diagnostics.Process]::Start($taskStart)
     $script:taskStdout = $script:taskProcess.StandardOutput.ReadToEndAsync()
@@ -69,6 +70,28 @@ try {
     Assert-Status $taskPublic 200 'Public campaign'
     $taskLevels = @($taskPublic.Content | ConvertFrom-Json)
     if ($taskLevels.Count -lt 1) { throw 'Seed campaign is empty.' }
+    if ($taskPublic.RawContentLength -gt 1024 * 1024 -or $taskPublic.Content.Contains('data:image/')) { throw 'Campaign still embeds heavy media.' }
+    Write-Host 'PASS Campaign metadata excludes inline images'
+    $taskWireClient = [Net.Http.HttpClient]::new()
+    try {
+        $taskWireRequest = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Get, "$taskUrl/api/levels")
+        $taskWireRequest.Headers.TryAddWithoutValidation('Accept-Encoding', 'br') | Out-Null
+        $taskWireResponse = $taskWireClient.SendAsync($taskWireRequest).GetAwaiter().GetResult()
+        $taskWireBytes = $taskWireResponse.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
+        if (-not $taskWireResponse.Content.Headers.ContentEncoding.Contains('br') -or $taskWireBytes.Length -ge $taskPublic.RawContentLength) { throw 'Brotli compression is not working.' }
+        Write-Host 'PASS Brotli reduces campaign response'
+    } finally {
+        if ($taskWireResponse) { $taskWireResponse.Dispose() }
+        if ($taskWireRequest) { $taskWireRequest.Dispose() }
+        $taskWireClient.Dispose()
+    }
+    Assert-Status (Invoke-WebRequest "$taskUrl/api/levels" -Headers @{'If-None-Match'=[string]$taskPublic.Headers.ETag[0]} -SkipHttpErrorCheck) 304 'Unchanged campaign returns 304'
+    $taskMediaUrl = @($taskLevels.IntroSteps | Where-Object { $_.MediaUrl -like '/api/media/*' })[0].MediaUrl
+    $taskMediaResponse = Invoke-WebRequest ($taskUrl + $taskMediaUrl) -SkipHttpErrorCheck
+    Assert-Status $taskMediaResponse 200 'Extracted media available separately'
+    if ($taskMediaResponse.RawContentLength -lt 100 -or $taskMediaResponse.Headers.'Cache-Control' -notmatch 'immutable') { throw 'Media is missing or not cacheable.' }
+    Assert-Status (Invoke-WebRequest ($taskUrl + $taskMediaUrl) -Headers @{'If-None-Match'=[string]$taskMediaResponse.Headers.ETag[0]} -SkipHttpErrorCheck) 304 'Unchanged media returns 304'
+    Assert-Status (Invoke-WebRequest "$taskUrl/api/media/invalid.gif" -SkipHttpErrorCheck) 404 'Invalid media path rejected'
     foreach ($taskRoute in @('/', '/game', '/admin', '/admin/levels', '/admin/chapters', '/admin/editor', '/editor', '/css/app.css', '/css/admin.css', '/css/markdown.css', '/js/admin-ui.js')) {
         Assert-Status (Invoke-WebRequest ($taskUrl + $taskRoute) -SkipHttpErrorCheck) 200 "Hosted frontend $taskRoute"
     }
@@ -80,13 +103,17 @@ try {
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/levels" -SkipHttpErrorCheck) 401 'Anonymous editor denied'
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/levels" -Method Put -ContentType 'application/json' -Body $taskPublic.Content -Headers @{'X-Synapse-Request'='1'} -SkipHttpErrorCheck) 401 'Anonymous save denied'
     $taskSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
-    $taskLogin = @{ password = $taskPassword } | ConvertTo-Json
+    $taskLogin = @{ username = 'smoke-admin'; password = $taskPassword } | ConvertTo-Json
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/login" -Method Post -ContentType 'application/json' -Body $taskLogin -WebSession $taskSession -SkipHttpErrorCheck) 403 'Login without request header denied'
     $taskHeaders = @{'X-Synapse-Request'='1'}
-    Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/login" -Method Post -ContentType 'application/json' -Body '{"password":"incorrect"}' -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 401 'Wrong password denied'
+    Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/login" -Method Post -ContentType 'application/json' -Body '{"username":"smoke-admin","password":"incorrect"}' -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 401 'Wrong password denied'
+    $taskWrongUsername = @{username='wrong-admin';password=$taskPassword} | ConvertTo-Json
+    Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/login" -Method Post -ContentType 'application/json' -Body $taskWrongUsername -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 401 'Wrong username denied'
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/login" -Method Post -ContentType 'application/json' -Body $taskLogin -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 204 'Admin login'
     $taskEditor = Invoke-WebRequest "$taskUrl/api/admin/levels" -WebSession $taskSession -SkipHttpErrorCheck
     Assert-Status $taskEditor 200 'Authenticated editor'
+    $taskIdentity = (Invoke-WebRequest "$taskUrl/api/admin/session" -WebSession $taskSession).Content | ConvertFrom-Json
+    if ($taskIdentity.Username -ne 'smoke-admin') { throw 'Configured username was not used.' }
     $taskOldETag = [string]$taskEditor.Headers.ETag[0]
     $taskHeaders['If-Match'] = $taskOldETag
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/levels" -Method Put -ContentType 'application/json' -Body '[]' -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 400 'Empty campaign rejected'
@@ -94,6 +121,11 @@ try {
     $taskNewLevel.Id = [guid]::NewGuid().ToString()
     $taskNewLevel.Order = $taskLevels.Count + 1
     $taskNewLevel.Title = 'Integration test level'
+    $taskNewLevel.IntroSteps += [pscustomobject]@{
+        Id = [guid]::NewGuid().ToString(); Title = 'Uploaded media'; Body = '';
+        MediaUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l1sAAAAASUVORK5CYII=';
+        FieldKind = 'None'; FieldValue = ''; HighlightTarget = 'None'
+    }
     $taskLevels += $taskNewLevel
     $taskBody = ConvertTo-Json -InputObject $taskLevels -Depth 30
     [void]$taskSession.Headers.Remove('X-Synapse-Request')
@@ -107,6 +139,9 @@ try {
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/levels" -Method Put -ContentType 'application/json' -Body $taskInvalidBody -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 400 'Malformed level rejected'
     $taskPublished = @((Invoke-WebRequest "$taskUrl/api/levels").Content | ConvertFrom-Json)
     if ($taskPublished.Count -ne $taskLevels.Count -or $taskPublished[-1].Title -ne 'Integration test level') { throw 'New level not published.' }
+    $taskUploadedUrl = $taskPublished[-1].IntroSteps[-1].MediaUrl
+    if ($taskUploadedUrl -notmatch '^/api/media/[a-f0-9]{64}\.png$') { throw 'New image was not externalized.' }
+    Assert-Status (Invoke-WebRequest ($taskUrl + $taskUploadedUrl) -SkipHttpErrorCheck) 200 'Uploaded image externalized and served'
     Write-Host 'PASS Saved level visible to players; invalid write preserved campaign'
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/logout" -Method Post -Headers $taskHeaders -WebSession $taskSession -SkipHttpErrorCheck) 204 'Admin logout'
     Assert-Status (Invoke-WebRequest "$taskUrl/api/admin/levels" -WebSession $taskSession -SkipHttpErrorCheck) 401 'Logged out editor denied'
@@ -114,6 +149,7 @@ try {
     Start-TestServer
     $taskPersisted = @((Invoke-WebRequest "$taskUrl/api/levels").Content | ConvertFrom-Json)
     if ($taskPersisted.Count -ne $taskPublished.Count -or $taskPersisted[-1].Id -ne $taskPublished[-1].Id) { throw 'Campaign did not survive restart.' }
+    Assert-Status (Invoke-WebRequest ($taskUrl + $taskUploadedUrl) -SkipHttpErrorCheck) 200 'Uploaded media persisted after restart'
     Write-Host 'PASS Campaign persisted after server restart'
 } finally {
     Stop-TestServer
