@@ -1,0 +1,366 @@
+using Synapse.Blocks.Models;
+
+namespace Synapse.Blocks.Graph;
+
+/// <summary>Снимок одного шага исполнения для пошаговой отладки.</summary>
+public sealed record GraphStep(
+    Guid NodeId,
+    string NodeType,
+    string Detail,
+    IReadOnlyDictionary<string, string> Inputs,
+    IReadOnlyDictionary<string, string> Outputs,
+    IReadOnlyDictionary<string, string> Variables);
+
+public sealed record GraphExecution(
+    bool Success,
+    Value Output,
+    string Error,
+    Guid? ErrorNodeId,
+    IReadOnlyList<Guid> Visited,
+    IReadOnlyList<GraphStep> Steps,
+    IReadOnlyList<GraphIssue> Issues)
+{
+    public string OutputText => Success ? Output.ToString() : "";
+}
+
+public sealed record GraphTestResult(
+    Guid TestId,
+    string Name,
+    bool Passed,
+    string Input,
+    string Expected,
+    string Actual,
+    string Error,
+    Guid? ErrorNodeId,
+    IReadOnlyList<Guid> Visited);
+
+/// <summary>
+/// Выполняет программу из двух видов проводов. Ничего не знает о конкретных блоках:
+/// идёт по проводам исполнения, вызывает <see cref="NodeDefinition.Execute"/> и по требованию
+/// вычисляет входы данных, поднимаясь по проводам данных к источникам.
+/// </summary>
+public sealed class GraphRunner(NodeRegistry? registry = null, int maxSteps = 10_000)
+{
+    public const int DefaultMaxSteps = 10_000;
+
+    public NodeRegistry Registry { get; } = registry ?? NodeRegistry.Default;
+
+    public GraphExecution Run(GraphProgram program, string rawInput) => Run(program, Value.Parse(rawInput));
+
+    public GraphExecution Run(GraphProgram program, Value input)
+    {
+        var issues = GraphValidator.Validate(program, Registry);
+        var firstError = issues.FirstOrDefault(issue => issue.Severity == IssueSeverity.Error);
+        if (firstError is not null)
+            return new GraphExecution(false, Value.Null, firstError.Message, firstError.NodeId, [], [], issues);
+
+        return new GraphRuntime(program, Registry, input, maxSteps).Run(issues);
+    }
+
+    public IReadOnlyList<GraphTestResult> RunTests(GraphProgram program, IEnumerable<LevelTestCase> tests)
+        => tests.Select(test =>
+        {
+            var execution = Run(program, test.Input);
+            var passed = execution.Success && Value.MatchesExpected(execution.Output, test.ExpectedOutput);
+            return new GraphTestResult(
+                test.Id,
+                test.Name,
+                passed,
+                test.Input,
+                test.ExpectedOutput,
+                execution.OutputText,
+                execution.Error,
+                execution.ErrorNodeId,
+                execution.Visited);
+        }).ToList();
+}
+
+/// <summary>Состояние одного запуска программы.</summary>
+internal sealed class GraphRuntime
+{
+    private readonly int _maxSteps;
+    private readonly Dictionary<Guid, (GraphNode Node, NodeDefinition Definition)> _nodes = [];
+    // Провода исполнения ищутся по выходу, провода данных — по входу: так их обходит интерпретатор.
+    private readonly Dictionary<(Guid Node, string Port), GraphLink> _execByOutput = [];
+    private readonly Dictionary<(Guid Node, string Port), GraphLink> _dataByInput = [];
+    private readonly Dictionary<(Guid Node, string Port), Value> _outputs = [];
+    private readonly Dictionary<(Guid Node, string Port), Value> _pureCache = [];
+    private readonly HashSet<Guid> _evaluating = [];
+    private readonly Dictionary<Guid, object> _states = [];
+    private readonly Dictionary<string, Value> _variables = new(StringComparer.OrdinalIgnoreCase);
+    // Блоки, чьи вложенные ветки сейчас выполняются (тела циклов). Последний — самый внутренний.
+    private readonly List<Guid> _scopes = [];
+    private Dictionary<string, string> _stepInputs = [];
+    private Dictionary<string, string> _stepOutputs = [];
+
+    public GraphRuntime(GraphProgram program, NodeRegistry registry, Value input, int maxSteps)
+    {
+        ProgramInput = input;
+        _maxSteps = maxSteps;
+
+        foreach (var node in program.Nodes)
+            if (registry.TryGet(node.Type, out var definition))
+                _nodes[node.Id] = (node, definition);
+
+        foreach (var link in program.Links)
+        {
+            if (!_nodes.TryGetValue(link.FromNode, out var from)) continue;
+            var port = from.Definition.FindPort(link.FromPort);
+            if (port is null) continue;
+            if (port.IsExec)
+                _execByOutput[(link.FromNode, link.FromPort)] = link;
+            else
+                _dataByInput[(link.ToNode, link.ToPort)] = link;
+        }
+
+        foreach (var variable in program.Variables)
+            _variables[variable.Name.Trim()] = Value.Parse(variable.Initial);
+    }
+
+    public Value ProgramInput { get; }
+
+    public GraphExecution Run(IReadOnlyList<GraphIssue> issues)
+    {
+        var visited = new List<Guid>();
+        var steps = new List<GraphStep>();
+        var entry = _nodes.Values.First(item => item.Definition.IsEntry);
+        var current = entry.Node;
+
+        for (var step = 0; step < _maxSteps; step++)
+        {
+            var definition = _nodes[current.Id].Definition;
+            visited.Add(current.Id);
+
+            // Управление вернулось в блок, открывший ветку: закрываем её и всё, что вложено.
+            var scopeIndex = _scopes.LastIndexOf(current.Id);
+            if (scopeIndex >= 0)
+                _scopes.RemoveRange(scopeIndex, _scopes.Count - scopeIndex);
+
+            _pureCache.Clear();
+            _stepInputs = [];
+            _stepOutputs = [];
+
+            ExecResult result;
+            try
+            {
+                result = definition.Execute(new NodeContext(this, current, definition, executing: true));
+            }
+            catch (GraphRuntimeException exception)
+            {
+                steps.Add(Snapshot(current, exception.Message));
+                return Fail(exception.Message, exception.NodeId ?? current.Id);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                var message = $"Внутренняя ошибка блока «{definition.Label}»: {exception.Message}";
+                steps.Add(Snapshot(current, message));
+                return Fail(message, current.Id);
+            }
+
+            steps.Add(Snapshot(current, result.Detail));
+
+            if (result.Action == ExecAction.Finish)
+                return new GraphExecution(true, result.Result, "", null, visited, steps, issues);
+
+            var port = definition.FindPort(result.Port);
+            if (port is null || !port.IsExec || !port.IsOutput)
+                return Fail($"Блок «{definition.Label}» выбрал несуществующий выход «{result.Port}».", current.Id);
+
+            if (result.Action == ExecAction.EnterScope)
+            {
+                _scopes.Add(current.Id);
+                // Пустое тело сразу возвращает управление в блок.
+                if (_execByOutput.TryGetValue((current.Id, port.Id), out var bodyLink))
+                    current = _nodes[bodyLink.ToNode].Node;
+                continue;
+            }
+
+            if (_execByOutput.TryGetValue((current.Id, port.Id), out var link))
+            {
+                current = _nodes[link.ToNode].Node;
+            }
+            else if (_scopes.Count > 0)
+            {
+                // Ветка закончилась внутри тела цикла — возвращаемся к циклу.
+                current = _nodes[_scopes[^1]].Node;
+            }
+            else
+            {
+                return Fail(
+                    $"Программа остановилась на блоке «{definition.Label}»: выход «{port.DisplayName}» никуда не подключён, а блок «Выход» не достигнут.",
+                    current.Id);
+            }
+        }
+
+        return Fail($"Программа превысила безопасный предел в {_maxSteps} шагов. Возможно, цикл никогда не заканчивается.", current.Id);
+
+        GraphExecution Fail(string error, Guid? nodeId)
+            => new(false, Value.Null, error, nodeId, visited, steps, issues);
+    }
+
+    private GraphStep Snapshot(GraphNode node, string detail) => new(
+        node.Id,
+        node.Type,
+        detail,
+        _stepInputs,
+        _stepOutputs,
+        _variables.ToDictionary(pair => pair.Key, pair => pair.Value.ToString(), StringComparer.OrdinalIgnoreCase));
+
+    public Value ReadInput(GraphNode node, NodeDefinition definition, string portId, bool record)
+    {
+        var port = definition.FindPort(portId);
+        if (port is null || !port.IsData || !port.IsInput)
+            throw new GraphRuntimeException($"У блока «{definition.Label}» нет входа «{portId}».", node.Id);
+
+        Value raw;
+        if (_dataByInput.TryGetValue((node.Id, portId), out var link))
+            raw = ReadOutput(link.FromNode, link.FromPort);
+        else if (port.InlineDefault is not null)
+            raw = Value.Parse(node.Params.TryGetValue(portId, out var inline) ? inline : port.InlineDefault);
+        else
+            throw new GraphRuntimeException($"Вход «{port.DisplayName}» блока «{definition.Label}» не подключён.", node.Id);
+
+        if (!DataTypes.TryCoerce(raw, port.Type, out var value, out var error))
+            throw new GraphRuntimeException($"Блок «{definition.Label}», вход «{port.DisplayName}»: {error}.", node.Id);
+
+        if (record)
+            _stepInputs[port.DisplayName] = value.ToString();
+        return value;
+    }
+
+    private Value ReadOutput(Guid nodeId, string portId)
+    {
+        var (node, definition) = _nodes[nodeId];
+        var port = definition.FindPort(portId);
+        var portName = port?.DisplayName ?? portId;
+
+        if (definition.IsPure)
+        {
+            // Чистый блок пересчитывается на каждом шаге: его входы могли измениться.
+            if (_pureCache.TryGetValue((nodeId, portId), out var cached))
+                return cached;
+            if (!_evaluating.Add(nodeId))
+                throw new GraphRuntimeException($"Блок «{definition.Label}» зависит сам от себя через провода данных.", nodeId);
+            try
+            {
+                var value = definition.Evaluate(new NodeContext(this, node, definition, executing: false), portId);
+                _pureCache[(nodeId, portId)] = value;
+                return value;
+            }
+            catch (GraphRuntimeException exception) when (exception.NodeId is null)
+            {
+                exception.NodeId = nodeId;
+                throw;
+            }
+            finally
+            {
+                _evaluating.Remove(nodeId);
+            }
+        }
+
+        // Выход блока исполнения хранит значение с момента его последнего выполнения.
+        if (_outputs.TryGetValue((nodeId, portId), out var stored))
+            return stored;
+        throw new GraphRuntimeException(
+            $"Блок «{definition.Label}» ещё не выполнялся, поэтому его выход «{portName}» пока пуст. Проведите провод исполнения так, чтобы этот блок выполнился раньше.",
+            nodeId);
+    }
+
+    public void SetOutput(GraphNode node, NodeDefinition definition, string portId, Value value, bool record)
+    {
+        var port = definition.FindPort(portId);
+        if (port is null || !port.IsData || !port.IsOutput)
+            throw new GraphRuntimeException($"У блока «{definition.Label}» нет выхода «{portId}».", node.Id);
+        _outputs[(node.Id, portId)] = value;
+        if (record)
+            _stepOutputs[port.DisplayName] = value.ToString();
+    }
+
+    public object? GetState(Guid nodeId) => _states.GetValueOrDefault(nodeId);
+
+    public void SetState(Guid nodeId, object? state)
+    {
+        if (state is null)
+            _states.Remove(nodeId);
+        else
+            _states[nodeId] = state;
+    }
+
+    public Value GetVariable(string name, Guid nodeId)
+    {
+        if (_variables.TryGetValue(name.Trim(), out var value))
+            return value;
+        throw new GraphRuntimeException($"Переменная «{name}» не объявлена.", nodeId);
+    }
+
+    public void SetVariable(string name, Value value, Guid nodeId)
+    {
+        var key = name.Trim();
+        if (!_variables.ContainsKey(key))
+            throw new GraphRuntimeException($"Переменная «{name}» не объявлена.", nodeId);
+        _variables[key] = value;
+    }
+}
+
+/// <summary>То, что видит блок во время выполнения: свои входы, выходы, настройки, состояние и переменные.</summary>
+public sealed class NodeContext
+{
+    private readonly GraphRuntime _runtime;
+    private readonly bool _executing;
+
+    internal NodeContext(GraphRuntime runtime, GraphNode node, NodeDefinition definition, bool executing)
+    {
+        _runtime = runtime;
+        _executing = executing;
+        Node = node;
+        Definition = definition;
+    }
+
+    public GraphNode Node { get; }
+    public NodeDefinition Definition { get; }
+
+    /// <summary>Входные данные текущего теста.</summary>
+    public Value ProgramInput => _runtime.ProgramInput;
+
+    /// <summary>Значение входа данных, уже приведённое к типу порта.</summary>
+    public Value Input(string portId) => _runtime.ReadInput(Node, Definition, portId, _executing);
+
+    public double Number(string portId)
+    {
+        var value = Input(portId);
+        if (value.TryGetNumber(out var number))
+            return number;
+        throw Error($"Вход «{PortName(portId)}»: ожидалось число, а пришло «{value}».");
+    }
+
+    public string Text(string portId) => Input(portId).ToString();
+
+    public bool Bool(string portId)
+    {
+        var value = Input(portId);
+        if (value.TryGetBool(out var boolean))
+            return boolean;
+        throw Error($"Вход «{PortName(portId)}»: ожидалось логическое значение, а пришло «{value}».");
+    }
+
+    /// <summary>Настройка блока или её значение по умолчанию.</summary>
+    public string Param(string id)
+        => Node.Params.TryGetValue(id, out var value) ? value : Definition.FindParam(id)?.Default ?? "";
+
+    public void SetOutput(string portId, Value value)
+        => _runtime.SetOutput(Node, Definition, portId, value, _executing);
+
+    /// <summary>Состояние, которое блок хранит между своими выполнениями (например, счётчик цикла).</summary>
+    public T? GetState<T>() where T : class => _runtime.GetState(Node.Id) as T;
+
+    public void SetState(object? state) => _runtime.SetState(Node.Id, state);
+
+    public Value GetVariable(string name) => _runtime.GetVariable(name, Node.Id);
+
+    public void SetVariable(string name, Value value) => _runtime.SetVariable(name, value, Node.Id);
+
+    /// <summary>Создаёт ошибку для игрока, привязанную к этому блоку: <c>throw context.Error("...")</c>.</summary>
+    public GraphRuntimeException Error(string message) => new(message, Node.Id);
+
+    private string PortName(string portId) => Definition.FindPort(portId)?.DisplayName ?? portId;
+}

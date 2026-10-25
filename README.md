@@ -90,6 +90,7 @@ dotnet user-secrets set "Admin:Username" "teacher" --project Server
 ```powershell
 dotnet build Synapse.Blocks.slnx
 dotnet run --project tests/MarkdownChecks --no-build
+dotnet run --project tests/GraphChecks --no-build
 pwsh -File tests/smoke.ps1
 dotnet publish Server -c Release -o artifacts/server
 pwsh -File tests/smoke.ps1 -ServerDirectory artifacts/server
