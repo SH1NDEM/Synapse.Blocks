@@ -1,0 +1,44 @@
+@using Synapse.Blocks.Graph
+@* Полоса результатов проверки под рабочим полем. *@
+
+<div class="test-console">
+    <div class="console-title">
+        <span><i></i> ПРОВЕРКА ПРОГРАММЫ</span>
+        @if (Running)
+        {
+            <small class="console-running">Тест @ActiveIndex из @ActiveCount</small>
+        }
+        else if (Results.Count > 0)
+        {
+            <strong class="@(Results.All(result => result.Passed) ? "passed" : "failed")">@Results.Count(result => result.Passed) / @Results.Count</strong>
+        }
+        else
+        {
+            <small>Ещё не запускалась</small>
+        }
+    </div>
+    @if (Results.Count == 0)
+    {
+        <p class="console-placeholder">@(Running ? "Сейчас выполняется первый тест. Результаты будут добавляться по очереди." : "Здесь появится результат каждого открытого и скрытого теста.")</p>
+    }
+    else
+    {
+        <div class="result-strip">
+            @foreach (var result in Results)
+            {
+                <article class="@(result.Passed ? "pass" : "fail")">
+                    <b>@(result.Passed ? "✓" : "×")</b>
+                    <span><strong>@TestResultText.Title(Level, result)</strong><small>@TestResultText.Detail(Level, result)</small></span>
+                </article>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public LevelDefinition Level { get; set; } = default!;
+    [Parameter] public IReadOnlyList<GraphTestResult> Results { get; set; } = [];
+    [Parameter] public bool Running { get; set; }
+    [Parameter] public int ActiveIndex { get; set; }
+    [Parameter] public int ActiveCount { get; set; }
+}

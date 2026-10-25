@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Net.Http.Json;
+using Synapse.Blocks.Graph;
 using Synapse.Blocks.Models;
 using Synapse.Blocks.Serialization;
 
@@ -117,9 +118,13 @@ public sealed class LevelStore(HttpClient http)
             var level = ordered[index];
             level.Order = index + 1;
             level.Chapter = Math.Max(1, level.Chapter);
-            level.AllowedBlocks = level.AllowedBlocks.Distinct().ToList();
-            if (!level.AllowedBlocks.Contains(BlockKind.Input)) level.AllowedBlocks.Insert(0, BlockKind.Input);
-            if (!level.AllowedBlocks.Contains(BlockKind.Output)) level.AllowedBlocks.Add(BlockKind.Output);
+            // «Вход» и «Выход» доступны всегда; неизвестные блоки и категории отбрасываем.
+            level.AllowedNodes = LevelNodes.Mandatory
+                .Concat(level.AllowedNodes ?? new List<string>())
+                .Where(target => LevelNodes.IsKnownTarget(target, NodeRegistry.Default))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            level.Rules = (level.Rules ?? new List<GraphRule>()).Where(rule => rule is not null).ToList();
             level.Tests ??= [];
             level.IntroSteps ??= [];
             foreach (var step in level.IntroSteps)

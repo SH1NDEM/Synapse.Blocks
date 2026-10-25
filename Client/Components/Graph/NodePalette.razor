@@ -1,0 +1,40 @@
+@using Synapse.Blocks.Graph
+@* Палитра блоков, сгруппированная по категориям. Блок можно перетащить на поле или добавить щелчком. *@
+
+<div class="block-library node-palette @CssClass">
+    @foreach (var group in Nodes.GroupBy(node => node.Category))
+    {
+        <section class="palette-group">
+            <h3>@NodeCategories.Label(group.Key)</h3>
+            @foreach (var definition in group)
+            {
+                var item = definition;
+                <div class="library-block palette-item @GraphStyle.AccentClass(item) @(item.IsPure ? "palette-pure" : "")"
+                     draggable="true"
+                     title="Перетащите на поле или нажмите, чтобы добавить"
+                     @ondragstart="() => OnDragStart.InvokeAsync(item)"
+                     @onclick="() => OnAdd.InvokeAsync(item)">
+                    <small>@(item.IsPure ? "ДАННЫЕ" : "ДЕЙСТВИЕ")</small>
+                    <strong>@item.Label</strong>
+                    <span>@item.Description</span>
+                    <div class="palette-ports" aria-hidden="true">
+                        @foreach (var port in item.Ports)
+                        {
+                            <i class="@(port.IsExec ? "pp-exec" : $"pp-data {GraphStyle.TypeClass(port.Type)}") @(port.IsInput ? "pp-in" : "pp-out")"></i>
+                        }
+                    </div>
+                    <b class="palette-help" role="button" tabindex="0" aria-label="Справка: @item.Label"
+                       @onclick="() => OnHelp.InvokeAsync(item)" @onclick:stopPropagation="true">?</b>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IEnumerable<NodeDefinition> Nodes { get; set; } = [];
+    [Parameter] public string CssClass { get; set; } = "";
+    [Parameter] public EventCallback<NodeDefinition> OnAdd { get; set; }
+    [Parameter] public EventCallback<NodeDefinition> OnDragStart { get; set; }
+    [Parameter] public EventCallback<NodeDefinition> OnHelp { get; set; }
+}

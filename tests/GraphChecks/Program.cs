@@ -48,6 +48,18 @@ GraphExecution Fails(GraphProgram program, string input, string messagePart, Gra
     return result;
 }
 
+void CheckLevel(GraphProgram program, string[] allowed, GraphRule[] rules, params (string Input, string Expected)[] cases)
+{
+    var level = new LevelDefinition { AllowedNodes = [.. allowed], Rules = [.. rules] };
+    foreach (var node in program.Nodes)
+        Check(LevelNodes.Allows(level, NodeRegistry.Default.Get(node.Type)), $"блок «{node.Type}» недоступен в уровне");
+    foreach (var rule in GraphRules.Check(program, level.Rules))
+        Check(rule.Passed, $"не выполнено условие: {rule.Description} (сейчас {rule.Actual})");
+    var issues = GraphValidator.Validate(program).Where(issue => issue.Severity == IssueSeverity.Error).ToList();
+    Check(issues.Count == 0, issues.FirstOrDefault()?.Message ?? "");
+    Cases(program, cases);
+}
+
 static void Equal<T>(T expected, T actual, string what = "")
 {
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
@@ -214,6 +226,146 @@ Test("Шлюз телеметрии: типы, вложенные условия
         .Exec(ifError, "false", outLength).Data(start, "value", length, "value").Data(length, "result", outLength, "value");
 
     Cases(b.Program, ("7", "14"), ("-4", "0"), ("0", "0"), ("hello", "5"), ("disk error found", "ALERT"));
+});
+
+// ─────────────────────────────────────────────────────────────
+Console.WriteLine("Уровни кампании после перевода (доступные блоки и условия)");
+
+string[] loopNodes = ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"];
+string[] conditionNodes = ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"];
+
+Test("F. Три шага вперёд: +1 три раза", () =>
+{
+    var (program, _) = AccumulateInLoop(count: "3", ("add", "1"));
+    CheckLevel(program, loopNodes, [GraphRule.Min("repeat"), GraphRule.MinInScope("category:memory", 1), GraphRule.Max("math", 1)],
+        ("0", "3"), ("2", "5"), ("5", "8"), ("10", "13"));
+});
+
+Test("L. Столько же шагов: +1 столько раз, сколько на входе", () =>
+{
+    var (program, _) = AccumulateInLoop(count: null, ("add", "1"));
+    CheckLevel(program, loopNodes, [GraphRule.Min("repeat"), GraphRule.MinInScope("category:memory", 1), GraphRule.Max("math", 1)],
+        ("1", "2"), ("2", "4"), ("5", "10"), ("8", "16"));
+});
+
+Test("Импульсный каскад: ×2, затем +1, три раза", () =>
+{
+    var (program, _) = AccumulateInLoop(count: "3", ("mul", "2"), ("add", "1"));
+    CheckLevel(program, loopNodes, [GraphRule.Min("repeat"), GraphRule.MinInScope("category:memory", 2), GraphRule.Max("math", 2)],
+        ("1", "15"), ("2", "23"), ("0", "7"), ("-1", "-1"));
+});
+
+Test("Степени двойки: 2ⁿ через переменную", () =>
+    CheckLevel(PowerOfTwo(), loopNodes, [], ("1", "2"), ("4", "16"), ("10", "1024"), ("16", "65536")));
+
+Test("Индикатор пакетов: строка из N символов #", () =>
+{
+    var b = new GraphBuilder().Variable("S", "");
+    var start = b.Node("start");
+    var loop = b.Node("repeat");
+    var append = b.Node("change-var", ("variable", "S"), ("op", "append"), ("value", "#"));
+    var read = b.Node("get-var", ("variable", "S"));
+    var output = b.Node("output");
+    b.Exec(start, loop).Data(start, "value", loop, "count")
+        .Exec(loop, "body", append)
+        .Exec(loop, "done", output).Data(read, "value", output, "value");
+    CheckLevel(b.Program, loopNodes,
+        [GraphRule.Min("repeat"), GraphRule.Min("category:memory"), GraphRule.MinInScope("category:memory", 1), GraphRule.Max("math", 1)],
+        ("1", "#"), ("3", "###"), ("12", "############"));
+});
+
+Test("Маска доступа: N раз ×2 и +1, начиная с 0", () =>
+{
+    var b = new GraphBuilder().Variable("M", "0");
+    var start = b.Node("start");
+    var loop = b.Node("repeat");
+    var multiply = b.Node("change-var", ("variable", "M"), ("op", "mul"), ("value", "2"));
+    var add = b.Node("change-var", ("variable", "M"), ("op", "add"), ("value", "1"));
+    var read = b.Node("get-var", ("variable", "M"));
+    var output = b.Node("output");
+    b.Exec(start, loop).Data(start, "value", loop, "count")
+        .Exec(loop, "body", multiply).Exec(multiply, add)
+        .Exec(loop, "done", output).Data(read, "value", output, "value");
+    CheckLevel(b.Program, loopNodes,
+        [GraphRule.Min("repeat"), GraphRule.Min("category:memory"), GraphRule.MinInScope("category:memory", 2), GraphRule.Max("math", 2)],
+        ("0", "0"), ("1", "1"), ("3", "7"), ("10", "1023"));
+});
+
+Test("Безопасный диапазон: ограничить числом от −50 до 50", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var ifLow = b.Node("if");
+    var isLow = b.Node("compare", ("op", "<"), ("b", "-50"));
+    var low = b.Node("const", ("value", "-50"));
+    var outLow = b.Node("output");
+    var ifHigh = b.Node("if");
+    var isHigh = b.Node("compare", ("op", ">"), ("b", "50"));
+    var high = b.Node("const", ("value", "50"));
+    var outHigh = b.Node("output");
+    var outSame = b.Node("output");
+    b.Exec(start, ifLow).Data(start, "value", isLow, "a").Data(isLow, "result", ifLow, "condition")
+        .Exec(ifLow, "true", outLow).Data(low, "value", outLow, "value")
+        .Exec(ifLow, "false", ifHigh).Data(start, "value", isHigh, "a").Data(isHigh, "result", ifHigh, "condition")
+        .Exec(ifHigh, "true", outHigh).Data(high, "value", outHigh, "value")
+        .Exec(ifHigh, "false", outSame).Data(start, "value", outSame, "value");
+    CheckLevel(b.Program, conditionNodes, [GraphRule.Min("if"), GraphRule.Max("math", 2)],
+        ("-120", "-50"), ("-50", "-50"), ("-7", "-7"), ("50", "50"), ("88", "50"));
+});
+
+Test("Степени двойки 2: число → 2ⁿ, текст → длина", () =>
+{
+    var b = new GraphBuilder().Variable("P", "1");
+    var start = b.Node("start");
+    var check = b.Node("if");
+    var isNumber = b.Node("is-type", ("type", "number"));
+    var loop = b.Node("repeat");
+    var multiply = b.Node("change-var", ("variable", "P"), ("op", "mul"), ("value", "2"));
+    var read = b.Node("get-var", ("variable", "P"));
+    var outPower = b.Node("output");
+    var length = b.Node("length");
+    var outLength = b.Node("output");
+    b.Exec(start, check).Data(start, "value", isNumber, "value").Data(isNumber, "result", check, "condition")
+        .Exec(check, "true", loop).Data(start, "value", loop, "count")
+        .Exec(loop, "body", multiply)
+        .Exec(loop, "done", outPower).Data(read, "value", outPower, "value")
+        .Exec(check, "false", outLength).Data(start, "value", length, "value").Data(length, "result", outLength, "value");
+    string[] allowed = ["start", "output", "if", "repeat", "get-var", "set-var", "change-var", "const", "math", "compare", "is-type", "text-check", "join", "length"];
+    CheckLevel(b.Program, allowed, [], ("1", "2"), ("3", "8"), ("PoL0mK4", "7"), ("P0MoG1Te", "8"), ("16", "65536"));
+});
+
+Test("Копилка и проверка: переменная 5 + вход, больше 10 → много", () =>
+{
+    var b = new GraphBuilder().Variable("A", "5");
+    var start = b.Node("start");
+    var add = b.Node("change-var", ("variable", "A"), ("op", "add"));
+    var check = b.Node("if");
+    var read = b.Node("get-var", ("variable", "A"));
+    var greater = b.Node("compare", ("op", ">"), ("b", "10"));
+    var many = b.Node("const", ("value", "много"));
+    var normal = b.Node("const", ("value", "нормально"));
+    var outMany = b.Node("output");
+    var outNormal = b.Node("output");
+    b.Exec(start, add).Data(start, "value", add, "value")
+        .Exec(add, check).Data(read, "value", greater, "a").Data(greater, "result", check, "condition")
+        .Exec(check, "true", outMany).Data(many, "value", outMany, "value")
+        .Exec(check, "false", outNormal).Data(normal, "value", outNormal, "value");
+    string[] allowed = ["start", "output", "if", "get-var", "set-var", "change-var", "const", "math", "compare", "is-type", "text-check", "join", "length"];
+    CheckLevel(b.Program, allowed, [GraphRule.Min("if"), GraphRule.Min("category:memory"), GraphRule.Max("math", 2)],
+        ("0", "нормально"), ("5", "нормально"), ("6", "много"), ("9", "много"));
+});
+
+Test("недоступный блок обнаруживается", () =>
+{
+    var level = new LevelDefinition { AllowedNodes = ["start", "output", "math"] };
+    var registry = NodeRegistry.Default;
+    Check(LevelNodes.Allows(level, registry.Get("start")), "«Вход» доступен всегда");
+    Check(LevelNodes.Allows(level, registry.Get("math")), "math разрешён");
+    Check(!LevelNodes.Allows(level, registry.Get("repeat")), "repeat не разрешён");
+    level.AllowedNodes = ["category:logic"];
+    Check(LevelNodes.Allows(level, registry.Get("compare")), "категория разрешает compare");
+    Check(LevelNodes.Allows(level, registry.Get("output")), "«Выход» доступен всегда");
+    Check(LevelNodes.IsKnownTarget("category:math", registry) && !LevelNodes.IsKnownTarget("category:magic", registry), "проверка категорий");
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -489,10 +641,10 @@ Test("шаги отладки содержат входы, выходы и пе�
     var result = runner.Run(b.Program, "5");
     Check(result.Success, result.Error);
     Equal(3, result.Steps.Count, "число шагов:");
-    Equal("5", result.Steps[0].Outputs["данные"]);
-    Equal("8", result.Steps[1].Inputs["значение"]);
+    Equal("5", result.Steps[0].Outputs["value"]);
+    Equal("8", result.Steps[1].Inputs["value"]);
     Equal("8", result.Steps[1].Variables["A"]);
-    Equal("8", result.Steps[2].Inputs["результат"]);
+    Equal("8", result.Steps[2].Inputs["value"]);
     Equal(new[] { start.Id, store.Id, output.Id }.Length, result.Visited.Count, "посещено блоков:");
 });
 
@@ -574,6 +726,43 @@ static GraphProgram Carousel()
         .Data(start, "value", atLeast, "a").Data(atLeast, "result", check, "condition")
         .Exec(check, "true", outYes).Data(yes, "value", outYes, "value")
         .Exec(check, "false", outNo).Data(no, "value", outNo, "value");
+    return b.Program;
+}
+
+/// <summary>Программа «записать вход в X, повторить действия над X, вернуть X».</summary>
+static (GraphProgram Program, GraphNode Loop) AccumulateInLoop(string? count, params (string Op, string Value)[] actions)
+{
+    var b = new GraphBuilder().Variable("X", "0");
+    var start = b.Node("start");
+    var store = b.Node("set-var", ("variable", "X"));
+    var loop = count is null ? b.Node("repeat") : b.Node("repeat", ("count", count));
+    var read = b.Node("get-var", ("variable", "X"));
+    var output = b.Node("output");
+    b.Exec(start, store).Data(start, "value", store, "value").Exec(store, loop);
+    if (count is null) b.Data(start, "value", loop, "count");
+    GraphNode? previous = null;
+    foreach (var (op, value) in actions)
+    {
+        var action = b.Node("change-var", ("variable", "X"), ("op", op), ("value", value));
+        if (previous is null) b.Exec(loop, "body", action);
+        else b.Exec(previous, action);
+        previous = action;
+    }
+    b.Exec(loop, "done", output).Data(read, "value", output, "value");
+    return (b.Program, loop);
+}
+
+static GraphProgram PowerOfTwo()
+{
+    var b = new GraphBuilder().Variable("P", "1");
+    var start = b.Node("start");
+    var loop = b.Node("repeat");
+    var multiply = b.Node("change-var", ("variable", "P"), ("op", "mul"), ("value", "2"));
+    var read = b.Node("get-var", ("variable", "P"));
+    var output = b.Node("output");
+    b.Exec(start, loop).Data(start, "value", loop, "count")
+        .Exec(loop, "body", multiply)
+        .Exec(loop, "done", output).Data(read, "value", output, "value");
     return b.Program;
 }
 

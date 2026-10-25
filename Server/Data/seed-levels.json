@@ -13,16 +13,8 @@
         "InputDescription":  "Целое число — сила входного сигнала.",
         "OutputDescription":  "Входной сигнал",
         "Hint":  "Соедините Вход → Выход. ",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output"],
+        "Rules": [],
         "Tests":  [
                       {
                           "Id":  "c1014fea-eb01-4ec1-95bf-6c29f1f56778",
@@ -106,17 +98,8 @@
         "InputDescription":  "Целое число — значение сигнала.",
         "OutputDescription":  "Усиленный вдвое входной сигнал.",
         "Hint":  "Получите значение с блока \"Вход\" → умножьте его на 2 блоком \"Операция\" → передайте значение на блок \"Выход\"",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output", "const", "math", "join", "length"],
+        "Rules": [],
         "Tests":  [
                       {
                           "Id":  "2d4c6300-33f4-47a8-b03e-b33af9bd35a1",
@@ -173,17 +156,10 @@
         "InputDescription":  "Целое число от 0 до 9 — сколько звёздочек было сначала.",
         "OutputDescription":  "Число звёздочек после добавления одной.",
         "Hint":  "Соедините Вход → Операция → Выход. В операции напишите: + 1",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "05a654c0-e440-44b7-a968-5b2ac595ac1f",
@@ -232,17 +208,10 @@
         "InputDescription":  "Целое число от 1 до 10 — сколько яблок было.",
         "OutputDescription":  "Сколько яблок осталось после того, как одно съели.",
         "Hint":  "Используйте одну операцию: - 1. В тестах число всегда не меньше 1.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "0a55ff52-00fe-463b-807b-75e83b1d0439",
@@ -291,17 +260,10 @@
         "InputDescription":  "Целое число от 1 до 8 — количество пар.",
         "OutputDescription":  "Количество носков для этих пар.",
         "Hint":  "Пара — это два предмета. Используйте операцию: * 2",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "efb222b4-9cfc-4889-a2f2-b3b1ba5cdf2d",
@@ -350,18 +312,11 @@
         "InputDescription":  "Целое число от 0 до 10 — количество кубиков.",
         "OutputDescription":  "Слово большая или маленькая.",
         "Hint":  "Поставьте условие \u003e 5. В синей ветке используйте операцию set большая, в красной — set маленькая.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "3a3a2ae8-29f4-4d5e-a9d3-8038abf19cc3",
@@ -410,18 +365,11 @@
         "InputDescription":  "Целое число от 1 до 10 — возраст ребёнка.",
         "OutputDescription":  "Ответ да или нет.",
         "Hint":  "В условии напишите \u003e= 7. В синей ветке задайте set да, в красной — set нет.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "75d953f6-b013-454d-bae8-9638cb784404",
@@ -470,18 +418,12 @@
         "InputDescription":  "Целое число от 0 до 10 — где робот стоит сначала.",
         "OutputDescription":  "Число после трёх шагов вперёд.",
         "Hint":  "Добавьте цикл с числом повторов 3. В тело цикла положите одну операцию: + 1.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  1,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "8246a43d-7cb2-4aa5-8652-779cc5c60249",
@@ -530,18 +472,11 @@
         "InputDescription":  "Целое число от 0 до 10 — сколько карандашей есть.",
         "OutputDescription":  "Слово хватит или мало.",
         "Hint":  "Поставьте условие \u003e= 4. В синей ветке напишите set хватит, в красной — set мало.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "de4913d8-1c80-4864-bd5d-40fa2e6acb3f",
@@ -590,18 +525,11 @@
         "InputDescription":  "Целое число от 0 до 15 — сколько ягод принесли.",
         "OutputDescription":  "Число ягод, которое поместится в корзину.",
         "Hint":  "Условие: \u003e 10. В синей ветке используйте set 10, в красной ветке можно сразу вести к выходу.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "a22cb335-e3ef-47c5-aec4-1108d2c49707",
@@ -650,18 +578,11 @@
         "InputDescription":  "Целое число от 0 до 9 — сколько печений на тарелке.",
         "OutputDescription":  "Слово пусто или есть.",
         "Hint":  "Условие: == 0. В синей ветке set пусто, в красной — set есть.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "3d8ac28f-1b97-4492-88fe-65d9529870f4",
@@ -710,18 +631,12 @@
         "InputDescription":  "Целое число от 0 до 10 — начальная клетка.",
         "OutputDescription":  "Номер клетки после двух прыжков.",
         "Hint":  "Поставьте цикл на 2 повтора. В тело цикла положите операцию + 2.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  1,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "7643fafd-e21b-486c-bd6f-685d5ab43697",
@@ -770,18 +685,12 @@
         "InputDescription":  "Короткое слово или фраза.",
         "OutputDescription":  "Та же строка с тремя знаками ! в конце.",
         "Hint":  "Цикл должен повториться 3 раза. Внутри цикла используйте операцию append !",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  1,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "3e7bddd6-7c70-4060-81e1-a9fa2ee86540",
@@ -830,18 +739,12 @@
         "InputDescription":  "Целое число от 1 до 8 — начальное число и количество шагов.",
         "OutputDescription":  "Число после таких же дополнительных шагов.",
         "Hint":  "В цикле укажите input. В тело цикла положите операцию + 1.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  1,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "4935fe3c-2260-497c-84d6-4e7af9cc0e09",
@@ -890,20 +793,13 @@
         "InputDescription":  "Целое число от 0 до 9.",
         "OutputDescription":  "Изменённое число: маленькие числа увеличиваются на 2, остальные не меняются.",
         "Hint":  "Сначала условие \u003c 5. В синей ветке поставьте цикл на 2 повтора с операцией + 1. Красную ветку ведите к выходу.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Loop",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition",
-                               "Loop"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  1,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "if", "repeat", "get-var", "set-var", "change-var", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "d7aaa59c-d018-4c04-85a0-b632b0c3bc0b",
@@ -952,19 +848,10 @@
         "InputDescription":  "Целое число от 0 до 9 — сколько монет добавили.",
         "OutputDescription":  "Сколько монет стало в копилке.",
         "Hint":  "Создайте переменную, например A, со значением 3. Затем используйте блок работы с переменной: добавить вход.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Variable",
-                              "VariableAction",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Variable",
-                               "VariableAction"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output", "get-var", "set-var", "change-var"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "category:memory", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "b5770aab-ae9b-495e-89dd-a590b2d9cd2e",
@@ -1013,19 +900,10 @@
         "InputDescription":  "Целое число от 1 до 8 — сколько нужно прибавить.",
         "OutputDescription":  "Секретное число 5 плюс входное число.",
         "Hint":  "Переменная хранит 5. Блок работы с переменной должен прибавить входное число.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Variable",
-                              "VariableAction",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Variable",
-                               "VariableAction"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output", "get-var", "set-var", "change-var"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "category:memory", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "ef213981-583c-4c05-ab2c-c065c7426b93",
@@ -1074,22 +952,12 @@
         "InputDescription":  "Целое число от 0 до 9 — сколько монет добавили.",
         "OutputDescription":  "Слово много или нормально.",
         "Hint":  "Сначала прибавьте вход к переменной 5. Потом поставьте условие \u003e 10. Синяя ветка: set много, красная: set нормально.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Variable",
-                              "VariableAction",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Variable",
-                               "VariableAction",
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "if", "get-var", "set-var", "change-var", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MinNodes", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "83eaab51-2d80-47bf-aee3-d1cc2da52bdf",
@@ -1138,18 +1006,8 @@
         "InputDescription":  "Целое число — заряд входного импульса. Оно может быть положительным, отрицательным или равным нулю.",
         "OutputDescription":  "Неотрицательное значение входного сигнала.",
         "Hint":  "После блока «Вход» поставьте условие \u003c 0. Синюю ветку направьте в операцию умножения на -1, а красную — сразу к выходу. Обе ветки должны завершаться одним блоком «Выход».",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [],
         "Tests":  [
                       {
                           "Id":  "1944ab57-fdd7-4941-927b-ce4ab4ee764d",
@@ -1199,18 +1057,12 @@
         "InputDescription":  "Целое число — начальная сила сигнала.",
         "OutputDescription":  "Сигнал после трёх проходов через группу ×2 и +1.",
         "Hint":  "Настройте цикл на число 3. В теле соедините две операции: ×2 → +1. Последний блок тела оставьте без выхода.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop"
-                           ],
-        "RequiredLoopCount":  3,
-        "RequiredLoopBodyOperationCount":  2,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 2},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "9116e287-2688-4d10-a86c-47ef90f0ef4b",
@@ -1267,20 +1119,8 @@
         "InputDescription":  "Целое число от 1 до 16 — показатель степени n.",
         "OutputDescription":  "Число 2 в степени n.",
         "Hint":  "Задайте переменной начальное значение 1. Число повторов цикла возьмите со входа. В теле цикла получите значение переменной, умножьте его на 2 и запишите обратно. Выход «после цикла» соедините с результатом.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Operation",
-                              "Variable",
-                              "VariableAction",
-                              "Output",
-                              "Loop"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [],
         "Tests":  [
                       {
                           "Id":  "dd7588d1-aac6-4fdd-84cd-a1f46db69483",
@@ -1351,21 +1191,8 @@
         "InputDescription":  "Целое число n либо текстовая строка.",
         "OutputDescription":  "Для числа — 2ⁿ; для текста — количество символов.",
         "Hint":  "Сразу после входа поставьте условие и переключите его в режим «Тип». Ветка «Число» повторяет решение прошлого уровня, а в ветке «Текст» используйте операцию «Посчитать элементы».",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Variable",
-                              "VariableAction",
-                              "Output",
-                              "Loop"
-                          ],
-        "RequiredBlocks":  [
-
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  null,
+        "AllowedNodes": ["start", "output", "if", "repeat", "get-var", "set-var", "change-var", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [],
         "Tests":  [
                       {
                           "Id":  "09e3a3d1-eb7d-4b54-90ba-d9fc260cb514",
@@ -1442,18 +1269,11 @@
         "InputDescription":  "Целое число — необработанное показание датчика.",
         "OutputDescription":  "Число в диапазоне от -50 до 50.",
         "Hint":  "Сначала проверьте нижнюю границу \u003c -50. В ветке, где она не нарушена, добавьте вторую проверку \u003e 50. Значения внутри диапазона передавайте без изменений.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "0a87bbce-5f36-464b-8fad-d2afd265e1df",
@@ -1523,22 +1343,13 @@
         "InputDescription":  "Целое число от 1 до 12 — количество пакетов.",
         "OutputDescription":  "Строка, содержащая ровно N символов #.",
         "Hint":  "Создайте переменную с пустым начальным значением. В цикле по входному числу получайте строку из памяти, добавляйте один символ # и записывайте результат обратно.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Variable",
-                              "VariableAction",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop",
-                               "Variable",
-                               "VariableAction"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  1,
-        "MaxOperationBlocks":  1,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodes", "Target": "category:memory", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 1}
+        ],
         "Tests":  [
                       {
                           "Id":  "963b0e8f-dbce-43ef-9d0f-70ccdc0f95bf",
@@ -1594,18 +1405,11 @@
         "InputDescription":  "Целое число либо текстовая строка.",
         "OutputDescription":  "Удвоенное неотрицательное число, длина обычного текста или ALERT для сообщения об ошибке.",
         "Hint":  "Сначала разделите поток проверкой типа. Внутри числовой ветки проверьте \u003c 0, а внутри текстовой — contains ERROR.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Condition",
-                              "Operation",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Condition"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  null,
-        "MaxOperationBlocks":  4,
+        "AllowedNodes": ["start", "output", "if", "const", "math", "compare", "is-type", "text-check", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "if", "Count": 1},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 4}
+        ],
         "Tests":  [
                       {
                           "Id":  "3a74d35f-a02f-400f-8bfa-90168dab097f",
@@ -1675,22 +1479,13 @@
         "InputDescription":  "Целое число от 0 до 10 — количество открытых каналов N.",
         "OutputDescription":  "Десятичное значение маски из N единиц: 2ⁿ − 1.",
         "Hint":  "Храните результат в переменной с начальным значением 0. Количество повторов возьмите со входа. В теле цикла получите переменную, выполните ×2 и +1, затем запишите результат обратно.",
-        "AllowedBlocks":  [
-                              "Input",
-                              "Loop",
-                              "Operation",
-                              "Variable",
-                              "VariableAction",
-                              "Output"
-                          ],
-        "RequiredBlocks":  [
-                               "Loop",
-                               "Variable",
-                               "VariableAction"
-                           ],
-        "RequiredLoopCount":  null,
-        "RequiredLoopBodyOperationCount":  2,
-        "MaxOperationBlocks":  2,
+        "AllowedNodes": ["start", "output", "repeat", "get-var", "set-var", "change-var", "const", "math", "join", "length"],
+        "Rules": [
+          {"Kind": "MinNodes", "Target": "repeat", "Count": 1},
+          {"Kind": "MinNodes", "Target": "category:memory", "Count": 1},
+          {"Kind": "MinNodesInScope", "Target": "category:memory", "Count": 2},
+          {"Kind": "MaxNodes", "Target": "math", "Count": 2}
+        ],
         "Tests":  [
                       {
                           "Id":  "29546aab-8c49-489e-982a-fba56acc7ea1",

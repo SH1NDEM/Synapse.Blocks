@@ -2,7 +2,10 @@ using Synapse.Blocks.Models;
 
 namespace Synapse.Blocks.Graph;
 
-/// <summary>Снимок одного шага исполнения для пошаговой отладки.</summary>
+/// <summary>
+/// Снимок одного шага исполнения для пошаговой отладки.
+/// Inputs и Outputs — значения портов выполненного блока по Id порта; Variables — переменные после шага.
+/// </summary>
 public sealed record GraphStep(
     Guid NodeId,
     string NodeType,
@@ -224,7 +227,7 @@ internal sealed class GraphRuntime
             throw new GraphRuntimeException($"Блок «{definition.Label}», вход «{port.DisplayName}»: {error}.", node.Id);
 
         if (record)
-            _stepInputs[port.DisplayName] = value.ToString();
+            _stepInputs[port.Id] = value.ToString();
         return value;
     }
 
@@ -273,7 +276,7 @@ internal sealed class GraphRuntime
             throw new GraphRuntimeException($"У блока «{definition.Label}» нет выхода «{portId}».", node.Id);
         _outputs[(node.Id, portId)] = value;
         if (record)
-            _stepOutputs[port.DisplayName] = value.ToString();
+            _stepOutputs[port.Id] = value.ToString();
     }
 
     public object? GetState(Guid nodeId) => _states.GetValueOrDefault(nodeId);
