@@ -1,4 +1,6 @@
 @using Synapse.Blocks.Graph
+@using System.Text
+@using System.Runtime.CompilerServices
 @* Блок в виде микросхемы: корпус в цвете своего раздела, ключ, маркировка, светодиод
    и цветные разъёмы портов, к которым подводятся провода.
    Тот же компонент в режиме Preview служит миниатюрой в палитре и справке. *@
@@ -164,6 +166,51 @@
 
     private NodeLayout Layout => NodeLayout.For(Definition);
 
+    // ───────────── Перерисовка только при изменениях ─────────────
+    // Поле передаёт чипам новые делегаты при каждой своей перерисовке, поэтому Blazor
+    // перерисовывал бы все чипы. Чип сравнивает «отпечаток» всего, что он показывает,
+    // и перерисовывается, только если отпечаток изменился.
+
+    private string _renderKey = "";
+    private bool _dirty = true;
+
+    protected override void OnParametersSet()
+    {
+        var key = RenderKey();
+        if (key != _renderKey)
+        {
+            _renderKey = key;
+            _dirty = true;
+        }
+    }
+
+    protected override bool ShouldRender()
+    {
+        if (!_dirty) return false;
+        _dirty = false;
+        return true;
+    }
+
+    private string RenderKey()
+    {
+        var key = new StringBuilder(128);
+        key.Append(RuntimeHelpers.GetHashCode(Definition)).Append('|').Append(Definition.Label)
+            .Append('|').Append(Style).Append('|').Append(StateClass).Append('|').Append(Expected)
+            .Append('|').Append(Preview).Append('|').Append(CanOpen).Append('|');
+        foreach (var (id, value) in Node.Params)
+            key.Append(id).Append('=').Append(value).Append(';');
+        if (Definition.Params.Any(param => param.Type == ParamType.Variable))
+            foreach (var variable in Program.Variables)
+                key.Append('$').Append(variable.Name);
+        foreach (var port in Definition.Ports)
+        {
+            key.Append('|').Append(IsLinked(port.Id) ? '1' : '0');
+            if (PortValueOf?.Invoke(port.Id) is { } value) key.Append(value);
+            if (PortClassOf?.Invoke(port) is { Length: > 0 } css) key.Append(css);
+        }
+        return key.ToString();
+    }
+
     private string LedClass => StateClass switch
     {
         "node-running" => "led-on",
@@ -241,6 +288,7 @@
 
     private async Task SetParam(string id, object? value)
     {
+        _dirty = true;
         Node.Params[id] = value?.ToString() ?? "";
         await OnEdited.InvokeAsync();
     }

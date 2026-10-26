@@ -56,15 +56,22 @@
 .canvas-legend .legend-data { background: linear-gradient(90deg, var(--dt-number), var(--dt-text), var(--dt-bool)); }
 
 /* ───────────── Поле ───────────── */
-/* Сетка нарисована на прокручиваемом поле: background-attachment: local двигает её вместе со схемой,
-   а шаг --grid задаёт компонент с учётом масштаба, поэтому точки совпадают с узлами сетки чипов. */
+/* Поле — сплошной фон, а сетка точек нарисована на самом мире схемы (шаг --grid в координатах мира).
+   Так браузер при прокрутке просто сдвигает готовую картинку и не перерисовывает фон на каждом кадре. */
 .graph-canvas {
     background-color: #0a120e;
+    background-image: none;
+    overscroll-behavior: contain;
+}
+.graph-canvas .node-world {
     background-image: radial-gradient(circle, rgba(150,185,165,var(--dot-alpha, .11)) var(--dot, 1px), transparent calc(var(--dot, 1px) + .5px));
     background-size: var(--grid, 16px) var(--grid, 16px);
     background-position: calc(var(--grid, 16px) / -2) calc(var(--grid, 16px) / -2);
-    background-attachment: local;
 }
+/* Чипы не влияют на раскладку соседей: браузер пересчитывает и перерисовывает только изменившийся. */
+.graph-canvas .node-card { contain: layout style; }
+/* Пока поле тащат, наведение на чипы и провода не включает эффекты. */
+.node-canvas.is-panning .node-world { pointer-events: none; }
 /* Фон для миниатюры в справке. */
 .board {
     background-color: #0a120e;

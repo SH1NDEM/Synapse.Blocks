@@ -112,6 +112,8 @@ public static class NetworkSimulator
 
     public static NetworkRun Run(NetworkLevel level, GraphProgram program, GraphRunner runner)
     {
+        // Схема проверяется один раз на весь прогон, а не перед каждым запуском.
+        var prepared = runner.Prepare(program);
         var results = new List<NetworkPacketResult>();
         var time = 0.0;
 
@@ -131,7 +133,7 @@ public static class NetworkSimulator
                 }
 
                 var neighbors = level.Neighbors(current);
-                var execution = runner.Run(program, Input(packet, current, neighbors, previous, path.Count - 1));
+                var execution = runner.Run(prepared, Input(packet, current, neighbors, previous, path.Count - 1), recordSteps: false);
                 if (!execution.Success)
                 {
                     error = $"в узле «{current}» схема остановилась с ошибкой: {execution.Error}";

@@ -116,6 +116,8 @@ public static class StationSimulator
 
     public static StationRun Run(StationLevel level, GraphProgram program, GraphRunner runner)
     {
+        // Схема проверяется один раз на весь прогон, а не перед каждым запуском.
+        var prepared = runner.Prepare(program);
         var results = new List<StationTrainResult>();
         var occupied = new List<(int Track, double Until, int Train)>();
 
@@ -126,7 +128,7 @@ public static class StationSimulator
             var busy = holders.Select(item => item.Track).Distinct().Order().ToList();
             var free = level.Tracks.Select(track => track.Number).Where(number => !busy.Contains(number)).Order().ToList();
 
-            var execution = runner.Run(program, Input(train, busy, free));
+            var execution = runner.Run(prepared, Input(train, busy, free), recordSteps: false);
             var answer = execution.Success ? execution.Output.ToString() : "";
             var stop = time + TravelIn;
             var leave = stop + train.Dwell;

@@ -50,34 +50,59 @@ public sealed class GraphRunner(NodeRegistry? registry = null, int maxSteps = 10
 
     public GraphExecution Run(GraphProgram program, string rawInput) => Run(program, Value.Parse(rawInput));
 
-    public GraphExecution Run(GraphProgram program, Value input)
+    public GraphExecution Run(GraphProgram program, Value input) => Run(Prepare(program), input);
+
+    /// <summary>
+    /// Готовит программу к нескольким запускам: собирает реестр со своими блоками и проверяет схему
+    /// один раз. Запуски подготовленной программы не повторяют эту работу — это важно для тестов
+    /// уровня и игр, где одна и та же схема запускается много раз подряд.
+    /// Программу нельзя менять, пока используется подготовленная версия.
+    /// </summary>
+    public PreparedGraph Prepare(GraphProgram program)
     {
-        // Свои блоки программы добавляются в реестр на время запуска.
         var registry = CustomBlocks.Resolve(program, Registry);
         var issues = GraphValidator.Validate(program, registry);
-        var firstError = issues.FirstOrDefault(issue => issue.Severity == IssueSeverity.Error);
-        if (firstError is not null)
-            return new GraphExecution(false, Value.Null, firstError.Message, firstError.NodeId, [], [], issues);
-
-        return new GraphRuntime(program, registry, input, new RunBudget(maxSteps), depth: 0, arguments: null).Run(issues);
+        return new PreparedGraph(program, registry, issues);
     }
 
+    /// <param name="recordSteps">Записывать шаги для пошагового показа. Играм они не нужны, и без них запуск быстрее.</param>
+    public GraphExecution Run(PreparedGraph prepared, Value input, bool recordSteps = true)
+    {
+        if (prepared.FirstError is { } error)
+            return new GraphExecution(false, Value.Null, error.Message, error.NodeId, [], [], prepared.Issues);
+        return new GraphRuntime(prepared.Program, prepared.Registry, input, new RunBudget(maxSteps), depth: 0, arguments: null, recordSteps)
+            .Run(prepared.Issues);
+    }
+
+    public GraphExecution Run(PreparedGraph prepared, string rawInput, bool recordSteps = true)
+        => Run(prepared, Value.Parse(rawInput), recordSteps);
+
     public IReadOnlyList<GraphTestResult> RunTests(GraphProgram program, IEnumerable<LevelTestCase> tests)
-        => tests.Select(test =>
-        {
-            var execution = Run(program, test.Input);
-            var passed = execution.Success && Value.MatchesExpected(execution.Output, test.ExpectedOutput);
-            return new GraphTestResult(
-                test.Id,
-                test.Name,
-                passed,
-                test.Input,
-                test.ExpectedOutput,
-                execution.OutputText,
-                execution.Error,
-                execution.ErrorNodeId,
-                execution.Visited);
-        }).ToList();
+    {
+        var prepared = Prepare(program);
+        return tests.Select(test => ToResult(test, Run(prepared, test.Input))).ToList();
+    }
+
+    /// <summary>Итог теста по уже выполненному запуску.</summary>
+    public static GraphTestResult ToResult(LevelTestCase test, GraphExecution execution) => new(
+        test.Id,
+        test.Name,
+        execution.Success && Value.MatchesExpected(execution.Output, test.ExpectedOutput),
+        test.Input,
+        test.ExpectedOutput,
+        execution.OutputText,
+        execution.Error,
+        execution.ErrorNodeId,
+        execution.Visited);
+}
+
+/// <summary>Программа, проверенная и готовая к многократному запуску (см. <see cref="GraphRunner.Prepare"/>).</summary>
+public sealed class PreparedGraph(GraphProgram program, NodeRegistry registry, IReadOnlyList<GraphIssue> issues)
+{
+    public GraphProgram Program { get; } = program;
+    public NodeRegistry Registry { get; } = registry;
+    public IReadOnlyList<GraphIssue> Issues { get; } = issues;
+    public GraphIssue? FirstError { get; } = issues.FirstOrDefault(issue => issue.Severity == IssueSeverity.Error);
 }
 
 /// <summary>Общий на весь запуск запас шагов: схемы своих блоков тратят его вместе с основной программой.</summary>
@@ -93,6 +118,8 @@ internal sealed class GraphRuntime
     private readonly RunBudget _budget;
     private readonly int _depth;
     private readonly IReadOnlyDictionary<string, Value> _arguments;
+    // Записывать ли шаги для пошагового показа: значения портов и снимки переменных.
+    private readonly bool _record;
     private readonly Dictionary<Guid, (GraphNode Node, NodeDefinition Definition)> _nodes = [];
     // Провода исполнения ищутся по выходу, провода данных — по входу: так их обходит интерпретатор.
     private readonly Dictionary<(Guid Node, string Port), GraphLink> _execByOutput = [];
@@ -107,8 +134,9 @@ internal sealed class GraphRuntime
     private Dictionary<string, string> _stepInputs = [];
     private Dictionary<string, string> _stepOutputs = [];
 
-    public GraphRuntime(GraphProgram program, NodeRegistry registry, Value input, RunBudget budget, int depth, IReadOnlyDictionary<string, Value>? arguments)
+    public GraphRuntime(GraphProgram program, NodeRegistry registry, Value input, RunBudget budget, int depth, IReadOnlyDictionary<string, Value>? arguments, bool record = true)
     {
+        _record = record;
         ProgramInput = input;
         _budget = budget;
         _depth = depth;
@@ -150,7 +178,8 @@ internal sealed class GraphRuntime
             throw new GraphRuntimeException($"Свои блоки вызывают друг друга слишком глубоко (больше {CustomBlocks.MaxDepth} уровней).", callerId);
 
         // Входные данные программы видны и внутри блока: так блоки игр (например, «Поезд») работают и в своих блоках.
-        var inner = new GraphRuntime(block.Body, registry, ProgramInput, _budget, _depth + 1, arguments);
+        // Шаги внутри блока никто не показывает — их не записываем.
+        var inner = new GraphRuntime(block.Body, registry, ProgramInput, _budget, _depth + 1, arguments, record: false);
         var execution = inner.Run([]);
         if (!execution.Success)
             throw new GraphRuntimeException($"Внутри блока «{label}»: {execution.Error}", callerId);
@@ -175,8 +204,11 @@ internal sealed class GraphRuntime
                 _scopes.RemoveRange(scopeIndex, _scopes.Count - scopeIndex);
 
             _pureCache.Clear();
-            _stepInputs = [];
-            _stepOutputs = [];
+            if (_record)
+            {
+                _stepInputs = [];
+                _stepOutputs = [];
+            }
 
             ExecResult result;
             try
@@ -185,17 +217,17 @@ internal sealed class GraphRuntime
             }
             catch (GraphRuntimeException exception)
             {
-                steps.Add(Snapshot(current, exception.Message));
+                if (Snapshot(current, exception.Message) is { } failedStep) steps.Add(failedStep);
                 return Fail(exception.Message, exception.NodeId ?? current.Id);
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
                 var message = $"Внутренняя ошибка блока «{definition.Label}»: {exception.Message}";
-                steps.Add(Snapshot(current, message));
+                if (Snapshot(current, message) is { } crashedStep) steps.Add(crashedStep);
                 return Fail(message, current.Id);
             }
 
-            steps.Add(Snapshot(current, result.Detail));
+            if (Snapshot(current, result.Detail) is { } doneStep) steps.Add(doneStep);
 
             if (result.Action == ExecAction.Finish)
                 return new GraphExecution(true, result.Result, "", null, visited, steps, issues);
@@ -236,7 +268,7 @@ internal sealed class GraphRuntime
             => new(false, Value.Null, error, nodeId, visited, steps, issues);
     }
 
-    private GraphStep Snapshot(GraphNode node, string detail) => new(
+    private GraphStep? Snapshot(GraphNode node, string detail) => !_record ? null : new(
         node.Id,
         node.Type,
         detail,
@@ -261,7 +293,7 @@ internal sealed class GraphRuntime
         if (!DataTypes.TryCoerce(raw, port.Type, out var value, out var error))
             throw new GraphRuntimeException($"Блок «{definition.Label}», вход «{port.DisplayName}»: {error}.", node.Id);
 
-        if (record)
+        if (record && _record)
             _stepInputs[port.Id] = value.ToString();
         return value;
     }
@@ -310,7 +342,7 @@ internal sealed class GraphRuntime
         if (port is null || !port.IsData || !port.IsOutput)
             throw new GraphRuntimeException($"У блока «{definition.Label}» нет выхода «{portId}».", node.Id);
         _outputs[(node.Id, portId)] = value;
-        if (record)
+        if (record && _record)
             _stepOutputs[port.Id] = value.ToString();
     }
 

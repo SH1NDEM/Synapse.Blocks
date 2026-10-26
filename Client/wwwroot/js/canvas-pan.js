@@ -82,13 +82,19 @@
         const canvasRect = canvas.getBoundingClientRect();
         if (event.clientX > canvasRect.left + canvas.clientWidth || event.clientY > canvasRect.top + canvas.clientHeight) return;
 
+        // Границы считаются один раз: чтение размеров на каждом движении заставляло браузер
+        // заново пересчитывать раскладку страницы.
         drag = {
             canvas,
+            bounds,
             pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
             startScrollLeft: canvas.scrollLeft,
-            startScrollTop: canvas.scrollTop
+            startScrollTop: canvas.scrollTop,
+            nextLeft: canvas.scrollLeft,
+            nextTop: canvas.scrollTop,
+            frame: 0
         };
 
         canvas.classList.add("is-panning");
@@ -98,18 +104,28 @@
 
     document.addEventListener("pointermove", event => {
         if (!drag || drag.pointerId !== event.pointerId) return;
-        const bounds = limits(drag.canvas);
-        if (!bounds) return;
-
-        const desiredLeft = drag.startScrollLeft - (event.clientX - drag.startX);
-        const desiredTop = drag.startScrollTop - (event.clientY - drag.startY);
-        drag.canvas.scrollLeft = clamp(desiredLeft, bounds.minLeft, bounds.maxLeft);
-        drag.canvas.scrollTop = clamp(desiredTop, bounds.minTop, bounds.maxTop);
+        const bounds = drag.bounds;
+        drag.nextLeft = clamp(drag.startScrollLeft - (event.clientX - drag.startX), bounds.minLeft, bounds.maxLeft);
+        drag.nextTop = clamp(drag.startScrollTop - (event.clientY - drag.startY), bounds.minTop, bounds.maxTop);
+        // Прокрутка применяется не чаще одного раза за кадр экрана.
+        if (!drag.frame) {
+            const current = drag;
+            current.frame = requestAnimationFrame(() => {
+                current.frame = 0;
+                current.canvas.scrollLeft = current.nextLeft;
+                current.canvas.scrollTop = current.nextTop;
+            });
+        }
         event.preventDefault();
-    });
+    }, { passive: false });
 
     const finish = event => {
         if (!drag || drag.pointerId !== event.pointerId) return;
+        if (drag.frame) {
+            cancelAnimationFrame(drag.frame);
+            drag.canvas.scrollLeft = drag.nextLeft;
+            drag.canvas.scrollTop = drag.nextTop;
+        }
         drag.canvas.classList.remove("is-panning");
         if (drag.canvas.hasPointerCapture?.(event.pointerId)) drag.canvas.releasePointerCapture(event.pointerId);
         constrain(drag.canvas);

@@ -109,7 +109,7 @@ else
                     {
                         <div class="solution-rules">
                             <small>УСЛОВИЯ СХЕМЫ</small>
-                            @foreach (var rule in GraphRules.Check(_program, level.Rules, _registry))
+                            @foreach (var rule in _ruleResults)
                             {
                                 <span class="@(rule.Passed ? "rule-passed" : "")">@(rule.Passed ? "✓" : "○") @rule.Description</span>
                             }
@@ -173,6 +173,7 @@ else
                          Program="EditedProgram"
                          Registry="EditRegistry"
                          Run="_run"
+                         Revision="_revision"
                          DraggedType="@_dragType"
                          HeadStart="@(EditingBlock is not null ? BlockCrumbs : null)"
                          OnChanged="ProgramChanged"
@@ -280,6 +281,10 @@ else
     private int _saveGeneration;
 
     private List<string> _issues = [];
+    private IReadOnlyList<GraphRuleResult> _ruleResults = [];
+    // Растёт при каждом изменении программы — по нему поле понимает, что пора перерисоваться.
+    private int _revision;
+    private (int Revision, IReadOnlyList<NodeDefinition> Nodes)? _availableCache;
     private List<string> _warnings = [];
 
     private LevelDefinition? ActiveLevel => _levels.FirstOrDefault(level => level.Id == _activeLevelId) ?? _levels.FirstOrDefault();
@@ -298,12 +303,17 @@ else
     {
         get
         {
+            // Список нужен несколько раз за перерисовку, а меняется только вместе с программой.
+            if (_availableCache is { } cache && cache.Revision == _revision)
+                return cache.Nodes;
             var registry = EditRegistry;
             var nodes = Sandbox || ActiveLevel is null ? registry.All : LevelNodes.Available(ActiveLevel, registry);
             // Внутри блока нельзя поставить его самого и блоки, которые его используют.
             if (EditingBlock is { } block && registry.CustomScope is { } scope)
                 nodes = nodes.Where(definition => definition is not CustomNodeDefinition custom || !scope.DependsOn(custom.Block, block));
-            return nodes.ToList();
+            var list = nodes.ToList();
+            _availableCache = (_revision, list);
+            return list;
         }
     }
 
@@ -596,6 +606,7 @@ else
     {
         _issues = [];
         _warnings = [];
+        _ruleResults = Sandbox || ActiveLevel is not { } ruleLevel ? [] : GraphRules.Check(_program, ruleLevel.Rules, _registry);
         foreach (var issue in GraphValidator.Validate(_program, _registry))
             (issue.Severity == IssueSeverity.Error ? _issues : _warnings).Add(issue.Message);
 
@@ -616,7 +627,7 @@ else
             foreach (var block in _program.CustomBlocks)
                 CheckAllowed(block.Body, scope.BodyRegistry(block), $"«{block.Name}»: ");
 
-        foreach (var rule in GraphRules.Check(_program, level.Rules, _registry).Where(rule => !rule.Passed))
+        foreach (var rule in _ruleResults.Where(rule => !rule.Passed))
             _issues.Add($"Условие задания: {rule.Description}.");
 
         _issues = _issues.Distinct().ToList();
@@ -627,6 +638,7 @@ else
 
     private void ResetExecution(bool persist = true)
     {
+        _revision++;
         _executionGeneration++;
         _running = false;
         _stepPlaying = false;
@@ -770,15 +782,17 @@ else
         _showSuccess = false;
         _activeTestCount = level.Tests.Count;
 
-        // Результаты вычисляются сразу, а показываются после анимации каждого теста.
-        var computed = Runner.RunTests(_program, level.Tests);
+        // Схема проверяется один раз, все тесты выполняются сразу, а показываются после анимации каждого теста.
+        var prepared = Runner.Prepare(_program);
+        var executions = level.Tests.Select(test => Runner.Run(prepared, test.Input)).ToList();
+        var computed = level.Tests.Select((test, index) => GraphRunner.ToResult(test, executions[index])).ToList();
 
         for (var testIndex = 0; testIndex < level.Tests.Count; testIndex++)
         {
             if (generation != _executionGeneration) return;
             var test = level.Tests[testIndex];
             var result = computed[testIndex];
-            var execution = Runner.Run(_program, test.Input);
+            var execution = executions[testIndex];
 
             _activeTestIndex = testIndex + 1;
             _activeTestHidden = test.Hidden;

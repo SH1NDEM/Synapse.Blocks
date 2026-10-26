@@ -88,11 +88,13 @@ public static class SecuritySimulator
 
     public static SecurityRun Run(SecurityLevel level, GraphProgram program, GraphRunner runner)
     {
+        // Схема проверяется один раз на весь прогон, а не перед каждым запуском.
+        var prepared = runner.Prepare(program);
         var results = new List<SecurityRequestResult>();
         var time = 0.0;
         foreach (var request in level.Requests)
         {
-            var execution = runner.Run(program, Input(request));
+            var execution = runner.Run(prepared, Input(request), recordSteps: false);
             var answer = execution.Success ? execution.Output.ToString() : "";
             bool? allowed = execution.Success ? ParseDecision(execution.Output) : null;
             string error;

@@ -84,6 +84,31 @@
     [Parameter] public EventCallback<NodeDefinition> OnDragStart { get; set; }
     [Parameter] public EventCallback<NodeDefinition> OnHelp { get; set; }
 
+    // ───────────── Перерисовка только при изменениях ─────────────
+    // Страница перерисовывается часто (анимация запуска), а палитра с миниатюрами чипов — дорогая.
+    // Вкладки «Переменные» и «Мои блоки» показывают живые данные страницы и перерисовываются всегда,
+    // остальные — только когда изменился набор блоков.
+
+    private string _parameterKey = "";
+    private bool _parametersRender;
+    private bool _parametersChanged = true;
+
+    protected override void OnParametersSet()
+    {
+        _parametersRender = true;
+        var key = string.Join('|', Nodes.Select(node => $"{node.TypeId}:{node.Label}:{node.Ports.Count}"))
+                  + $"#{VariableCount}#{Variables is null}#{CustomHeader is null}#{CssClass}";
+        _parametersChanged = key != _parameterKey || ActiveTab is VariablesTab or NodeCategories.Custom;
+        _parameterKey = key;
+    }
+
+    protected override bool ShouldRender()
+    {
+        if (!_parametersRender) return true;
+        _parametersRender = false;
+        return _parametersChanged;
+    }
+
     private IEnumerable<string> Categories
     {
         get

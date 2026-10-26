@@ -701,6 +701,41 @@ Test("прогон тестов уровня", () =>
 });
 
 // ─────────────────────────────────────────────────────────────
+Console.WriteLine("Быстрый запуск");
+
+Test("подготовленная программа запускается много раз", () =>
+{
+    var program = Carousel();
+    var prepared = runner.Prepare(program);
+    Check(prepared.FirstError is null, prepared.FirstError?.Message ?? "");
+    for (var round = 0; round < 50; round++)
+    {
+        Equal("да", runner.Run(prepared, "7").Output.ToString(), "7:");
+        Equal("нет", runner.Run(prepared, "6").Output.ToString(), "6:");
+    }
+});
+
+Test("без записи шагов снимков нет, ответ тот же", () =>
+{
+    var prepared = runner.Prepare(PowerOfTwo());
+    var full = runner.Run(prepared, "5");
+    var quick = runner.Run(prepared, "5", recordSteps: false);
+    Check(full.Success && quick.Success, full.Error + quick.Error);
+    Equal(full.Output.ToString(), quick.Output.ToString(), "ответ:");
+    Check(full.Steps.Count > 0, "полный запуск должен записать шаги");
+    Equal(0, quick.Steps.Count, "шагов без записи:");
+});
+
+Test("ошибка схемы видна и в подготовленной программе", () =>
+{
+    var b = new GraphBuilder();
+    b.Node("start");
+    var prepared = runner.Prepare(b.Program);
+    Check(prepared.FirstError is not null, "нет ошибки");
+    Check(!runner.Run(prepared, "1").Success, "запуск должен провалиться");
+});
+
+// ─────────────────────────────────────────────────────────────
 Console.WriteLine("Если");
 
 Test("«Если» выбирает ветку по сравнению", () =>
