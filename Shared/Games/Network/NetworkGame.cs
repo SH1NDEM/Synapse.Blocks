@@ -3,8 +3,27 @@ using Synapse.Blocks.Models;
 
 namespace Synapse.Blocks.Games.Network;
 
-/// <summary>Узел сети: район или ретранслятор. X и Y — положение на карте (поле 1000 × 340).</summary>
-public sealed record NetNode(string Id, double X, double Y);
+/// <summary>Что стоит в узле сети — от этого зависит значок на карте.</summary>
+public enum NetNodeKind
+{
+    /// <summary>Район города.</summary>
+    District,
+    /// <summary>Телефонная станция (АТС) — узел, через который идут каналы районов.</summary>
+    Exchange,
+    /// <summary>Радиовышка или ретранслятор.</summary>
+    Tower,
+    /// <summary>Дом или квартал.</summary>
+    House
+}
+
+/// <summary>Узел сети. X и Y — положение на карте (поле 1000 × 340).</summary>
+public sealed record NetNode(string Id, double X, double Y, NetNodeKind Kind = NetNodeKind.District);
+
+/// <summary>
+/// Деталь городской карты под сетью: река, квартал, парк, улица. Path — SVG-путь в координатах карты,
+/// Kind — класс оформления (river, block, park, road), Label — подпись в точке (LabelX, LabelY).
+/// </summary>
+public sealed record NetDecor(string Kind, string Path, string Label = "", double LabelX = 0, double LabelY = 0);
 
 /// <summary>Канал связи между двумя узлами. Оборванный канал виден на карте, но данные по нему не идут.</summary>
 public sealed record NetLink(string A, string B, bool Broken = false)
@@ -35,6 +54,7 @@ public sealed class NetworkLevel
     public IReadOnlyList<NetNode> Nodes { get; init; } = [];
     public IReadOnlyList<NetLink> Links { get; init; } = [];
     public IReadOnlyList<NetPacket> Packets { get; init; } = [];
+    public IReadOnlyList<NetDecor> Decor { get; init; } = [];
     public IReadOnlyList<string> AllowedNodes { get; init; } = [];
     /// <summary>Сколько передач может сделать пакет, прежде чем считается потерянным.</summary>
     public int MaxHops { get; init; } = 12;

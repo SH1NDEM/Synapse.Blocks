@@ -10,8 +10,28 @@ public enum StationSide
     East
 }
 
-/// <summary>Путь станции с платформой. Length — сколько вагонов на нём помещается.</summary>
-public sealed record StationTrack(int Number, int Length);
+/// <summary>Планировка станции.</summary>
+public enum StationLayout
+{
+    /// <summary>Проходная: поезд въезжает с одной стороны и уезжает в другую.</summary>
+    Through,
+    /// <summary>Тупиковый вокзал: пути заканчиваются упорами, поезд уезжает туда же, откуда пришёл.</summary>
+    Terminus
+}
+
+public enum StationTrackKind
+{
+    /// <summary>Путь у пассажирского перрона.</summary>
+    Passenger,
+    /// <summary>Путь грузового двора: перрона нет, рядом склады.</summary>
+    Freight
+}
+
+/// <summary>Путь станции. Length — сколько вагонов на нём помещается.</summary>
+public sealed record StationTrack(int Number, int Length, StationTrackKind Kind = StationTrackKind.Passenger)
+{
+    public bool IsFreight => Kind == StationTrackKind.Freight;
+}
 
 /// <summary>Поезд из расписания: прибывает в момент Arrive (секунды), стоит Dwell секунд.</summary>
 public sealed record StationTrain(int Number, StationSide From, int Cars, string Kind, double Arrive, double Dwell = 6)
@@ -19,6 +39,10 @@ public sealed record StationTrain(int Number, StationSide From, int Cars, string
     public const string Passenger = "пассажирский";
     public const string Express = "экспресс";
     public const string Freight = "грузовой";
+    public const string Suburban = "пригородный";
+    public const string LongDistance = "дальний";
+
+    public bool IsFreight => Kind == Freight;
 
     public string FromText => From == StationSide.West ? "запад" : "восток";
 }
@@ -35,6 +59,8 @@ public sealed class StationLevel
     public string Objective { get; init; } = "";
     public string Description { get; init; } = "";
     public string Hint { get; init; } = "";
+    public string StationName { get; init; } = "Синапс-Центральный";
+    public StationLayout Layout { get; init; } = StationLayout.Through;
     public IReadOnlyList<StationTrack> Tracks { get; init; } = [];
     public IReadOnlyList<StationTrain> Trains { get; init; } = [];
     public IReadOnlyList<string> AllowedNodes { get; init; } = [];
@@ -115,6 +141,8 @@ public static class StationSimulator
                 error = $"пути {answer} на станции нет. Есть пути: {string.Join(", ", level.Tracks.Select(item => item.Number))}.";
             else if (holders.FirstOrDefault(item => item.Track == chosen.Number) is { Train: > 0 } holder)
                 error = $"путь {chosen.Number} занят поездом №{holder.Train}.";
+            else if (!train.IsFreight && chosen.IsFreight)
+                error = $"путь {chosen.Number} на грузовом дворе — там нет перрона, пассажирам негде выйти.";
             else if (train.Cars > chosen.Length)
                 error = $"поезд из {train.Cars} вагонов не помещается на путь {chosen.Number} (до {chosen.Length} вагонов).";
             else if (level.Rule?.Invoke(train, chosen.Number) is { } ruleError)

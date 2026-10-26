@@ -1,0 +1,148 @@
+@using Synapse.Blocks.Games.Security
+@* Серверная: слева отправители из интернета, в середине межсетевой экран, справа сервер города.
+   Запрос летит к экрану; пропущенный идёт дальше к серверу, заблокированный отскакивает.
+   Ошибка схемы видна сразу: взломанный сервер мигает красным, отбитый житель — оранжевым. *@
+
+<div class="security-view">
+    <svg viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Защита сервера">
+        @SvgText("sec-zone-label", 120, 24, "ИНТЕРНЕТ")
+        @SvgText("sec-zone-label", WallX, 24, "МЕЖСЕТЕВОЙ ЭКРАН")
+        @SvgText("sec-zone-label", ServerX, 24, "СЕРВЕР ГОРОДА")
+
+        @* Отправители. *@
+        @for (var index = 0; index < Senders.Count; index++)
+        {
+            var sender = Senders[index];
+            var y = SenderY(index);
+            var listed = Level.Blacklist.Contains(sender);
+            <g class="sec-sender @(listed ? "listed" : "") @(ActiveRequest()?.Request.From == sender ? "active" : "")" transform="translate(70 @N(y))">
+                <rect x="0" y="-11" width="22" height="16" rx="2" />
+                <rect x="8" y="5" width="6" height="4" />
+            </g>
+            @:@SvgText("sec-sender-label", 100, y + 2, sender, "start")
+        }
+
+        @* Межсетевой экран — стена с проёмом посередине. *@
+        <g class="sec-wall @WallState">
+            <rect x="@N(WallX - 14)" y="40" width="28" height="@N(Mid - 64)" rx="4" />
+            <rect x="@N(WallX - 14)" y="@N(Mid + 24)" width="28" height="@N(260 - Mid - 24)" rx="4" />
+            <path class="sec-shield" d="M @N(WallX) @N(Mid - 22) l 18 7 v 12 q 0 14 -18 22 q -18 -8 -18 -22 v -12 Z" />
+        </g>
+
+        @* Сервер. *@
+        <g class="sec-server @ServerState" transform="translate(@N(ServerX - 40) 70)">
+            @for (var rack = 0; rack < 4; rack++)
+            {
+                <rect class="sec-rack" x="0" y="@(rack * 40)" width="80" height="32" rx="3" />
+                <circle class="sec-led" cx="12" cy="@(rack * 40 + 16)" r="3.5" />
+                <rect class="sec-slot" x="24" y="@(rack * 40 + 12)" width="44" height="8" rx="2" />
+            }
+        </g>
+
+        @if (ActiveRequest() is { } active)
+        {
+            var (x, y) = RequestPosition(active);
+            var css = RequestCss(active);
+            <g class="sec-request @css">
+                <circle class="sec-request-glow" cx="@N(x)" cy="@N(y)" r="15" />
+                <rect class="sec-request-body" x="@N(x - 11)" y="@N(y - 8)" width="22" height="16" rx="3" />
+                <path class="sec-request-flap" d="M @N(x - 11) @N(y - 7) L @N(x) @N(y + 1) L @N(x + 11) @N(y - 7)" />
+            </g>
+            @:@SvgText("sec-request-label", x, y - 20, $":{active.Request.Port} · {active.Request.Action}")
+            if (Time >= active.Decided)
+            {
+                @:@SvgText($"sec-verdict {css}", WallX, 286, Verdict(active))
+            }
+        }
+    </svg>
+    <div class="station-clock"><span>@($"{(int)Time / 60:00}:{(int)Time % 60:00}")</span>@if (Status.Length > 0) { <b>@Status</b> }</div>
+</div>
+
+@code {
+    private const double WallX = 560;
+    private const double ServerX = 870;
+    private const double Mid = 150;
+
+    [Parameter, EditorRequired] public SecurityLevel Level { get; set; } = default!;
+    [Parameter] public SecurityRun? Run { get; set; }
+    [Parameter] public double Time { get; set; }
+    [Parameter] public string Status { get; set; } = "";
+
+    private static string N(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Подпись SVG готовой разметкой: Razor не даёт задать атрибуты тегу text.</summary>
+    private static MarkupString SvgText(string css, double x, double y, string content, string anchor = "middle")
+        => new($"<text class=\"{css}\" x=\"{N(x)}\" y=\"{N(y)}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(content)}</text>");
+
+    private List<string> Senders => Level.Requests.Select(request => request.From).Distinct().ToList();
+    private double SenderY(int index) => Senders.Count <= 1 ? Mid : 52 + index * (196.0 / (Senders.Count - 1));
+
+    private SecurityRequestResult? ActiveRequest()
+    {
+        if (Run is null) return null;
+        var current = Run.Requests.LastOrDefault(result => Time >= result.Start);
+        if (current is null) return null;
+        return Time < current.End || !current.Passed ? current : null;
+    }
+
+    private static double Ease(double t) => t * t * (3 - 2 * t);
+
+    /// <summary>Конверт летит от отправителя к проёму в экране, затем к серверу или обратно.</summary>
+    private (double X, double Y) RequestPosition(SecurityRequestResult result)
+    {
+        var index = Senders.IndexOf(result.Request.From);
+        var from = (X: 92.0, Y: SenderY(Math.Max(0, index)));
+        var gate = (X: WallX - 30, Y: Mid);
+        if (Time < result.Decided)
+        {
+            var t = Ease(Math.Clamp((Time - result.Start) / SecuritySimulator.ToWall, 0, 1));
+            return (from.X + (gate.X - from.X) * t, from.Y + (gate.Y - from.Y) * t);
+        }
+        var after = Ease(Math.Clamp((Time - result.Decided) / SecuritySimulator.AfterWall, 0, 1));
+        if (result.Allowed == true)
+        {
+            var server = (X: ServerX - 50, Y: Mid);
+            return (gate.X + (server.X - gate.X) * after, gate.Y);
+        }
+        // Заблокированный запрос отскакивает от экрана.
+        return (gate.X - 70 * after, gate.Y + 26 * Math.Sin(after * Math.PI));
+    }
+
+    private static string RequestCss(SecurityRequestResult result) => result switch
+    {
+        { Allowed: null } => "",
+        { Passed: false, Allowed: true } => "sec-breach",
+        { Passed: false } => "sec-wrong-block",
+        { Allowed: true } => "sec-allowed",
+        _ => "sec-blocked"
+    };
+
+    private static string Verdict(SecurityRequestResult result) => result switch
+    {
+        { Allowed: null } => "схема не ответила",
+        { Passed: false, Allowed: true } => "ВЗЛОМ! атака пропущена",
+        { Passed: false } => "житель не смог войти",
+        { Allowed: true } => "пропущен",
+        _ => "заблокирован"
+    };
+
+    private string WallState
+    {
+        get
+        {
+            var active = ActiveRequest();
+            if (active is null || Time < active.Decided) return "";
+            return active.Allowed == false ? (active.Passed ? "blocking" : "wrong") : "open";
+        }
+    }
+
+    private string ServerState
+    {
+        get
+        {
+            var active = ActiveRequest();
+            if (active is null || active.Allowed != true || Time < active.Decided + SecuritySimulator.AfterWall * .8) return "";
+            return active.Passed ? "served" : "breached";
+        }
+    }
+}

@@ -63,6 +63,13 @@ public static class StationLevels
 
     private static readonly string[] Basic = [TrainNode.Id, "const"];
 
+    /// <summary>Вокзал «Синапс-Порт»: короткие и длинные перроны, грузовой двор.</summary>
+    private static readonly StationTrack[] TerminusTracks =
+    [
+        new(1, 6), new(2, 6), new(3, 10), new(4, 10),
+        new(5, 12, StationTrackKind.Freight), new(6, 12, StationTrackKind.Freight),
+    ];
+
     public static IReadOnlyList<StationLevel> All { get; } =
     [
         new StationLevel
@@ -141,6 +148,53 @@ public static class StationLevels
             Rule = (train, track) => train.Kind == StationTrain.Express
                 ? track == 1 ? null : "экспрессы принимаются только на путь 1."
                 : track == 1 ? "путь 1 держим для экспрессов." : null,
+        },
+
+        // ─────────── Тупиковый вокзал «Синапс-Порт» ───────────
+        new StationLevel
+        {
+            Id = Guid.Parse("5a7e0001-0000-4000-8000-000000000006"),
+            Order = 6,
+            Title = "Тупиковый вокзал",
+            StationName = "Синапс-Порт",
+            Layout = StationLayout.Terminus,
+            Objective = "Пассажирские поезда — к перронам (пути 1–4), грузовые — на грузовой двор (пути 5–6).",
+            Description = "У реки стоит **тупиковый вокзал**: все поезда приходят с востока, упираются в концевые упоры и уезжают обратно. Пути 1–4 идут вдоль островных перронов, а пути 5–6 — на **грузовой двор** к складам: перрона там нет. Свободные пути в списке идут по порядку — сначала пассажирские, потом грузовые.",
+            Hint = "«Если» тип = грузовой — отдайте последний элемент списка «свободные» (его номер равен длине списка). Иначе — первый.",
+            Tracks = TerminusTracks,
+            Trains =
+            [
+                E(601, 0, cars: 4, kind: StationTrain.Suburban, dwell: 8), E(602, 3, cars: 10, kind: StationTrain.Freight, dwell: 10),
+                E(603, 6, cars: 6, kind: StationTrain.LongDistance, dwell: 8), E(604, 9, cars: 12, kind: StationTrain.Freight, dwell: 10),
+                E(605, 12, cars: 3, kind: StationTrain.Suburban, dwell: 8), E(606, 20, cars: 5, kind: StationTrain.Express, dwell: 4),
+                E(607, 24, cars: 9, kind: StationTrain.Freight, dwell: 10), E(608, 30, cars: 4, kind: StationTrain.Suburban, dwell: 8),
+            ],
+            AllowedNodes = [.. Basic, "category:logic", "list-item", "length", "list-has"],
+            Rule = (train, track) => train.IsFreight && track < 5 ? "грузовые составы принимаются на грузовой двор (пути 5–6)." : null,
+        },
+        new StationLevel
+        {
+            Id = Guid.Parse("5a7e0001-0000-4000-8000-000000000007"),
+            Order = 7,
+            Title = "Короткие и длинные перроны",
+            StationName = "Синапс-Порт",
+            Layout = StationLayout.Terminus,
+            Objective = "Грузовые — на пути 5–6. Поезда до 6 вагонов — к коротким перронам 1–2, длиннее — к длинным 3–4.",
+            Description = "Перроны вокзала разной длины: у путей 1–2 помещается **6 вагонов**, у путей 3–4 — **10**. Длинные перроны держат для дальних поездов. Внутри каждой пары берите путь, который свободен: проверить это поможет блок «Есть в списке».",
+            Hint = "Выбор «из пары» повторяется трижды — соберите его в свой блок: входы «первый», «второй», «свободные»; внутри «Если» по «Есть в списке» и два «Вернуть».",
+            Tracks = TerminusTracks,
+            Trains =
+            [
+                E(701, 0, cars: 4, kind: StationTrain.Suburban, dwell: 8), E(702, 2, cars: 9, kind: StationTrain.LongDistance, dwell: 8),
+                E(703, 4, cars: 11, kind: StationTrain.Freight, dwell: 10), E(704, 6, cars: 5, kind: StationTrain.Suburban, dwell: 8),
+                E(705, 9, cars: 10, kind: StationTrain.LongDistance, dwell: 8), E(706, 12, cars: 8, kind: StationTrain.Freight, dwell: 10),
+                E(707, 19, cars: 3, kind: StationTrain.Suburban, dwell: 8), E(708, 21, cars: 8, kind: StationTrain.LongDistance, dwell: 8),
+                E(709, 25, cars: 12, kind: StationTrain.Freight, dwell: 10), E(710, 26, cars: 6, kind: StationTrain.Express, dwell: 4),
+            ],
+            AllowedNodes = [.. Basic, "category:logic", "list-item", "length", "list-has"],
+            Rule = (train, track) => train.IsFreight
+                ? track >= 5 ? null : "грузовые составы принимаются на грузовой двор (пути 5–6)."
+                : train.Cars <= 6 && track is 3 or 4 ? "короткие поезда — к коротким перронам 1–2, длинные держим для дальних." : null,
         },
     ];
 }

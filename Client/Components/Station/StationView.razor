@@ -1,7 +1,7 @@
 @using Synapse.Blocks.Games.Station
-@* Схема станции: пути с платформами между двумя горловинами. Поезда въезжают с запада или востока,
-   встают у платформы и уезжают в противоположную сторону. Положение поездов считается по времени Time
-   из результатов прогона Run. *@
+@* Схема станции. Проходная: пути с платформами между двумя горловинами, поезд уезжает в другую сторону.
+   Тупиковый вокзал: пути упираются в концевые упоры у здания вокзала, поезд уезжает обратно.
+   Положение поездов считается по времени Time из результатов прогона Run. *@
 
 <div class="station-view">
     <svg viewBox="0 0 @ViewWidth @ViewHeight" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Схема станции">
@@ -11,13 +11,44 @@
             </pattern>
         </defs>
 
-        @* Платформы между путями. *@
-        @for (var index = 0; index < Level.Tracks.Count; index++)
+        @if (Terminus)
         {
-            var track = Level.Tracks[index];
-            var y = TrackY(index);
-            var half = PlatformHalf(track);
-            <rect class="station-platform" x="@N(Center - half)" y="@N(y - 21)" width="@N(half * 2)" height="9" rx="2" />
+            @* Здание вокзала, перроны у пассажирских путей и склады грузового двора. *@
+            var top = TrackY(0) - 34;
+            var bottom = TrackY(Level.Tracks.Count - 1) + 16;
+            <rect class="station-building" x="22" y="@N(top)" width="@N(BufferX - 52)" height="@N(bottom - top)" rx="6" />
+            @:@SvgText("station-building-label", 22 + (BufferX - 52) / 2, top + 18, "ВОКЗАЛ", "middle")
+            var firstFreight = true;
+            for (var index = 0; index < Level.Tracks.Count; index++)
+            {
+                var track = Level.Tracks[index];
+                var y = TrackY(index);
+                if (track.IsFreight)
+                {
+                    <rect class="station-warehouse" x="@N(BufferX + 30)" y="@N(y - 30)" width="160" height="15" rx="2" />
+                    <rect class="station-warehouse" x="@N(BufferX + 200)" y="@N(y - 30)" width="100" height="15" rx="2" />
+                    if (firstFreight)
+                    {
+                        @:@SvgText("station-yard-label", BufferX + 165, y - 34, "ГРУЗОВОЙ ДВОР", "middle")
+                        firstFreight = false;
+                    }
+                }
+                else
+                {
+                    <rect class="station-platform" x="@N(BufferX - 30)" y="@N(y - 21)" width="@N(TerminusPlatform(track) + 30)" height="9" rx="2" />
+                }
+            }
+        }
+        else
+        {
+            @* Платформы между путями. *@
+            for (var index = 0; index < Level.Tracks.Count; index++)
+            {
+                var track = Level.Tracks[index];
+                var y = TrackY(index);
+                var half = PlatformHalf(track);
+                <rect class="station-platform" x="@N(Center - half)" y="@N(y - 21)" width="@N(half * 2)" height="9" rx="2" />
+            }
         }
 
         @* Пути: горловина запада → платформа → горловина востока. *@
@@ -27,17 +58,29 @@
             var path = TrackPath(index);
             var busy = IsBusy(track.Number);
             var failed = FailedTrack == track.Number;
-            <g class="station-track @(busy ? "busy" : "") @(failed ? "failed" : "")">
+            <g class="station-track @(busy ? "busy" : "") @(failed ? "failed" : "") @(track.IsFreight ? "freight" : "")">
                 <path class="station-bed" d="@path" />
                 <path class="station-rail" d="@path" />
             </g>
-            @:@SvgText("station-track-label", Center - PlatformHalf(track) - 8, TrackY(index) - 11, track.Number.ToString(), "end")
-            @:@SvgText("station-track-size", Center + PlatformHalf(track) + 8, TrackY(index) - 12, $"до {track.Length} ваг.")
+            if (Terminus)
+            {
+                <rect class="station-buffer" x="@N(BufferX - 6)" y="@N(TrackY(index) - 7)" width="6" height="14" rx="1" />
+                @:@SvgText("station-track-label", BufferX + TerminusPlatform(track) + 12, TrackY(index) - 11, track.Number.ToString())
+                @:@SvgText("station-track-size", BufferX + TerminusPlatform(track) + 26, TrackY(index) - 12, track.IsFreight ? $"груз · до {track.Length} ваг." : $"до {track.Length} ваг.")
+            }
+            else
+            {
+                @:@SvgText("station-track-label", Center - PlatformHalf(track) - 8, TrackY(index) - 11, track.Number.ToString(), "end")
+                @:@SvgText("station-track-size", Center + PlatformHalf(track) + 8, TrackY(index) - 12, $"до {track.Length} ваг.")
+            }
         }
 
-        @SvgText("station-side", 14, Mid - 18, "ЗАПАД")
+        @if (!Terminus)
+        {
+            @:@SvgText("station-side", 14, Mid - 18, "ЗАПАД")
+            <circle class="station-signal @(SignalClass(StationSide.West))" cx="70" cy="@N(Mid - 14)" r="5" />
+        }
         @SvgText("station-side", ViewWidth - 14, Mid - 18, "ВОСТОК", "end")
-        <circle class="station-signal @(SignalClass(StationSide.West))" cx="70" cy="@N(Mid - 14)" r="5" />
         <circle class="station-signal @(SignalClass(StationSide.East))" cx="@N(ViewWidth - 70)" cy="@N(Mid - 14)" r="5" />
 
         @* Поезда. *@
@@ -71,6 +114,8 @@
     private const double CarLength = 22;
     private const double CarGap = 3;
     private const double CarPitch = CarLength + CarGap;
+    /// <summary>Где у тупикового вокзала стоят концевые упоры.</summary>
+    private const double BufferX = 150;
 
     [Parameter, EditorRequired] public StationLevel Level { get; set; } = default!;
     [Parameter] public StationRun? Run { get; set; }
@@ -81,6 +126,11 @@
     private double ViewHeight => Math.Max(220, 90 + Level.Tracks.Count * TrackGap);
     private double Mid => ViewHeight / 2 + 6;
     private double TrackY(int index) => Mid + (index - (Level.Tracks.Count - 1) / 2.0) * TrackGap;
+    private bool Terminus => Level.Layout == StationLayout.Terminus;
+
+    /// <summary>Длина перрона (или пути грузового двора) от упора у тупикового вокзала.</summary>
+    private static double TerminusPlatform(StationTrack track) => track.Length * CarPitch + 24;
+
     private double PlatformHalf(StationTrack track) => Math.Min(ThroatInner - 30, track.Length * CarPitch / 2 + 16);
     private static string N(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -93,7 +143,9 @@
     private (double X, double Y)[] Points(int index)
     {
         var y = TrackY(index);
-        return [(0, Mid), (ThroatOuter, Mid), (ThroatInner, y), (ViewWidth - ThroatInner, y), (ViewWidth - ThroatOuter, Mid), (ViewWidth, Mid)];
+        return Terminus
+            ? [(BufferX, y), (ViewWidth - ThroatInner, y), (ViewWidth - ThroatOuter, Mid), (ViewWidth, Mid)]
+            : [(0, Mid), (ThroatOuter, Mid), (ThroatInner, y), (ViewWidth - ThroatInner, y), (ViewWidth - ThroatOuter, Mid), (ViewWidth, Mid)];
     }
 
     private string TrackPath(int index)
@@ -118,6 +170,8 @@
         {
             StationTrain.Express => "train-express",
             StationTrain.Freight => "train-freight",
+            StationTrain.Suburban => "train-suburban",
+            StationTrain.LongDistance => "train-long",
             _ => "train-passenger"
         };
         return result.Passed ? kind : $"{kind} train-failed";
@@ -145,8 +199,9 @@
 
         var length = PathLength(points);
         var trainLength = result.Train.Cars * CarPitch;
-        // Голова останавливается так, чтобы состав встал по центру платформы.
-        var stopAt = DistanceTo(points, Center) + trainLength / 2;
+        // Голова останавливается так, чтобы состав встал по центру платформы,
+        // а у тупикового вокзала — у самого упора.
+        var stopAt = Terminus ? length - 10 : DistanceTo(points, Center) + trainLength / 2;
 
         double head;
         if (!result.Passed || index < 0)
@@ -165,7 +220,10 @@
         else
         {
             var t = Math.Clamp((Time - result.Leave) / StationSimulator.TravelOut, 0, 1);
-            head = stopAt + (length + trainLength - stopAt) * EaseIn(t);
+            // Из тупика поезд уезжает задним ходом — туда же, откуда пришёл.
+            head = Terminus
+                ? stopAt - (stopAt + trainLength + 20) * EaseIn(t)
+                : stopAt + (length + trainLength - stopAt) * EaseIn(t);
         }
 
         var cars = new List<Car>();

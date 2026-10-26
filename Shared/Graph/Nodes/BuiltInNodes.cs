@@ -32,6 +32,7 @@ public static class BuiltInNodes
         registry.Register(new JoinNode());
         registry.Register(new LengthNode());
         registry.Register(new ListItemNode());
+        registry.Register(new ListHasNode());
     }
 }
 
@@ -646,5 +647,28 @@ public sealed class ListItemNode : NodeDefinition
         if (index % 1 != 0 || index < 1 || index > items.Length)
             throw context.Error($"В списке {items.Length} элементов, номера {Value.FormatNumber(index)} в нём нет.");
         return items[(int)index - 1];
+    }
+}
+
+/// <summary>Проверяет, есть ли значение в списке (числа и текст сравниваются как в «Сравнении»).</summary>
+public sealed class ListHasNode : NodeDefinition
+{
+    public override string TypeId => "list-has";
+    public override string Label => "Есть в списке";
+    public override string Category => NodeCategories.List;
+    public override string Description => "Отвечает «да», если значение есть среди элементов списка. Числа сравниваются по величине, текст — без учёта регистра.";
+
+    public override IReadOnlyList<PortDef> Ports { get; } =
+    [
+        Port.DataIn("list", "список", DataType.List),
+        Port.Inline("value", "значение", DataType.Any, "1"),
+        Port.DataOut("result", "есть", DataType.Bool),
+    ];
+
+    public override Value Evaluate(NodeContext context, string outputPort)
+    {
+        var items = context.Input("list").Items;
+        var value = context.Input("value");
+        return Value.FromBool(items.Any(item => ValueOps.LooseEquals(item, value)));
     }
 }

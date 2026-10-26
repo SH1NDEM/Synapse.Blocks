@@ -508,7 +508,7 @@ input.gnode-inline, select.gnode-inline { width: 66px; height: 22px; font-size: 
 
 /* Карточки игр на главной и на странице «Игры». */
 .games-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.games-grid .game-soon { grid-column: 1 / -1; }
+.games-grid .game-soon { grid-column: auto; }
 .game-card { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 0 22px; padding: 20px; border: 1px solid var(--line, #232b26); border-radius: 12px; background: var(--panel, #0f1311); color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
 a.game-card:hover { border-color: color-mix(in srgb, var(--cat-game) 60%, transparent); transform: translateY(-2px); }
 .game-art { grid-row: 1 / span 2; border-radius: 9px; background: #0b0f0d; overflow: hidden; }
@@ -538,23 +538,36 @@ a.game-card:hover { border-color: color-mix(in srgb, var(--cat-game) 60%, transp
 
 .network-view { position: relative; min-height: 0; border-bottom: 1px solid #1f2622; background: radial-gradient(ellipse at 50% 50%, #121a1d, #0a0d0e 75%); overflow: hidden; }
 .network-view svg { display: block; width: 100%; height: 100%; }
-.net-link { stroke: #3a4a50; stroke-width: 3; stroke-linecap: round; }
-.net-link.trail { stroke: #4fd2ff; stroke-width: 4; filter: drop-shadow(0 0 4px rgba(79,210,255,.7)); }
-.net-link.broken { stroke: #6b3434; stroke-dasharray: 6 7; }
+.net-link { stroke: #3a4a50; stroke-width: 4; stroke-linecap: round; transition: stroke .2s; }
+.net-link.trail { stroke: #4fd2ff; stroke-width: 4; }
+.net-link.broken { stroke: #6b3434; stroke-dasharray: 8 8; }
 .net-break { stroke: #ff5b5b; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 3px #ff5b5b); }
+.net-node { --nc: #4c6066; }
+.net-node.net-visited { --nc: #4fd2ff; }
+.net-node.net-source { --nc: #9cf097; }
+.net-node.net-target { --nc: #ffd23f; }
+.net-node.net-failed { --nc: #ff5b5b; }
 .net-node-halo { fill: transparent; stroke: transparent; stroke-width: 2; }
-.net-node-body { fill: #15201f; stroke: #4c6066; stroke-width: 2.5; }
-.net-node-core { fill: #4c6066; }
-.net-node.net-visited .net-node-body { stroke: #4fd2ff; }
-.net-node.net-visited .net-node-core { fill: #4fd2ff; }
-.net-node.net-source .net-node-body { stroke: #9cf097; }
-.net-node.net-source .net-node-core { fill: #9cf097; }
+.net-node-body { fill: #15201f; stroke: var(--nc); stroke-width: 3; }
+.net-node-icon { fill: var(--nc); }
+.net-icon-line { fill: none; stroke: var(--nc); stroke-width: 2; stroke-linecap: round; }
+.net-kind-exchange .net-node-body { fill: #172224; }
+.net-kind-house .net-node-body { fill: #151e1f; stroke-width: 2; }
 .net-node.net-target .net-node-halo { stroke: #ffd23f; stroke-dasharray: 4 4; animation: net-spin 6s linear infinite; transform-box: fill-box; transform-origin: center; }
-.net-node.net-target .net-node-body { stroke: #ffd23f; }
-.net-node.net-target .net-node-core { fill: #ffd23f; }
-.net-node.net-failed .net-node-body { stroke: #ff5b5b; fill: #2a1414; }
+.net-node.net-failed .net-node-body { fill: #2a1414; }
 @keyframes net-spin { to { transform: rotate(360deg); } }
-.net-node-label { fill: #c9d6d3; font: 600 12px/1 system-ui, sans-serif; paint-order: stroke; stroke: #0a0d0e; stroke-width: 4px; }
+.net-node-label { fill: #b9c7c4; font: 600 13px/1 system-ui, sans-serif; paint-order: stroke; stroke: #0a0d0e; stroke-width: 4px; }
+.net-house-label { fill: #dfe8e6; font: 700 11px/1 ui-monospace, monospace; stroke-width: 0; }
+
+/* Город под сетью. */
+.net-decor { pointer-events: none; }
+.net-river { fill: none; stroke: #0e2433; stroke-width: 26; stroke-linecap: round; opacity: .7; }
+.net-block { fill: #11181a; stroke: #1b2528; stroke-width: 1; }
+.net-park { fill: #10221a; stroke: #1a3626; stroke-width: 1; }
+.net-road { fill: none; stroke: #172022; stroke-width: 12; stroke-linecap: round; }
+.net-decor-label { fill: #3e5157; font: italic 600 11px/1 system-ui, sans-serif; letter-spacing: .04em; }
+.net-river-label { fill: #2d6a8f; }
+.net-park-label { fill: #3d7a52; }
 .net-packet-glow { fill: rgba(79,210,255,.25); }
 .net-packet-dot { fill: #bff0ff; stroke: #4fd2ff; stroke-width: 2; }
 .net-packet.failed .net-packet-glow { fill: rgba(255,91,91,.3); animation: train-alarm .6s ease-in-out infinite alternate; }
@@ -575,3 +588,65 @@ a.game-card:hover { border-color: color-mix(in srgb, var(--cat-game) 60%, transp
 .network-card .game-copy small, .network-card .game-go { color: #4fd2ff; }
 .network-card footer progress { accent-color: #4fd2ff; }
 a.network-card:hover { border-color: rgba(79,210,255,.6); }
+
+/* Тупиковый вокзал. */
+.station-building { fill: #1b2420; stroke: #3d4a43; stroke-width: 1.5; }
+.station-building-label { fill: #8fa097; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .14em; }
+.station-buffer { fill: #ff5b5b; stroke: #ffd2d2; stroke-width: 1; }
+.station-warehouse { fill: #2a241c; stroke: #5a4a36; stroke-width: 1; }
+.station-yard-label { fill: #a08868; font: 700 9px/1 ui-monospace, monospace; letter-spacing: .12em; }
+.station-track.freight .station-rail { stroke: #6e5f4c; }
+.station-track.freight.busy .station-rail { stroke: #c2a985; }
+.train-suburban .train-car { fill: #35c48a; }
+.train-suburban .train-head { fill: #8ce8bf; }
+.train-long .train-car { fill: #8f6bff; }
+.train-long .train-head { fill: #c3b0ff; }
+
+/* ───────────── Игра «Защита серверов» ───────────── */
+
+.security-view { position: relative; min-height: 0; border-bottom: 1px solid #1f2622; background: radial-gradient(ellipse at 70% 50%, #1a1418, #0c0b0e 75%); overflow: hidden; }
+.security-view svg { display: block; width: 100%; height: 100%; }
+.sec-zone-label { fill: #5a5f6b; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .14em; }
+.sec-sender rect { fill: #1a1d24; stroke: #4a5160; stroke-width: 1.5; }
+.sec-sender.active rect { stroke: #e6ece8; }
+.sec-sender.listed rect { stroke: #ff5b5b; }
+.sec-sender-label { fill: #9aa3b2; font: 500 11px/1 ui-monospace, monospace; }
+.sec-wall rect { fill: #2a1f1a; stroke: #ff8a3d; stroke-width: 2; }
+.sec-shield { fill: #1b1512; stroke: #ff8a3d; stroke-width: 2.5; }
+.sec-wall.blocking rect, .sec-wall.blocking .sec-shield { stroke: #ff5b5b; filter: drop-shadow(0 0 8px #ff5b5b); }
+.sec-wall.open .sec-shield { stroke: #5fd35a; }
+.sec-wall.wrong rect, .sec-wall.wrong .sec-shield { stroke: #ffb02e; filter: drop-shadow(0 0 8px #ffb02e); }
+.sec-rack { fill: #161a20; stroke: #3c4452; stroke-width: 1.5; }
+.sec-slot { fill: #0d1014; }
+.sec-led { fill: #3d8bff; }
+.sec-server.served .sec-led { fill: #5fd35a; filter: drop-shadow(0 0 4px #5fd35a); }
+.sec-server.breached .sec-rack { stroke: #ff5b5b; animation: train-alarm .35s ease-in-out infinite alternate; }
+.sec-server.breached .sec-led { fill: #ff5b5b; }
+.sec-request-glow { fill: rgba(230,236,232,.12); }
+.sec-request-body { fill: #e6ece8; stroke: #0c0b0e; stroke-width: 1.2; }
+.sec-request-flap { fill: none; stroke: #6b7280; stroke-width: 1.4; }
+.sec-request.sec-allowed .sec-request-body { fill: #8de38a; }
+.sec-request.sec-blocked .sec-request-body { fill: #ff8a8a; }
+.sec-request.sec-breach .sec-request-body { fill: #ff5b5b; }
+.sec-request.sec-wrong-block .sec-request-body { fill: #ffb02e; }
+.sec-request-label { fill: #c9d0da; font: 600 10px/1 ui-monospace, monospace; paint-order: stroke; stroke: #0c0b0e; stroke-width: 3px; }
+.sec-verdict { fill: #c9d0da; font: 700 12px/1 system-ui, sans-serif; letter-spacing: .04em; }
+.sec-verdict.sec-allowed { fill: #8de38a; }
+.sec-verdict.sec-blocked { fill: #ff8a8a; }
+.sec-verdict.sec-breach { fill: #ff5b5b; }
+.sec-verdict.sec-wrong-block { fill: #ffb02e; }
+.security-pill { background: rgba(255,138,61,.1); color: #ff8a3d; }
+.security-row { grid-template-columns: 34px minmax(0, 1fr) auto; }
+.security-layout .station-speed button.active { border-color: #ff8a3d; color: #ff8a3d; }
+.security-blacklist { margin-top: 16px; padding: 9px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border: 1px solid rgba(255,91,91,.35); border-radius: 8px; background: rgba(255,91,91,.05); }
+.security-blacklist small { width: 100%; color: #ff8a8a; font: 10px/1 ui-monospace, monospace; letter-spacing: .1em; }
+.security-blacklist code { padding: 2px 6px; border-radius: 5px; background: #1a1012; color: #ffc2c2; font-size: 12px; }
+
+.art-wall { fill: #2a1f1a; stroke: #ff8a3d; stroke-width: 2; }
+.art-server { fill: #161a20; stroke: #3c4452; stroke-width: 1.5; }
+.art-ok { fill: #8de38a; }
+.art-bad { fill: #ff8a8a; }
+.art-sender { fill: #1a1d24; stroke: #4a5160; stroke-width: 1.5; }
+.security-card .game-copy small, .security-card .game-go { color: #ff8a3d; }
+.security-card footer progress { accent-color: #ff8a3d; }
+a.security-card:hover { border-color: rgba(255,138,61,.6); }

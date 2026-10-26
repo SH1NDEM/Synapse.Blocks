@@ -4,6 +4,7 @@ using Synapse.Blocks.Graph.Nodes;
 using Synapse.Blocks.Models;
 using Synapse.Blocks.Games.Station;
 using Synapse.Blocks.Games.Network;
+using Synapse.Blocks.Games.Security;
 
 // Проверки ядра графа: значения, блоки, интерпретатор, валидатор и правила уровня.
 // Запуск: dotnet run --project tests/GraphChecks
@@ -933,7 +934,8 @@ GraphProgram Dispatcher(Func<GraphBuilder, GraphNode, (GraphNode Node, string Po
 }
 
 // Условие с двумя «Выходами»: да → yes, нет → no.
-GraphProgram Branching(Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> condition, string yes, Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> no)
+GraphProgram Branching(Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> condition, string yes, Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> no,
+    Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)>? yesNode = null)
 {
     var b = new GraphBuilder();
     var start = b.Node("start");
@@ -942,11 +944,11 @@ GraphProgram Branching(Func<GraphBuilder, GraphNode, (GraphNode Node, string Por
     var outYes = b.Node("output");
     var outNo = b.Node("output");
     var (condNode, condPort) = condition(b, train);
-    var yesConst = b.Node("const", ("value", yes));
+    var (yesValue, yesPort) = yesNode is null ? (b.Node("const", ("value", yes)), "value") : yesNode(b, train);
     var (noNode, noPort) = no(b, train);
     b.Exec(start, check).Exec(check, "true", outYes).Exec(check, "false", outNo)
         .Data(condNode, condPort, check, "condition")
-        .Data(yesConst, "value", outYes, "value")
+        .Data(yesValue, yesPort, outYes, "value")
         .Data(noNode, noPort, outNo, "value");
     return b.Program;
 }
@@ -993,6 +995,69 @@ Test("станция 5: экспресс", () => Solves(5, Branching(
         b.Data(train, "free", count, "value").Data(train, "free", item, "list").Data(count, "result", item, "index");
         return (item, "item");
     })));
+
+// Тупиковый вокзал: грузовой → последний свободный, остальные → первый свободный.
+Test("станция 6: тупиковый вокзал", () => Solves(6, Branching(
+    (b, train) => { var c = b.Node("compare", ("op", "=="), ("b", "грузовой")); b.Data(train, "kind", c, "a"); return (c, "result"); },
+    "0",
+    (b, train) => { var item = b.Node("list-item", ("index", "1")); b.Data(train, "free", item, "list"); return (item, "item"); },
+    yesNode: (b, train) =>
+    {
+        var count = b.Node("length");
+        var item = b.Node("list-item");
+        b.Data(train, "free", count, "value").Data(train, "free", item, "list").Data(count, "result", item, "index");
+        return (item, "item");
+    })));
+
+Test("станция 6: пассажиров на грузовой двор нельзя", () =>
+{
+    var level = StationLevels.All.First(item => item.Order == 6);
+    var run = StationSimulator.Run(level, Dispatcher((b, _) => (b.Node("const", ("value", "5")), "value")), stationRunner);
+    Check(!run.Success && run.Error.Contains("нет перрона"), run.Error);
+});
+
+Test("станция 7: короткие и длинные перроны", () =>
+{
+    // Свой блок «Из пары»: (первый, второй, свободные) → первый, если он свободен, иначе второй.
+    var b = new GraphBuilder();
+    var pair = CustomBlocks.Create("Из пары");
+    pair.Inputs[0].Name = "первый";
+    CustomBlocks.AddPort(pair, input: true, "второй");
+    CustomBlocks.AddPort(pair, input: true, "свободные", DataType.List);
+    b.Program.CustomBlocks.Add(pair);
+    var body = pair.Body;
+    var parameters = body.Nodes.First(node => node.Type == CustomParamsNode.Id);
+    var returnFirst = body.Nodes.First(node => node.Type == CustomReturnNode.Id);
+    var returnSecond = new GraphNode { Type = CustomReturnNode.Id };
+    var has = new GraphNode { Type = "list-has" };
+    var check = new GraphNode { Type = "if" };
+    body.Nodes.AddRange([returnSecond, has, check]);
+    body.Links.Clear();
+    void Link(GraphNode from, string fromPort, GraphNode to, string toPort)
+        => body.Links.Add(new GraphLink { FromNode = from.Id, FromPort = fromPort, ToNode = to.Id, ToPort = toPort });
+    Link(parameters, "next", check, "in");
+    Link(parameters, "i3", has, "list");
+    Link(parameters, "i1", has, "value");
+    Link(has, "result", check, "condition");
+    Link(check, "true", returnFirst, "in");
+    Link(check, "false", returnSecond, "in");
+    Link(parameters, "i1", returnFirst, "o1");
+    Link(parameters, "i2", returnSecond, "o1");
+
+    var start = b.Node("start");
+    var train = b.Node(TrainNode.Id);
+    var isFreight = b.Node("if-compare", ("op", "=="), ("b", "грузовой"));
+    var isLong = b.Node("if-compare", ("op", ">"), ("b", "6"));
+    b.Exec(start, isFreight).Exec(isFreight, "false", isLong)
+        .Data(train, "kind", isFreight, "a").Data(train, "cars", isLong, "a");
+    foreach (var (source, port, first, second) in new[] { (isFreight, "true", "5", "6"), (isLong, "true", "3", "4"), (isLong, "false", "1", "2") })
+    {
+        var call = b.Node(pair.Id, ("i1", first), ("i2", second));
+        var output = b.Node("output");
+        b.Exec(source, port, output).Data(train, "free", call, "i3").Data(call, "o1", output, "value");
+    }
+    Solves(7, b.Program);
+});
 
 Test("станция: «Поезд» внутри своего блока", () =>
 {
@@ -1049,7 +1114,7 @@ GraphProgram Router(
     return b.Program;
 }
 
-Test("связь 1: прямой канал", () =>
+Test("связь 1: одна АТС", () =>
 {
     var b = new GraphBuilder();
     var start = b.Node("start");
@@ -1061,17 +1126,32 @@ Test("связь 1: прямой канал", () =>
     Check(run.Packets.All(result => result.Path.Count == 2), "лишние передачи");
 });
 
-Test("связь 2: через центр", () =>
+// Шлюз по умолчанию: цель среди соседей → цель, иначе первый сосед.
+GraphProgram Gateway()
 {
-    var run = Route(2, Router(
-        (b, p) => { var c = b.Node("compare", ("op", "=="), ("b", "Центр")); b.Data(p, "current", c, "a"); return (c, "result"); },
-        (b, p) => (p, "target"),
-        (b, _) => (b.Node("const", ("value", "Центр")), "value")));
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var has = b.Node("list-has");
+    var check = b.Node("if");
+    var outYes = b.Node("output");
+    var outNo = b.Node("output");
+    var first = b.Node("list-item", ("index", "1"));
+    b.Exec(start, check).Exec(check, "true", outYes).Exec(check, "false", outNo)
+        .Data(packet, "neighbors", has, "list").Data(packet, "target", has, "value").Data(has, "result", check, "condition")
+        .Data(packet, "target", outYes, "value")
+        .Data(packet, "neighbors", first, "list").Data(first, "item", outNo, "value");
+    return b.Program;
+}
+
+Test("связь 2: шлюз по умолчанию", () =>
+{
+    var run = Route(2, Gateway());
     Check(run.Success, run.Error);
-    Equal(3, run.Packets[0].Path.Count, "Север → Центр → Юг:");
+    Equal(4, run.Packets[0].Path.Count, "Школа → АТС-Север → АТС-Юг → Рынок:");
 });
 
-Test("связь 2: без центра — нет канала", () =>
+Test("связь 2: напрямую — кабель оборван", () =>
 {
     var b = new GraphBuilder();
     var start = b.Node("start");
@@ -1079,17 +1159,26 @@ Test("связь 2: без центра — нет канала", () =>
     var output = b.Node("output");
     b.Exec(start, output).Data(packet, "target", output, "value");
     var run = Route(2, b.Program);
-    Check(!run.Success && run.Error.Contains("нет канала"), run.Error);
+    Check(!run.Success && run.Error.Contains("оборван"), run.Error);
 });
 
 Test("связь 3: ретрансляторы", () =>
 {
-    var run = Route(3, Router(
-        (b, p) => { var c = b.Node("compare", ("op", ">")); b.Data(p, "target", c, "a").Data(p, "current", c, "b"); return (c, "result"); },
-        (b, p) => { var m = b.Node("math", ("op", "+"), ("b", "1")); b.Data(p, "current", m, "a"); return (m, "result"); },
-        (b, p) => { var m = b.Node("math", ("op", "-"), ("b", "1")); b.Data(p, "current", m, "a"); return (m, "result"); }));
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var check = b.Node("if-compare", ("op", ">"));
+    var up = b.Node("math", ("op", "+"), ("b", "1"));
+    var down = b.Node("math", ("op", "-"), ("b", "1"));
+    var outUp = b.Node("output");
+    var outDown = b.Node("output");
+    b.Exec(start, check).Exec(check, "true", outUp).Exec(check, "false", outDown)
+        .Data(packet, "target", check, "a").Data(packet, "current", check, "b")
+        .Data(packet, "current", up, "a").Data(packet, "current", down, "a")
+        .Data(up, "result", outUp, "value").Data(down, "result", outDown, "value");
+    var run = Route(3, b.Program);
     Check(run.Success, run.Error);
-    Equal(8, run.Packets[2].Path.Count, "1 → 8:");
+    Equal(5, run.Packets[0].Path.Count, "2 → 6:");
 });
 
 Test("связь 4: обход обрыва", () =>
@@ -1110,24 +1199,6 @@ Test("связь 4: обход обрыва", () =>
             b.Data(p, "neighbors", count, "value").Data(p, "neighbors", last, "list").Data(count, "result", last, "index");
             return (last, "item");
         }));
-    Check(run.Success, run.Error);
-});
-
-Test("связь 3: ретрансляторы через «Если»", () =>
-{
-    var b = new GraphBuilder();
-    var start = b.Node("start");
-    var packet = b.Node(PacketNode.Id);
-    var check = b.Node("if-compare", ("op", ">"));
-    var up = b.Node("math", ("op", "+"), ("b", "1"));
-    var down = b.Node("math", ("op", "-"), ("b", "1"));
-    var outUp = b.Node("output");
-    var outDown = b.Node("output");
-    b.Exec(start, check).Exec(check, "true", outUp).Exec(check, "false", outDown)
-        .Data(packet, "target", check, "a").Data(packet, "current", check, "b")
-        .Data(packet, "current", up, "a").Data(packet, "current", down, "a")
-        .Data(up, "result", outUp, "value").Data(down, "result", outDown, "value");
-    var run = Route(3, b.Program);
     Check(run.Success, run.Error);
 });
 
@@ -1152,6 +1223,132 @@ Test("связь: пакет по кругу теряется", () =>
     b.Exec(start, output).Data(packet, "neighbors", first, "list").Data(first, "item", output, "value");
     var run = Route(4, b.Program);
     Check(!run.Success && run.Error.Contains("по кругу"), run.Error);
+});
+
+// ─────────────────────────────────────────────────────────────
+Console.WriteLine("Защита серверов");
+
+var securityRunner = new GraphRunner(SecurityNodes.Registry);
+
+SecurityRun Guard(int order, GraphProgram program)
+{
+    var level = SecurityLevels.All.First(item => item.Order == order);
+    var definition = level.AsLevel();
+    var registry = CustomBlocks.Build(program, SecurityNodes.Registry);
+    foreach (var node in program.Nodes)
+        Check(LevelNodes.Allows(definition, registry.Get(node.Type)), $"блок «{node.Type}» недоступен в задании");
+    return SecuritySimulator.Run(level, program, securityRunner);
+}
+
+// «Вход → Выход», «Запрос» и ответ, построенный answer.
+GraphProgram Firewall(Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> answer)
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var request = b.Node(RequestNode.Id);
+    var output = b.Node("output");
+    var (node, port) = answer(b, request);
+    b.Exec(start, output).Data(node, port, output, "value");
+    return b.Program;
+}
+
+(GraphNode, string) PortIs443(GraphBuilder b, GraphNode request)
+{
+    var c = b.Node("compare", ("op", "=="), ("b", "443"));
+    b.Data(request, "port", c, "a");
+    return (c, "result");
+}
+
+(GraphNode, string) NotListed(GraphBuilder b, GraphNode request)
+{
+    var list = b.Node("const", ("value", "[\"66.6.6.6\", \"13.13.0.13\"]"));
+    var has = b.Node("list-has");
+    var invert = b.Node("not");
+    b.Data(list, "value", has, "list").Data(request, "from", has, "value").Data(has, "result", invert, "value");
+    return (invert, "result");
+}
+
+(GraphNode, string) FewErrors(GraphBuilder b, GraphNode request)
+{
+    var c = b.Node("compare", ("op", "<"), ("b", "3"));
+    b.Data(request, "attempts", c, "a");
+    return (c, "result");
+}
+
+Test("защита 1: открытые порты", () =>
+{
+    var run = Guard(1, Firewall(PortIs443));
+    Check(run.Success, run.Error);
+});
+
+Test("защита 1: пропустить всех — пропущена атака", () =>
+{
+    var run = Guard(1, Firewall((b, _) => (b.Node("const", ("value", "да")), "value")));
+    Check(!run.Success && run.Error.Contains("пропущена атака"), run.Error);
+});
+
+Test("защита 1: заблокировать всех — пострадали жители", () =>
+{
+    var run = Guard(1, Firewall((b, _) => (b.Node("const", ("value", "false")), "value")));
+    Check(!run.Success && run.Error.Contains("обычный пользователь"), run.Error);
+});
+
+Test("защита 2: чёрный список", () =>
+{
+    var run = Guard(2, Firewall(NotListed));
+    Check(run.Success, run.Error);
+});
+
+Test("защита 3: надёжные пароли", () =>
+{
+    var run = Guard(3, Firewall((b, request) =>
+    {
+        var length = b.Node("length");
+        var c = b.Node("compare", ("op", ">="), ("b", "8"));
+        b.Data(request, "password", length, "value").Data(length, "result", c, "a");
+        return (c, "result");
+    }));
+    Check(run.Success, run.Error);
+});
+
+Test("защита 3: граница — пароль ровно из 8 символов", () =>
+{
+    var run = Guard(3, Firewall((b, request) =>
+    {
+        var length = b.Node("length");
+        var c = b.Node("compare", ("op", ">"), ("b", "8"));
+        b.Data(request, "password", length, "value").Data(length, "result", c, "a");
+        return (c, "result");
+    }));
+    Check(!run.Success && run.Error.Contains("Синапс!1"), run.Error);
+});
+
+Test("защита 4: подбор пароля", () =>
+{
+    var run = Guard(4, Firewall(FewErrors));
+    Check(run.Success, run.Error);
+});
+
+Test("защита 5: защита в несколько слоёв", () =>
+{
+    var run = Guard(5, Firewall((b, request) =>
+    {
+        var (port, portOut) = PortIs443(b, request);
+        var (listed, listedOut) = NotListed(b, request);
+        var (errors, errorsOut) = FewErrors(b, request);
+        var first = b.Node("logic", ("op", "and"));
+        var second = b.Node("logic", ("op", "and"));
+        b.Data(port, portOut, first, "a").Data(listed, listedOut, first, "b")
+            .Data(first, "result", second, "a").Data(errors, errorsOut, second, "b");
+        return (second, "result");
+    }));
+    Check(run.Success, run.Error);
+});
+
+Test("защита 5: одной проверки мало", () =>
+{
+    var run = Guard(5, Firewall(NotListed));
+    Check(!run.Success && run.Error.Contains("пропущена атака"), run.Error);
 });
 
 Console.WriteLine();

@@ -6,6 +6,7 @@
 @inject SolutionStore SolutionStore
 @inject ProgressStore ProgressStore
 @inject BlockLibraryStore Library
+@inject GameTextStore Texts
 
 <PageTitle>Связь — Синапс</PageTitle>
 
@@ -37,7 +38,7 @@
                 <p class="operation-number">МАРШРУТ @Level.Order.ToString("00")</p>
                 <h1>@Level.Title</h1>
                 <div class="objective-card"><small>ЦЕЛЬ</small><strong>@Level.Objective</strong></div>
-                <MarkdownContent Text="@Level.Description" />
+                <button type="button" class="mission-description-button" @onclick="() => _showDescription = true"><AdminIcon Name="levels" /><span>Описание задачи</span><AdminIcon Name="arrow" /></button>
 
                 <section class="station-schedule">
                     <header><small>ПАКЕТЫ</small><span>@Level.Packets.Count к доставке</span></header>
@@ -133,6 +134,11 @@
     </div>
 }
 
+@if (_showDescription)
+{
+    <LevelDescriptionDialog Title="@Level.Title" Markdown="@_descriptionText" OnClose="() => _showDescription = false" />
+}
+
 @if (_help is { } help)
 {
     <NodeHelpDialog Definition="help" OnClose="() => _help = null" />
@@ -156,6 +162,11 @@
     private List<string> _issues = [];
     private List<string> _warnings = [];
     private bool _loaded;
+
+    // Подробное описание задания (Markdown-файл). При первом заходе на непройденное задание открывается само.
+    private string _descriptionText = "";
+    private bool _showDescription;
+    private readonly HashSet<Guid> _introduced = [];
     private int _saveGeneration;
 
     // Прогон и анимация.
@@ -251,6 +262,10 @@
         ReplaceProgram(saved, keepBlocks: false);
         Validate();
         _canvas?.Refresh();
+
+        var text = await Texts.LoadAsync("network", Level.Order);
+        _descriptionText = text.Length > 0 ? text : Level.Description;
+        _showDescription = _introduced.Add(Level.Id) && !_completed.Contains(Level.Id);
     }
 
     /// <summary>Сохранённая схема или стартовая: «Вход → Выход» и блок «Пакет» рядом.</summary>
