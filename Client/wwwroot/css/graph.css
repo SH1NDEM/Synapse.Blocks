@@ -1,12 +1,13 @@
 /* Редактор графа: блоки, порты и провода двух видов. Подключается после app.css. */
 
 :root {
-    --dt-number: #6ca8ff;
-    --dt-text: #ffb38a;
-    --dt-bool: #f0bd63;
-    --dt-list: #b79bff;
-    --dt-any: #aab8b0;
-    --exec-wire: #e3f2d6;
+    /* Цвет типа данных — главный признак порта и дорожки: насыщенный и легко различимый. */
+    --dt-number: #3d8bff;
+    --dt-text: #ff7a3d;
+    --dt-bool: #ffd23f;
+    --dt-list: #b45cff;
+    --dt-any: #9aa8a1;
+    --exec-wire: #f2f6ee;
 }
 
 .dt-number { --dt: var(--dt-number); }
@@ -15,103 +16,236 @@
 .dt-list { --dt: var(--dt-list); }
 .dt-any { --dt: var(--dt-any); }
 
-/* Акцент блока: управление по типу, остальное — по категории. */
-.cat-flow { --accent: var(--green); }
-.cat-memory { --accent: var(--cyan); }
-.cat-data { --accent: #9fc7b3; }
-.cat-math { --accent: var(--blue); }
-.cat-logic { --accent: #f0a35e; }
-.cat-text { --accent: #ffb38a; }
-.cat-list { --accent: #b79bff; }
-.type-output { --accent: var(--pink); }
-.type-if { --accent: var(--amber); }
-.type-repeat, .type-while, .type-for-each { --accent: var(--purple); }
+/* Цвет раздела: у каждого раздела один свой цвет — чипы, вкладки палитры, справка и редактор уровней.
+   Зелёный и красный зарезервированы: ими помечены только «Вход» (начало) и «Выход» (конец программы). */
+:root {
+    --io-start: #5fd35a;
+    --io-end: #ff5b5b;
+    --cat-io: #a3aca8;
+    --cat-flow: #a98bff;
+    --cat-memory: #35cfc2;
+    --cat-data: #c7ced3;
+    --cat-math: #5b9dff;
+    --cat-logic: #ffc23d;
+    --cat-text: #f272cf;
+    --cat-list: #ff9a3c;
+    --cat-custom: #d9a066;
+    --cat-game: #e8d9b0;
+}
+.cat-io { --accent: var(--cat-io); }
+.cat-flow { --accent: var(--cat-flow); }
+.cat-memory { --accent: var(--cat-memory); }
+.cat-data { --accent: var(--cat-data); }
+.cat-math { --accent: var(--cat-math); }
+.cat-logic { --accent: var(--cat-logic); }
+.cat-text { --accent: var(--cat-text); }
+.cat-list { --accent: var(--cat-list); }
+.cat-custom { --accent: var(--cat-custom); }
+.cat-game { --accent: var(--cat-game); }
+/* «Вход» и «Выход»: серый корпус, а цветная только внутренняя панель в шапке. */
+.type-start { --chip-panel: var(--io-start); }
+.type-output { --chip-panel: var(--io-end); }
+.type-fn-params { --chip-panel: var(--io-start); }
+.type-fn-return { --chip-panel: var(--io-end); }
 
 /* ───────────── Шапка поля ───────────── */
 .canvas-legend { display: flex; gap: 14px; color: var(--dim); font: 10px/1 ui-monospace, monospace; }
 .canvas-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .canvas-legend i { display: inline-block; width: 22px; height: 3px; border-radius: 2px; }
-.canvas-legend .legend-exec { height: 4px; background: var(--exec-wire); }
+.canvas-legend .legend-exec { height: 5px; background: var(--exec-wire); }
 .canvas-legend .legend-data { background: linear-gradient(90deg, var(--dt-number), var(--dt-text), var(--dt-bool)); }
 
-/* ───────────── Блок ───────────── */
-.gnode { user-select: none; }
-.gnode-pure { border-style: dashed; border-radius: 16px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 11%, transparent), #161c18 62%); }
-.gnode-pure::before { display: none; }
-.gnode-head { position: relative; z-index: 7; padding: 8px 74px 6px 18px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-bottom: 1px solid rgba(255,255,255,.06); cursor: grab; touch-action: none; }
-.gnode-head:active { cursor: grabbing; }
-.gnode-head small { overflow: hidden; color: var(--accent); font: 9px/1 ui-monospace, monospace; letter-spacing: .08em; white-space: nowrap; text-overflow: ellipsis; }
-.gnode-head strong { overflow: hidden; color: var(--text); font-size: 16px; line-height: 1.1; white-space: nowrap; text-overflow: ellipsis; }
+/* ───────────── Поле ───────────── */
+/* Сетка нарисована на прокручиваемом поле: background-attachment: local двигает её вместе со схемой,
+   а шаг --grid задаёт компонент с учётом масштаба, поэтому точки совпадают с узлами сетки чипов. */
+.graph-canvas {
+    background-color: #0a120e;
+    background-image: radial-gradient(circle, rgba(150,185,165,var(--dot-alpha, .11)) var(--dot, 1px), transparent calc(var(--dot, 1px) + .5px));
+    background-size: var(--grid, 16px) var(--grid, 16px);
+    background-position: calc(var(--grid, 16px) / -2) calc(var(--grid, 16px) / -2);
+    background-attachment: local;
+}
+/* Фон для миниатюры в справке. */
+.board {
+    background-color: #0a120e;
+    background-image: radial-gradient(circle, rgba(150,185,165,.11) 1px, transparent 1.5px);
+    background-size: 16px 16px;
+    background-position: -8px -8px;
+}
+.chip-notch { background: #0a120e; }
 
-.gnode-param { position: absolute; z-index: 7; left: 0; right: 0; padding: 0 16px 0 18px; display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: center; gap: 6px; }
-.gnode-param > span { overflow: hidden; color: #7f8a84; font: 9px/1.1 ui-monospace, monospace; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
+/* ───────────── Чип ───────────── */
+.chip.node-card { border: 0; border-radius: 6px; background: none; box-shadow: none; overflow: visible; user-select: none; }
+.chip.node-card::before { display: none; }
+/* Корпус окрашен в цвет своего раздела: шапка — сплошным цветом, корпус — тоном того же цвета. */
+.chip-body {
+    position: absolute; inset: 0; z-index: 6;
+    border: 1px solid color-mix(in srgb, var(--accent), #000 30%); border-radius: 7px;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 34%, #1a1f1c), color-mix(in srgb, var(--accent) 16%, #111412) 78%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 45%, transparent), 0 2px 0 #050706, 0 10px 22px rgba(0,0,0,.5);
+}
+/* Приподнятый кристалл под настройками и портами — тёмный, чтобы поля ввода хорошо читались. */
+.chip-body::before {
+    content: ""; position: absolute; inset: 38px 5px 16px; z-index: 0; pointer-events: none;
+    border-radius: 4px;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 10%, #1c211e), #141816 85%);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.04), inset 0 1px 3px rgba(0,0,0,.45);
+}
+.chip-pure .chip-body { border-radius: 14px; border-style: dashed; border-color: color-mix(in srgb, var(--accent), #000 15%); }
+.chip-pure .chip-body::before { border-radius: 9px; }
+.chip-notch { position: absolute; z-index: 3; top: -1px; left: 50%; width: 20px; height: 10px; margin-left: -10px; border: 1px solid color-mix(in srgb, var(--accent), #000 30%); border-top: 0; border-radius: 0 0 10px 10px; background: #0a120e; }
+.chip-key { position: absolute; z-index: 3; left: 9px; bottom: 4.5px; width: 7px; height: 7px; border-radius: 50%; background: #0e1110; box-shadow: inset 0 1px 2px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.07); }
+.chip-led { position: absolute; z-index: 3; right: 9px; bottom: 4px; width: 8px; height: 8px; border-radius: 50%; background: #233127; box-shadow: inset 0 1px 1px rgba(0,0,0,.7); transition: background .15s, box-shadow .15s; }
+.chip-led.led-on { background: #c8ff7a; box-shadow: 0 0 4px #b7ed63, 0 0 12px rgba(183,237,99,.7); }
+.chip-led.led-done { background: #5f8a3c; }
+.chip-led.led-error { background: #ff6b6b; box-shadow: 0 0 4px #ff7474, 0 0 12px rgba(255,116,116,.7); }
+
+.chip-head { position: relative; z-index: 2; padding: 0 70px 0 20px; display: flex; align-items: center; cursor: grab; touch-action: none; }
+.chip-head::before { content: ""; position: absolute; inset: 3px 3px 2px; z-index: -1; border-radius: 4px; background: linear-gradient(180deg, color-mix(in srgb, var(--chip-panel, var(--accent)), #ffffff 10%), var(--chip-panel, var(--accent))); box-shadow: inset 0 -2px 0 rgba(0,0,0,.18); }
+.chip-pure .chip-head::before { border-radius: 9px 9px 4px 4px; }
+.cat-io .chip-head::before { inset: 5px 5px 3px; border-radius: 4px; box-shadow: inset 0 -2px 0 rgba(0,0,0,.2), 0 0 0 2px rgba(0,0,0,.35); }
+.cat-io .chip-body { background: linear-gradient(160deg, #3a403d, #1d211f 78%); border-color: #4c5450; }
+.chip-head:active { cursor: grabbing; }
+/* Маркировка — мелкая гравировка внизу корпуса, между ключом и светодиодом. */
+.chip-marking { position: absolute; z-index: 3; left: 22px; right: 22px; bottom: 4px; overflow: hidden; color: color-mix(in srgb, var(--accent), #8a948f 55%); font: 700 7.5px/1 ui-monospace, monospace; letter-spacing: .14em; white-space: nowrap; text-overflow: ellipsis; opacity: .7; pointer-events: none; }
+.chip-head strong { overflow: hidden; color: color-mix(in srgb, var(--chip-panel, var(--accent)), #000 82%); font-size: 14px; line-height: 1.1; letter-spacing: .01em; white-space: nowrap; text-overflow: ellipsis; }
+.chip-head ~ .gnode-help, .chip-head ~ .gnode-delete { border-color: rgba(0,0,0,.18); background: rgba(0,0,0,.16); color: color-mix(in srgb, var(--chip-panel, var(--accent)), #000 70%); }
+.chip-head ~ .gnode-help:hover { border-color: rgba(0,0,0,.4); color: #000; }
+.chip-head ~ .gnode-delete:hover { background: rgba(0,0,0,.28); color: #000; }
+
+.chip .gnode-param { position: absolute; z-index: 2; left: 0; right: 0; padding: 0 12px 0 14px; display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 5px; }
+.gnode-param > span { overflow: hidden; color: #7f8a84; font: 8.5px/1.1 ui-monospace, monospace; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }
 .gnode-param select, .gnode-param input, .gnode-inline {
-    min-width: 0; width: 100%; height: 26px; padding: 0 7px;
-    border: 1px solid #3b463f; border-radius: 6px; outline: 0;
-    background: #111512; color: #eef3ed; font-size: 12px;
+    min-width: 0; width: 100%; height: 22px; padding: 0 6px;
+    border: 1px solid #3b463f; border-radius: 5px; outline: 0;
+    background: #0e1210; color: #eef3ed; font-size: 11px;
     user-select: text;
 }
 .gnode-param select:focus, .gnode-param input:focus, .gnode-inline:focus { border-color: color-mix(in srgb, var(--accent), white 10%); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
-.gnode-variable { color: var(--cyan) !important; font: 700 13px/1 ui-monospace, monospace !important; }
+.gnode-variable { color: var(--cyan) !important; font: 700 12px/1 ui-monospace, monospace !important; }
 
-.gnode-row { position: absolute; z-index: 7; left: 0; right: 0; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.gnode-row-left, .gnode-row-right { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.chip .gnode-row { position: absolute; z-index: 2; left: 0; right: 0; padding: 0 19px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.gnode-row-left, .gnode-row-right { min-width: 0; display: flex; align-items: center; gap: 5px; }
 .gnode-row-right { margin-left: auto; justify-content: flex-end; }
-.gnode-label { color: #c3cec7; font-size: 12px; white-space: nowrap; }
-.gnode-label-exec { color: var(--exec-wire); font-weight: 650; }
-input.gnode-inline, select.gnode-inline { width: 88px; height: 24px; font-size: 12px; }
+.gnode-label { color: #c3cec7; font: 11px/1 ui-monospace, monospace; white-space: nowrap; }
+.gnode-label-exec { color: var(--exec-wire); font-weight: 700; }
+input.gnode-inline, select.gnode-inline { width: 66px; height: 22px; font-size: 11px; }
 .gnode-static { min-width: 0; overflow: hidden; color: #d9e5dd; font-size: 12px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
-.gnode-static.gnode-inline { width: auto; height: auto; padding: 2px 7px; border: 1px solid #3b463f; border-radius: 6px; background: #111512; }
-.gvalue { max-width: 104px; overflow: hidden; padding: 2px 6px; border: 1px solid rgba(108,168,255,.42); border-radius: 5px; background: rgba(10,16,20,.96); color: #d9edff; font: 11px/1.35 ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.gnode-static.gnode-inline { width: auto; height: auto; padding: 2px 7px; border: 1px solid #3b463f; border-radius: 5px; background: #0e1210; }
+.gvalue { max-width: 76px; overflow: hidden; padding: 1px 5px; border: 1px solid rgba(108,168,255,.42); border-radius: 4px; background: rgba(10,16,20,.96); color: #d9edff; font: 10.5px/1.35 ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
 
-.gnode-button { position: absolute; z-index: 14; top: 13px; width: 24px; height: 24px; padding: 0; border: 1px solid #3b463f; border-radius: 6px; background: rgba(12,16,13,.72); color: #8a958f; font-size: 13px; font-weight: 700; }
-.gnode-delete { right: 18px; border-color: transparent; font-size: 16px; font-weight: 400; }
-.gnode-help { right: 46px; }
+.gnode-button { position: absolute; z-index: 4; top: 8px; width: 20px; height: 20px; padding: 0; border: 1px solid #3b463f; border-radius: 5px; background: rgba(12,16,13,.72); color: #8a958f; font-size: 11px; font-weight: 700; line-height: 1; }
+.gnode-delete { right: 19px; border-color: transparent; font-size: 14px; font-weight: 400; }
+.gnode-help { right: 42px; }
 .gnode-help:hover { border-color: var(--accent); color: var(--accent); }
 .gnode-delete:hover { color: var(--red); background: rgba(255,116,116,.08); }
 
-.gnode-expected { position: absolute; z-index: 16; left: 10px; top: -26px; max-width: 216px; height: 21px; padding: 0 8px; display: flex; align-items: center; gap: 7px; border: 1px solid rgba(255,200,108,.4); border-radius: 6px; background: rgba(22,18,10,.96); }
+.chip.node-running .chip-body { border-color: color-mix(in srgb, var(--accent), white 20%); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent), 0 10px 26px rgba(0,0,0,.5); }
+.chip.node-error .chip-body { border-color: rgba(255,116,116,.8); box-shadow: 0 0 0 2px rgba(255,116,116,.45), 0 10px 26px rgba(0,0,0,.5); }
+.chip.node-pass .chip-body { border-color: rgba(183,237,99,.45); }
+.chip.node-running, .chip.node-pass, .chip.node-error { animation: none; }
+
+.gnode-expected { position: absolute; z-index: 16; left: 10px; top: -26px; max-width: 216px; height: 21px; padding: 0 8px; display: flex; align-items: center; gap: 7px; border: 1px solid rgba(255,200,108,.4); border-radius: 5px; background: rgba(22,18,10,.96); }
 .gnode-expected span { color: #b49a6c; font: 8px/1 ui-monospace, monospace; letter-spacing: .06em; }
 .gnode-expected b { min-width: 0; overflow: hidden; color: #ffd28a; font: 11px/1 ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
 
-/* ───────────── Порты ───────────── */
-.gport { position: absolute; z-index: 12; width: 26px; height: 26px; margin-top: -13px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; cursor: crosshair; touch-action: none; }
-.gport-in { left: -13px; }
-.gport-out { right: -13px; }
-.gport i { display: block; transition: transform .12s ease, filter .12s ease, opacity .12s ease; pointer-events: none; }
-.gport-data i { width: 14px; height: 14px; border: 2.5px solid var(--dt); border-radius: 50%; background: #0d120f; box-shadow: 0 0 0 2px #0b0f0d; }
-.gport-data.gport-linked i { background: var(--dt); }
-.gport-exec i { width: 15px; height: 16px; background: var(--exec-wire); clip-path: polygon(10% 0, 100% 50%, 10% 100%); opacity: .5; }
-.gport-exec.gport-linked i { opacity: 1; }
-.gport:hover i { transform: scale(1.25); opacity: 1; }
-.gport-source i, .gport-ok i { transform: scale(1.35); opacity: 1; filter: drop-shadow(0 0 6px var(--dt, var(--exec-wire))); }
-.gport-ok i { animation: portReady .7s ease-in-out infinite alternate; }
-.gport-dim { opacity: .22; pointer-events: none; }
-.gnode-preview .gport { cursor: default; }
-@keyframes portReady { to { filter: drop-shadow(0 0 10px var(--dt, var(--exec-wire))); } }
+/* ───────────── Разъёмы портов ───────────── */
+/* Разъём утоплен в корпус: снаружи 10 px, внутри 14 px. Провод заканчивается под ним. */
+.chip-port { position: absolute; z-index: 7; width: 24px; height: 20px; margin-top: -10px; padding: 0; border: 0; background: transparent; cursor: crosshair; touch-action: none; }
+.port-in { left: -10px; }
+.port-out { right: -10px; }
+.port-socket { position: absolute; inset: 2px 0; pointer-events: none; transition: transform .12s ease, filter .12s ease; }
+/* Порт данных — разъём цвета своего типа: свободный — контур, подключённый — залит целиком.
+   Внешняя сторона скруглена, сторона у корпуса прямая. */
+.port-data .port-socket {
+    border: 2px solid var(--dt);
+    background: color-mix(in srgb, var(--dt) 18%, #0b100d);
+    box-shadow: 0 0 0 1.5px rgba(3,6,4,.8);
+}
+.port-in.port-data .port-socket { border-radius: 9px 3px 3px 9px; }
+.port-out.port-data .port-socket { border-radius: 3px 9px 9px 3px; }
+.port-data.port-linked .port-socket { background: var(--dt); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 0 1.5px rgba(3,6,4,.8); }
+/* Порт порядка — стрелка по направлению потока. */
+.port-exec .port-socket {
+    background: var(--exec-wire);
+    clip-path: polygon(0 8%, 58% 8%, 100% 50%, 58% 92%, 0 92%);
+}
+.port-exec:not(.port-linked) .port-socket { background: color-mix(in srgb, var(--exec-wire), #0b0f0d 35%); }
+.chip-port:hover .port-socket { transform: scale(1.1); filter: brightness(1.1); }
+/* Горячий порт: через него сейчас проходит значение или управление. */
+.port-hot .port-socket { filter: brightness(1.12); }
+.port-data.port-hot .port-socket { background: color-mix(in srgb, var(--dt), #ffffff 15%); box-shadow: 0 0 0 1.5px rgba(3,6,4,.8), 0 0 12px var(--dt); }
+.port-source .port-socket, .port-ok .port-socket { transform: scale(1.15); }
+.port-ok .port-socket { animation: portReady .7s ease-in-out infinite alternate; }
+.port-dim { opacity: .2; pointer-events: none; }
+.chip-preview .chip-port { cursor: default; }
+@keyframes portReady { to { filter: brightness(1.3); } }
+
+/* Подписи портов внутри корпуса — тем же цветом, что и разъём. */
+.gnode-label.dt-number, .gnode-label.dt-text, .gnode-label.dt-bool, .gnode-label.dt-list { color: var(--dt); }
 
 /* ───────────── Провода ───────────── */
-.graph-canvas .wire-line { filter: none; }
-.wire-line.wire-exec { stroke: var(--exec-wire); stroke-width: 3.5; filter: drop-shadow(0 0 3px rgba(227,242,214,.2)); }
-.wire-line.wire-true { stroke: var(--blue); }
-.wire-line.wire-false { stroke: var(--red); }
-.wire-line.wire-scope { stroke: var(--purple); }
-.wire-line.wire-data { stroke: var(--dt); stroke-width: 2.2; opacity: .88; }
-.wire-line.wire-feeding { stroke-width: 3; stroke-dasharray: 5 7; opacity: 1; animation: dataFlow .5s linear infinite; }
-.wire-line.wire-active { stroke-width: 4.5; stroke-dasharray: 5 10; animation: dataFlow .34s linear infinite; filter: drop-shadow(0 0 7px var(--exec-wire)); }
-.graph-canvas .wire-hit:hover + .wire-line { stroke: var(--red); opacity: 1; }
+/* Провод — группа .wire: мягкая тень под жилой, цветная жила и редкие стрелки по направлению потока.
+   Цвет задаёт класс группы: .trace-exec (порядок) или .trace-data + .dt-* (тип данных). */
+.wire { --wire: var(--dt, var(--exec-wire)); }
+.wire.trace-exec { --wire: var(--exec-wire); }
+.wire.trace-true { --wire: var(--blue); }
+.wire.trace-false { --wire: var(--red); }
+.wire.trace-scope { --wire: var(--purple); }
+.wire.trace-data { --wire: var(--dt); }
+.wire .trace, .wire .trace-casing, .wire .trace-flow { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.wire .trace-casing { stroke: rgba(0,0,0,.45); stroke-width: 6; }
+.wire.trace-exec .trace-casing { stroke-width: 7.5; }
+.wire .trace { stroke: var(--wire); stroke-width: 3; }
+.wire.trace-exec .trace { stroke-width: 4; }
+.wire .trace-arrow { fill: var(--wire); stroke: none; pointer-events: none; transition: opacity .2s; }
+.wire:hover .trace { stroke: var(--red); }
+.wire:hover .trace-arrow { fill: var(--red); }
+/* Провод, по которому сейчас идёт сигнал: жила светлее, по ней бегут волны от выхода ко входу. */
+.wire.trace-live .trace { stroke: color-mix(in srgb, var(--wire), #ffffff 20%); }
+.wire.trace-live .trace-arrow { opacity: 0; }
+.wire .trace-flow { stroke: #ffffff; }
+.wire.trace-exec .trace-flow { stroke-width: 2.2; stroke-dasharray: 12 24; animation: traceFlowExec .9s linear infinite; }
+.wire.trace-data .trace-flow { stroke-width: 1.4; stroke-dasharray: 4 10; opacity: .85; animation: traceFlowData .45s linear infinite; }
+.wire-preview .trace { stroke-dasharray: 7 7; animation: wireMove .45s linear infinite; }
+.wire-preview .trace-casing { opacity: .5; }
+.graph-canvas .wire-hit { cursor: pointer; }
 .loop-group-label { color: #baa8f3; font: 10px/1 ui-monospace, monospace; letter-spacing: .08em; white-space: nowrap; }
+@keyframes traceFlowExec { to { stroke-dashoffset: -36; } }
+@keyframes traceFlowData { to { stroke-dashoffset: -14; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .wire .trace-flow { animation: none; stroke-dasharray: none; opacity: .45; }
+    .wire-preview .trace, .port-ok .port-socket { animation: none; }
+}
+
+/* ───────────── Вкладки палитры ───────────── */
+.palette-tabs { flex: 0 0 auto; padding: 8px 8px 7px; display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.palette-tab { height: 24px; padding: 0 7px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--accent) 35%, #2a322d); border-radius: 7px; background: #111513; color: #b9c4bd; font-size: 11px; white-space: nowrap; transition: background .12s, border-color .12s, color .12s; }
+.palette-tab i { width: 9px; height: 9px; border-radius: 3px; background: var(--accent); }
+.palette-tab b { min-width: 18px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center; border-radius: 5px; background: rgba(255,255,255,.07); color: #8d9992; font: 600 10px/1 ui-monospace, monospace; }
+.palette-tab:hover { border-color: color-mix(in srgb, var(--accent) 70%, #2a322d); color: #eef3ef; }
+.palette-tab.active { border-color: var(--accent); background: var(--accent); color: color-mix(in srgb, var(--accent), #000 82%); font-weight: 650; }
+.palette-tab.active i { background: color-mix(in srgb, var(--accent), #000 55%); }
+.palette-tab.active b { background: rgba(0,0,0,.16); color: color-mix(in srgb, var(--accent), #000 75%); }
+.palette-tab.tab-all { --accent: #8f9b94; }
+.palette-tab.cat-io i, .palette-group.cat-io h3 i { background: linear-gradient(90deg, var(--io-start) 50%, var(--io-end) 50%); }
+.palette-tab.tab-all.active { --accent: #e6ece8; }
+.palette-group h3 i { display: inline-block; width: 9px; height: 9px; margin-right: 7px; border-radius: 3px; background: var(--accent); vertical-align: 0; }
+.palette-group h3 { color: color-mix(in srgb, var(--accent), #6c776f 45%); }
+.node-palette .variables-panel { margin: 12px 0 0; }
 
 /* ───────────── Палитра ───────────── */
-.node-palette { padding: 4px 10px 22px; }
-.palette-group h3 { margin: 14px 4px 8px; color: var(--dim); font: 10px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; }
-.library-block.palette-item { min-height: 0; margin-bottom: 8px; padding: 11px 42px 10px 14px; gap: 4px; }
-.library-block.palette-item small { font-size: 9px; }
-.library-block.palette-item strong { font-size: 15px; }
-.library-block.palette-item span { display: -webkit-box; color: var(--muted); font-size: 11px; line-height: 1.3; white-space: normal; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.library-block.palette-pure { border-left-style: dashed; }
-.library-block.palette-item > b { top: 10px; right: 10px; width: 24px; height: 24px; cursor: pointer; }
-.library-block.palette-item > b:hover { border-color: var(--accent); color: var(--accent); }
+.node-palette { padding: 2px 6px 18px; overflow-x: hidden; }
+.palette-group h3 { margin: 12px 4px 8px; font: 10px/1 ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; }
+.palette-chip { position: relative; width: max-content; margin: 0 auto 10px; padding: 2px 0; border-radius: 10px; cursor: grab; transition: transform .15s, filter .15s; }
+.palette-chip:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.palette-chip:active { cursor: grabbing; }
+.palette-chip-stage { position: relative; overflow: visible; pointer-events: none; }
+.palette-chip-scale { position: relative; transform-origin: 0 0; }
+.palette-chip .chip { cursor: grab; }
+.palette-help { position: absolute; z-index: 20; top: 11px; right: 18px; width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid rgba(0,0,0,.25); border-radius: 6px; background: rgba(0,0,0,.2); color: rgba(0,0,0,.75); font-size: 12px; font-weight: 700; cursor: pointer; }
+.palette-help:hover { background: rgba(0,0,0,.35); color: #000; }
 .palette-ports { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 5px; }
 .pp-exec, .pp-data, .pp-param { display: inline-block; flex: none; }
 .pp-exec { width: 9px; height: 10px; background: var(--exec-wire); clip-path: polygon(10% 0, 100% 50%, 10% 100%); }
@@ -138,7 +272,7 @@ input.gnode-inline, select.gnode-inline { width: 88px; height: 24px; font-size: 
 
 /* ───────────── Справка по блоку ───────────── */
 .graph-help { grid-template-columns: 320px 1fr; }
-.help-node-stage { position: relative; }
+.help-node-stage { position: relative; border-radius: 10px; }
 .help-kind { margin-top: 10px !important; color: #8f9b94 !important; }
 .help-port-table { margin-top: 18px; display: grid; gap: 6px; }
 .help-port-row { display: grid; grid-template-columns: 14px 70px 120px minmax(0,1fr); align-items: center; gap: 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
@@ -177,17 +311,267 @@ input.gnode-inline, select.gnode-inline { width: 88px; height: 24px; font-size: 
 
 @media (max-width: 960px) {
     .node-palette { display: block !important; }
-    .palette-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .palette-group h3 { grid-column: 1 / -1; }
-    .library-block.palette-item { margin: 0; }
+    .palette-group { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+    .palette-group h3 { flex: 0 0 100%; }
+    .palette-chip { margin: 0; }
     .guide-wires { grid-template-columns: repeat(2, 1fr); }
     .canvas-legend { display: none; }
 }
 
 @media (max-width: 720px) {
-    .palette-group { grid-template-columns: 1fr; }
+    .palette-group { justify-content: center; }
     .guide-wires { grid-template-columns: 1fr; }
     .graph-help { grid-template-columns: 1fr; }
     .rule-editor-row { grid-template-columns: 1fr 70px 34px; }
     .rule-editor-row select:nth-of-type(2) { grid-column: 1 / -1; }
 }
+
+/* ───────────── Нижняя панель тестов ───────────── */
+.result-strip .test-card { flex: 0 0 230px; }
+.result-strip .test-card > b { font: 700 12px/1 ui-monospace, monospace; }
+.result-strip .test-card.pending > b { color: #7d8983; background: rgba(255,255,255,.05); }
+.result-strip .test-card.running { border-color: rgba(108,168,255,.55); background: rgba(108,168,255,.07); }
+.result-strip .test-card.running > b { color: var(--blue); background: rgba(108,168,255,.14); animation: consoleRunPulse .6s ease-in-out infinite alternate; }
+.result-strip .test-card.pass { border-color: rgba(183,237,99,.28); }
+.result-strip .test-card.fail { border-color: rgba(255,116,116,.4); background: rgba(255,116,116,.05); }
+.result-strip .test-card.hidden-summary { border-style: dashed; }
+.result-strip .test-card.hidden-summary > b { width: auto; min-width: 26px; padding: 0 6px; border-radius: 7px; color: #b9c4bd; background: rgba(255,255,255,.06); font-size: 11px; }
+.test-io { min-width: 0; display: flex; align-items: center; gap: 6px; flex-direction: row !important; }
+.test-io code { min-width: 0; max-width: 84px; overflow: hidden; padding: 3px 6px; border-radius: 5px; background: #090d0b; color: #d9edff; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.test-io code:last-child { color: #ffd28a; }
+.test-io i { color: var(--dim); font-style: normal; }
+
+/* ───────────── Пошаговая проверка (сворачивается) ───────────── */
+.step-panel { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0e1210; }
+.step-panel-toggle { width: 100%; height: 30px; padding: 0 10px; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: #8e9a93; }
+.step-panel-toggle span { font: 10px/1 ui-monospace, monospace; letter-spacing: .1em; }
+.step-panel-toggle small { margin-left: auto; color: var(--dim); font: 10px/1 ui-monospace, monospace; }
+.step-panel-toggle i { width: 12px; color: #b9c4bd; font-style: normal; }
+.step-panel-toggle:hover { color: #e6ece8; }
+.step-panel.open { padding-bottom: 8px; }
+.step-panel.open .debug-readout, .step-panel.open .step-controls { margin-left: 8px; margin-right: 8px; }
+.step-panel .debug-readout { margin-top: 2px; }
+.run-panel .graph-issues { margin-bottom: 8px; }
+
+/* ───────────── Инструменты уровня в шапке сайта ───────────── */
+.header-tools { min-width: 0; justify-self: end; display: flex; align-items: center; gap: 8px; }
+.header-tools .level-picker { min-width: 200px; max-width: 340px; height: 38px; padding: 0 30px 0 12px; border: 1px solid var(--line); border-radius: 9px; background: #121714; color: var(--text); font-size: 13px; font-weight: 650; }
+.header-tool { height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: #b1bbb5; font-size: 12px; white-space: nowrap; }
+.header-tool:hover { border-color: var(--line-strong); color: #ffffff; }
+@media (max-width: 1100px) {
+    .header-tools .level-picker { min-width: 160px; max-width: 240px; }
+}
+@media (max-width: 720px) {
+    .header-tools { justify-self: stretch; flex-wrap: wrap; justify-content: center; }
+    .header-tools .level-picker { flex: 1 1 100%; max-width: none; }
+}
+
+/* ───────────── Раскладка страницы игры ───────────── */
+/* Слева — задание и запуск, по центру — поле и тесты, справа — узкая палитра. */
+/* Ширина палитры подогнана под чип в натуральную величину (192 px + разъёмы портов) и узкие поля. */
+.child-game-layout { grid-template-columns: 300px minmax(520px, 1fr) 236px; }
+.game-layout .mission-pane { display: flex; flex-direction: column; }
+.game-layout .mission-pane .mission-scroll { flex: 1 1 auto; height: auto; min-height: 0; }
+.game-layout .mission-pane .run-panel { flex: 0 0 auto; }
+.game-layout .workspace-pane { grid-template-rows: 48px minmax(350px, 1fr) 96px; }
+
+/* Компактные карточки тестов. */
+.test-console .console-title { height: 30px; }
+.test-console .result-strip { height: 64px; padding: 7px 12px; align-items: stretch; }
+.result-strip .test-card { flex: 0 0 200px; padding: 6px 9px; align-items: center; gap: 8px; }
+.result-strip .test-card > b { width: 20px; height: 20px; }
+.result-strip .test-card > span { gap: 3px; }
+.result-strip .test-card strong { font-size: 11px; }
+.result-strip .test-card small { overflow: hidden; font-size: 10px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.result-strip .test-card .test-io code { padding: 1px 5px; font-size: 10.5px; }
+.result-strip .test-card.hidden-summary small { display: none; }
+
+@media (max-width: 1200px) {
+    .child-game-layout { grid-template-columns: 270px minmax(460px, 1fr) 236px; }
+}
+
+
+/* ───────────── Свои блоки ───────────── */
+
+/* Чип своего блока: медная шапка с косой штриховкой — сразу видно, что внутри своя схема. */
+.chip.cat-custom .chip-head::before { background: repeating-linear-gradient(135deg, transparent 0 9px, rgba(255,255,255,.14) 9px 11px), linear-gradient(180deg, color-mix(in srgb, var(--accent), #ffffff 10%), var(--accent)); }
+.chip-openable .chip-head { padding-right: 94px; }
+.gnode-open { right: 65px; font-size: 12px; }
+.chip-head ~ .gnode-open { border-color: rgba(0,0,0,.18); background: rgba(0,0,0,.16); color: color-mix(in srgb, var(--chip-panel, var(--accent)), #000 70%); }
+.chip-head ~ .gnode-open:hover { border-color: rgba(0,0,0,.4); color: #000; }
+
+/* Путь «Программа › Блок» в шапке поля. */
+.canvas-head .canvas-crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.canvas-head .canvas-crumbs button { height: 26px; padding: 0 10px; border: 1px solid #2d3631; border-radius: 7px; background: #151a17; color: #c9d3cc; font-size: 12px; }
+.canvas-head .canvas-crumbs button:hover { border-color: var(--cat-custom); color: #fff; }
+.canvas-head .canvas-crumbs .crumb-sep { color: #59645e; font: 14px/1 system-ui, sans-serif; letter-spacing: 0; }
+.canvas-head .canvas-crumbs b { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--cat-custom); font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.canvas-head .canvas-crumbs b em { width: 9px; height: 9px; flex: none; border-radius: 3px; background: var(--cat-custom); }
+.canvas-head-start { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+/* Шапка вкладки «Мои блоки». */
+.custom-blocks-head { margin: 8px 2px 12px; display: grid; gap: 8px; }
+.custom-create { height: 34px; border: 1px dashed color-mix(in srgb, var(--cat-custom) 65%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--cat-custom) 9%, transparent); color: var(--cat-custom); font-size: 12px; font-weight: 700; }
+.custom-create:hover { background: color-mix(in srgb, var(--cat-custom) 18%, transparent); }
+.custom-blocks-head > p { margin: 0; color: #7f8b84; font-size: 11px; line-height: 1.4; }
+.block-library-list { border: 1px solid #262e29; border-radius: 8px; background: #0e1210; }
+.block-library-list summary { padding: 7px 10px; color: #b9c4bd; font-size: 11px; font-weight: 650; cursor: pointer; }
+.library-item { padding: 6px 6px 6px 10px; display: flex; align-items: center; gap: 6px; border-top: 1px solid #1f2622; }
+.library-item span { flex: 1; min-width: 0; display: grid; }
+.library-item span b { color: #e5ebe7; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.library-item span small { color: #6f7b74; font: 10px/1.3 ui-monospace, monospace; }
+.library-item button { height: 24px; padding: 0 8px; border: 1px solid #2f3833; border-radius: 6px; background: #151a17; color: #cfd8d2; font-size: 11px; }
+.library-item button:disabled { opacity: .45; }
+.library-item .library-remove { width: 24px; padding: 0; color: #7f8b84; }
+.library-item .library-remove:hover { color: var(--red, #ff7474); }
+
+/* Настройки своего блока в левой панели. */
+.block-editor { display: grid; gap: 12px; }
+.block-editor .block-pill { justify-self: start; background: color-mix(in srgb, var(--cat-custom) 12%, transparent); color: var(--cat-custom); }
+.block-editor h1 { overflow-wrap: anywhere; }
+.block-field { display: grid; gap: 5px; }
+.block-field span { color: #7d8982; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.block-field input, .block-field textarea { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #2a332e; border-radius: 7px; background: #090d0b; color: #e7ede9; font: inherit; font-size: 13px; resize: vertical; }
+.block-field input:focus, .block-field textarea:focus, .block-port input:focus, .block-port select:focus { outline: none; border-color: var(--cat-custom); }
+.block-ports { display: grid; gap: 6px; }
+.block-ports header { display: flex; align-items: center; justify-content: space-between; }
+.block-ports header small { color: #7d8982; font: 10px/1 ui-monospace, monospace; letter-spacing: .1em; }
+.block-ports header button { height: 24px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--cat-custom) 45%, #2a332e); border-radius: 6px; background: transparent; color: var(--cat-custom); font-size: 11px; font-weight: 650; }
+.block-ports header button:disabled { opacity: .4; }
+.block-empty { margin: 0; color: #6f7b74; font-size: 11px; }
+.block-port { display: grid; grid-template-columns: 10px minmax(0, 1fr) 92px 26px; align-items: center; gap: 6px; }
+.block-port i { width: 10px; height: 10px; border: 2px solid var(--dt); border-radius: 50%; }
+.block-port input, .block-port select { height: 30px; min-width: 0; padding: 0 8px; border: 1px solid #2a332e; border-radius: 6px; background: #090d0b; color: #e7ede9; font-size: 12px; }
+.block-port select { padding: 0 4px; color: var(--dt); }
+.block-port button { height: 26px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #7f8b84; font-size: 15px; }
+.block-port button:hover:not(:disabled) { color: var(--red, #ff7474); background: rgba(255,116,116,.08); }
+.block-port button:disabled { opacity: .3; }
+.block-note { margin: 0; padding: 9px 10px; border-left: 2px solid var(--cat-custom); background: rgba(255,255,255,.025); color: #9aa69f; font-size: 11.5px; line-height: 1.45; }
+.block-note b { color: #dfe6e1; font-weight: 600; }
+.block-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.block-actions button { height: 30px; padding: 0 10px; border: 1px solid #2f3833; border-radius: 7px; background: #151a17; color: #cfd8d2; font-size: 12px; }
+.block-actions button:hover { border-color: #48534c; color: #fff; }
+.block-actions .block-back { border-color: color-mix(in srgb, var(--cat-custom) 55%, #2f3833); color: var(--cat-custom); font-weight: 650; }
+.block-actions .block-danger-soft { color: #b58a8a; }
+.block-actions .block-danger { border-color: rgba(255,116,116,.5); background: rgba(255,116,116,.12); color: #ffb3b3; }
+
+/* ───────────── Игра «Станция» ───────────── */
+
+.station-layout .workspace-pane { grid-template-rows: clamp(190px, 30vh, 270px) 48px minmax(280px, 1fr); }
+.station-view { position: relative; min-height: 0; border-bottom: 1px solid #1f2622; background: radial-gradient(ellipse at 50% 120%, #17201b, #0b0f0d 70%); overflow: hidden; }
+.station-view svg { display: block; width: 100%; height: 100%; }
+.station-platform { fill: #2a302c; stroke: #3a423d; stroke-width: 1; }
+.station-bed { fill: none; stroke: url(#station-sleepers); stroke-width: 10; }
+.station-rail { fill: none; stroke: #5d6862; stroke-width: 2.2; stroke-linejoin: round; }
+.station-track.busy .station-rail { stroke: #aebbb3; }
+.station-track.failed .station-rail { stroke: #ff6b6b; }
+.station-track-label { fill: #e6ece8; font: 700 14px/1 ui-monospace, monospace; }
+.station-track-size { fill: #66726b; font: 10px/1 ui-monospace, monospace; }
+.station-side { fill: #66726b; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .14em; }
+.station-signal { fill: #2b322e; stroke: #48524c; stroke-width: 1.5; }
+.station-signal.green { fill: #5fd35a; stroke: #9cf097; filter: drop-shadow(0 0 4px #5fd35a); }
+.station-signal.red { fill: #ff5b5b; stroke: #ff9c9c; filter: drop-shadow(0 0 4px #ff5b5b); }
+.station-train .train-car, .station-train .train-head { stroke: rgba(0,0,0,.55); stroke-width: 1.2; }
+.train-passenger .train-car { fill: #3d8bff; }
+.train-passenger .train-head { fill: #8dbaff; }
+.train-express .train-car { fill: #ffc23d; }
+.train-express .train-head { fill: #ffe08a; }
+.train-freight .train-car { fill: #a07850; }
+.train-freight .train-head { fill: #d0a274; }
+.station-train.train-failed .train-car, .station-train.train-failed .train-head { fill: #ff5b5b; animation: train-alarm .6s ease-in-out infinite alternate; }
+@keyframes train-alarm { to { opacity: .45; } }
+.train-number { fill: #e6ece8; font: 600 10px/1 ui-monospace, monospace; paint-order: stroke; stroke: #0b0f0d; stroke-width: 3px; }
+.station-clock { position: absolute; left: 14px; bottom: 10px; display: flex; align-items: center; gap: 10px; }
+.station-clock span { padding: 4px 8px; border: 1px solid #2a332e; border-radius: 6px; background: #0b0f0d; color: #e6ece8; font: 600 12px/1 ui-monospace, monospace; }
+.station-clock b { color: #9aa69f; font: 500 12px/1 system-ui, sans-serif; }
+.station-pill { background: rgba(232, 217, 176, .1); color: var(--cat-game); }
+.station-schedule { margin-top: 18px; display: grid; gap: 4px; }
+.station-schedule header { margin-bottom: 4px; display: flex; justify-content: space-between; align-items: baseline; }
+.station-schedule header small { color: #7d8982; font: 10px/1 ui-monospace, monospace; letter-spacing: .1em; }
+.station-schedule header span { color: #66726b; font-size: 11px; }
+.schedule-row { padding: 6px 8px; display: grid; grid-template-columns: 40px 42px minmax(0, 1fr) auto; align-items: center; gap: 6px; border: 1px solid #1f2622; border-radius: 7px; background: #0e1210; font-size: 12px; }
+.schedule-row code { color: #7d8982; font-size: 11px; }
+.schedule-row b { color: #e6ece8; font-weight: 650; }
+.schedule-row span { color: #9aa69f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.schedule-row i { color: #66726b; font-style: normal; font: 11px/1 ui-monospace, monospace; }
+.schedule-row.done { border-color: rgba(95,211,90,.35); }
+.schedule-row.done i { color: #8de38a; }
+.schedule-row.failed { border-color: rgba(255,91,91,.5); background: rgba(255,91,91,.06); }
+.schedule-row.failed i { color: #ff8a8a; }
+.station-hint { margin-top: 14px; border: 1px solid #1f2622; border-radius: 8px; }
+.station-hint summary { padding: 8px 10px; color: #9aa69f; font-size: 12px; cursor: pointer; }
+.station-hint p { margin: 0; padding: 0 10px 10px; color: #c9d3cc; font-size: 12px; line-height: 1.45; }
+.station-speed { margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+.station-speed span { margin-right: 4px; color: #66726b; font-size: 11px; }
+.station-speed button { height: 24px; padding: 0 8px; border: 1px solid #2a332e; border-radius: 6px; background: transparent; color: #9aa69f; font: 600 11px/1 ui-monospace, monospace; }
+.station-speed button.active { border-color: var(--cat-game); color: var(--cat-game); }
+
+/* Карточки игр на главной и на странице «Игры». */
+.games-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.games-grid .game-soon { grid-column: 1 / -1; }
+.game-card { display: grid; grid-template-columns: 200px minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 0 22px; padding: 20px; border: 1px solid var(--line, #232b26); border-radius: 12px; background: var(--panel, #0f1311); color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
+a.game-card:hover { border-color: color-mix(in srgb, var(--cat-game) 60%, transparent); transform: translateY(-2px); }
+.game-art { grid-row: 1 / span 2; border-radius: 9px; background: #0b0f0d; overflow: hidden; }
+.game-art svg { width: 100%; height: 100%; display: block; }
+.art-rail { fill: none; stroke: #4c5650; stroke-width: 2; }
+.art-platform { fill: #2a302c; }
+.art-train rect { fill: #3d8bff; }
+.art-train rect:first-child { fill: #8dbaff; }
+.art-freight rect { fill: #a07850; }
+.art-freight rect:first-child { fill: #d0a274; }
+.game-copy small { color: var(--cat-game); font: 11px/1 ui-monospace, monospace; letter-spacing: .08em; }
+.game-copy h3 { margin: 10px 0 8px; font-size: 22px; }
+.game-copy p { margin: 0; color: var(--muted, #9aa69f); line-height: 1.55; }
+.game-card footer { margin-top: 14px; display: flex; align-items: center; gap: 12px; color: #9aa69f; font-size: 12px; }
+.game-card footer progress { flex: 1; height: 6px; accent-color: var(--cat-game); }
+.game-go { color: var(--cat-game); font-weight: 700; }
+.game-soon { grid-template-columns: 1fr; opacity: .6; border-style: dashed; }
+.games-feed { padding-bottom: 8px; }
+.games-page { padding-top: 40px; }
+@media (max-width: 1000px) {
+    .games-grid { grid-template-columns: 1fr; }
+    .game-card { grid-template-columns: 1fr; }
+    .game-art { grid-row: auto; height: 120px; margin-bottom: 14px; }
+}
+
+/* ───────────── Игра «Связь» ───────────── */
+
+.network-view { position: relative; min-height: 0; border-bottom: 1px solid #1f2622; background: radial-gradient(ellipse at 50% 50%, #121a1d, #0a0d0e 75%); overflow: hidden; }
+.network-view svg { display: block; width: 100%; height: 100%; }
+.net-link { stroke: #3a4a50; stroke-width: 3; stroke-linecap: round; }
+.net-link.trail { stroke: #4fd2ff; stroke-width: 4; filter: drop-shadow(0 0 4px rgba(79,210,255,.7)); }
+.net-link.broken { stroke: #6b3434; stroke-dasharray: 6 7; }
+.net-break { stroke: #ff5b5b; stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 3px #ff5b5b); }
+.net-node-halo { fill: transparent; stroke: transparent; stroke-width: 2; }
+.net-node-body { fill: #15201f; stroke: #4c6066; stroke-width: 2.5; }
+.net-node-core { fill: #4c6066; }
+.net-node.net-visited .net-node-body { stroke: #4fd2ff; }
+.net-node.net-visited .net-node-core { fill: #4fd2ff; }
+.net-node.net-source .net-node-body { stroke: #9cf097; }
+.net-node.net-source .net-node-core { fill: #9cf097; }
+.net-node.net-target .net-node-halo { stroke: #ffd23f; stroke-dasharray: 4 4; animation: net-spin 6s linear infinite; transform-box: fill-box; transform-origin: center; }
+.net-node.net-target .net-node-body { stroke: #ffd23f; }
+.net-node.net-target .net-node-core { fill: #ffd23f; }
+.net-node.net-failed .net-node-body { stroke: #ff5b5b; fill: #2a1414; }
+@keyframes net-spin { to { transform: rotate(360deg); } }
+.net-node-label { fill: #c9d6d3; font: 600 12px/1 system-ui, sans-serif; paint-order: stroke; stroke: #0a0d0e; stroke-width: 4px; }
+.net-packet-glow { fill: rgba(79,210,255,.25); }
+.net-packet-dot { fill: #bff0ff; stroke: #4fd2ff; stroke-width: 2; }
+.net-packet.failed .net-packet-glow { fill: rgba(255,91,91,.3); animation: train-alarm .6s ease-in-out infinite alternate; }
+.net-packet.failed .net-packet-dot { fill: #ffb3b3; stroke: #ff5b5b; }
+.net-packet-label { fill: #e6ece8; font: 600 10px/1 ui-monospace, monospace; paint-order: stroke; stroke: #0a0d0e; stroke-width: 3px; }
+.network-pill { background: rgba(79,210,255,.1); color: #4fd2ff; }
+.network-row { grid-template-columns: 34px minmax(0, 1fr) auto; }
+.schedule-row.active { border-color: rgba(79,210,255,.5); }
+.schedule-row.active i { color: #4fd2ff; }
+.network-layout .station-speed button.active { border-color: #4fd2ff; color: #4fd2ff; }
+
+.art-link { stroke: #3a4a50; stroke-width: 3; stroke-linecap: round; }
+.art-route { stroke: #4fd2ff; }
+.art-broken { stroke: #6b3434; stroke-dasharray: 5 5; }
+.art-node { fill: #15201f; stroke: #4c6066; stroke-width: 2.5; }
+.art-target { stroke: #ffd23f; }
+.art-packet { fill: #bff0ff; stroke: #4fd2ff; stroke-width: 2; }
+.network-card .game-copy small, .network-card .game-go { color: #4fd2ff; }
+.network-card footer progress { accent-color: #4fd2ff; }
+a.network-card:hover { border-color: rgba(79,210,255,.6); }

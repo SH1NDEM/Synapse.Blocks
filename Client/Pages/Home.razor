@@ -4,6 +4,7 @@
 @inject LevelStore LevelStore
 @inject ProgressStore ProgressStore
 @inject SolutionStore SolutionStore
+@inject BlockLibraryStore Library
 @inject GraphRunner Runner
 @inject NodeRegistry Registry
 @inject NavigationManager Navigation
@@ -29,35 +30,47 @@ else if (ActiveLevel is not { } level)
 }
 else
 {
-    <section class="game-toolbar @(Sandbox ? "sandbox-toolbar" : "child-toolbar")">
-        <div>
-            <small>@(Sandbox ? "ПЕСОЧНИЦА / УРОВЕНЬ" : "ТЕКУЩАЯ ОПЕРАЦИЯ")</small>
-            <select value="@level.Id" @onchange="SelectLevel">
-                @foreach (var item in _levels)
-                {
-                    <option value="@item.Id">@(_completed.Contains(item.Id) ? "✓" : "○") @item.Order.ToString("00") · @item.Title</option>
-                }
-            </select>
-        </div>
-        <div class="toolbar-stats">
-            @if (Sandbox)
-            {
+    @if (Sandbox)
+    {
+        @* В песочнице (раздел админки) своей шапки нет — панель остаётся над полем. *@
+        <section class="game-toolbar sandbox-toolbar">
+            <div>
+                <small>ПЕСОЧНИЦА / УРОВЕНЬ</small>
+                @LevelPicker(level)
+            </div>
+            <div class="toolbar-stats">
                 <span><b>@level.Tests.Count</b> тестов</span>
                 <span class="sandbox-mode">без зачёта</span>
                 <button type="button" @onclick="ExportSandboxJson">Скачать JSON</button>
-            }
+                <button type="button" @onclick="ClearProgram">Очистить поле</button>
+            </div>
+        </section>
+    }
+    else
+    {
+        <SectionContent SectionName="header-tools">
+            @LevelPicker(level)
             @if (level.IntroSteps.Count > 0)
             {
-                <button type="button" @onclick="ShowLevelIntro">Пояснение</button>
+                <button type="button" class="header-tool" @onclick="ShowLevelIntro">Пояснение</button>
             }
-            <button type="button" @onclick="ClearProgram">Очистить поле</button>
-        </div>
-    </section>
+            <button type="button" class="header-tool" @onclick="ClearProgram">Очистить поле</button>
+        </SectionContent>
+    }
 
     <div class="game-layout @(Sandbox ? "sandbox-layout" : "child-game-layout")">
         <aside class="mission-pane @(Sandbox ? "sandbox-settings" : "") @Highlight(IntroHighlightTarget.Mission)">
             <div class="mission-scroll">
-                @if (Sandbox)
+                @if (EditingBlock is { } editing)
+                {
+                    <CustomBlockEditor Block="editing"
+                                       Root="_program"
+                                       OnChanged="BlockStructureChanged"
+                                       OnClose="CloseBlock"
+                                       OnDelete="() => DeleteBlock(editing)"
+                                       OnSaveToLibrary="() => SaveToLibrary(editing)" />
+                }
+                else if (Sandbox)
                 {
                     <span class="direction-pill">НАСТРОЙКА</span>
                     <h1>Тесты программы</h1>
@@ -96,72 +109,17 @@ else
                     {
                         <div class="solution-rules">
                             <small>УСЛОВИЯ СХЕМЫ</small>
-                            @foreach (var rule in GraphRules.Check(_program, level.Rules, Registry))
+                            @foreach (var rule in GraphRules.Check(_program, level.Rules, _registry))
                             {
                                 <span class="@(rule.Passed ? "rule-passed" : "")">@(rule.Passed ? "✓" : "○") @rule.Description</span>
                             }
                         </div>
                     }
-
-                    <div class="test-list-head"><span>ОТКРЫТЫЕ ТЕСТЫ</span><b>@level.Tests.Count(test => !test.Hidden)</b></div>
-                    <div class="test-list @Highlight(IntroHighlightTarget.Tests)">
-                        @foreach (var test in level.Tests.Where(test => !test.Hidden))
-                        {
-                            <article>
-                                <small>@test.Name</small>
-                                <div><code>@test.Input</code><span>→</span><code>@test.ExpectedOutput</code></div>
-                            </article>
-                        }
-                        @if (level.Tests.Any(test => test.Hidden))
-                        {
-                            <article class="hidden-tests"><small>СКРЫТЫЕ ПРОВЕРКИ</small><strong>+@level.Tests.Count(test => test.Hidden)</strong></article>
-                        }
-                    </div>
                 }
             </div>
-        </aside>
 
-        <section class="workspace-pane @Highlight(IntroHighlightTarget.Workspace)">
-            <GraphCanvas @ref="_canvas"
-                         Program="_program"
-                         Registry="Registry"
-                         Run="_run"
-                         DraggedType="@_dragType"
-                         OnChanged="ProgramChanged"
-                         OnInteract="CancelExecutionVisuals"
-                         OnHelp="definition => _help = definition"
-                         OnDropped="() => _dragType = null" />
-            <TestConsole Level="level" Results="_results" Running="_running" ActiveIndex="_activeTestIndex" ActiveCount="_activeTestCount" />
-        </section>
-
-        <aside class="library-pane">
-            <div class="library-head"><span>БЛОКИ</span><small>Перетащите на поле или нажмите</small></div>
-            @if (ShowVariables)
-            {
-                <VariablesPanel Program="_program" Registry="Registry" Run="_run" OnChanged="ProgramChanged" />
-            }
-            <NodePalette Nodes="AvailableNodes"
-                         CssClass="@Highlight(IntroHighlightTarget.BlockLibrary)"
-                         OnAdd="AddFromPalette"
-                         OnDragStart="definition => _dragType = definition.TypeId"
-                         OnHelp="definition => _help = definition" />
-
+            @* Запуск и пошаговая проверка — внизу левой панели, под заданием. *@
             <div class="run-panel @Highlight(IntroHighlightTarget.RunPanel)">
-                <div class="run-summary"><span>ТЕСТОВ</span><b>@level.Tests.Count</b></div>
-                @if (Sandbox || _running || _results.Count > 0 || _debugSteps.Count > 0)
-                {
-                    <section class="debug-readout" aria-label="Текущее состояние программы">
-                        <header><span>@(_activeTestCount > 0 ? $"ТЕСТ {_activeTestIndex}/{_activeTestCount}" : "СОСТОЯНИЕ")</span><b>@DebugStepLabel</b></header>
-                        @if (_activeTestName.Length > 0)
-                        {
-                            <div class="active-test-row"><span>@(_activeTestHidden ? "СКРЫТЫЙ" : "ТЕСТ")</span><code>@_activeTestName</code></div>
-                        }
-                        <div><span>Вход</span><code>@TestResultText.Display(_debugInput)</code></div>
-                        <div><span>Блок</span><code>@_debugNode</code></div>
-                        <div class="expected-row"><span>Ожидается</span><code>@TestResultText.Display(_debugExpected)</code></div>
-                        <p title="@_debugMessage">@_debugMessage</p>
-                    </section>
-                }
                 @if (_issues.Count > 0)
                 {
                     <div class="graph-issues"><strong>Схема не готова</strong>@foreach (var issue in _issues.Take(4)) { <span>@issue</span> }</div>
@@ -172,20 +130,70 @@ else
                 }
                 <div class="run-actions">
                     <button type="button" class="run-button" @onclick="RunTests" disabled="@(level.Tests.Count == 0 || _running)">
-                        <span>@(_running ? "Выполняю программу…" : "Запустить все тесты")</span><b>@(_running ? "●" : "▶")</b>
+                        <span>@(_running ? "Выполняю программу…" : $"Запустить все тесты · {level.Tests.Count}")</span><b>@(_running ? "●" : "▶")</b>
                     </button>
                     @if (_running)
                     {
                         <button type="button" class="stop-button" @onclick="StopTests"><span>Остановить</span><b>■</b></button>
                     }
                 </div>
-                <div class="step-controls">
-                    <button type="button" class="step-button" @onclick="StepDebug" disabled="@(!CanStepProgram)">@StepButtonLabel</button>
-                    <button type="button" @onclick="ContinueDebug" disabled="@(!CanStepProgram || _stepPlaying)">Продолжить</button>
-                    <button type="button" @onclick="RestartStepDebug" disabled="@(level.Tests.Count == 0 || _running)">Заново</button>
-                </div>
-                <small>Программа получит новые входные данные для каждой проверки</small>
+
+                <section class="step-panel @(_stepPanelOpen ? "open" : "")">
+                    <button type="button" class="step-panel-toggle" aria-expanded="@_stepPanelOpen" @onclick="() => _stepPanelOpen = !_stepPanelOpen">
+                        <span>ПО ШАГАМ</span><small>@DebugStepLabel</small><i aria-hidden="true">@(_stepPanelOpen ? "▾" : "▸")</i>
+                    </button>
+                    @if (_stepPanelOpen)
+                    {
+                        if (Sandbox || _running || _results.Count > 0 || _debugSteps.Count > 0)
+                        {
+                            <section class="debug-readout" aria-label="Текущее состояние программы">
+                                <header><span>@(_activeTestCount > 0 ? $"ТЕСТ {_activeTestIndex}/{_activeTestCount}" : "СОСТОЯНИЕ")</span><b>@DebugStepLabel</b></header>
+                                @if (_activeTestName.Length > 0)
+                                {
+                                    <div class="active-test-row"><span>@(_activeTestHidden ? "СКРЫТЫЙ" : "ТЕСТ")</span><code>@_activeTestName</code></div>
+                                }
+                                <div><span>Вход</span><code>@TestResultText.Display(_debugInput)</code></div>
+                                <div><span>Блок</span><code>@_debugNode</code></div>
+                                <div class="expected-row"><span>Ожидается</span><code>@TestResultText.Display(_debugExpected)</code></div>
+                                <p title="@_debugMessage">@_debugMessage</p>
+                            </section>
+                        }
+                        <div class="step-controls">
+                            <button type="button" class="step-button" @onclick="StepDebug" disabled="@(!CanStepProgram)">@StepButtonLabel</button>
+                            <button type="button" @onclick="ContinueDebug" disabled="@(!CanStepProgram || _stepPlaying)">Продолжить</button>
+                            <button type="button" @onclick="RestartStepDebug" disabled="@(level.Tests.Count == 0 || _running)">Заново</button>
+                        </div>
+                    }
+                </section>
             </div>
+        </aside>
+
+        <section class="workspace-pane @Highlight(IntroHighlightTarget.Workspace)">
+            <GraphCanvas @ref="_canvas"
+                         Program="EditedProgram"
+                         Registry="EditRegistry"
+                         Run="_run"
+                         DraggedType="@_dragType"
+                         HeadStart="@(EditingBlock is not null ? BlockCrumbs : null)"
+                         OnChanged="ProgramChanged"
+                         OnInteract="CancelExecutionVisuals"
+                         OnHelp="definition => _help = definition"
+                         OnOpenBlock="OpenBlock"
+                         OnDropped="() => _dragType = null" />
+            <TestConsole Level="level" Results="_results" Running="_running" ActiveIndex="_activeTestIndex" ActiveCount="_activeTestCount" CssClass="@Highlight(IntroHighlightTarget.Tests)" />
+        </section>
+
+        <aside class="library-pane">
+            <div class="library-head"><span>БЛОКИ</span><small>Перетащите на поле или нажмите</small></div>
+            <NodePalette Nodes="AvailableNodes"
+                         CssClass="@Highlight(IntroHighlightTarget.BlockLibrary)"
+                         Variables="@(ShowVariables ? VariablesTab : null)"
+                         VariableCount="EditedProgram.Variables.Count"
+                         CustomHeader="CustomBlocksHeader"
+                         OnAdd="AddFromPalette"
+                         OnDragStart="definition => _dragType = definition.TypeId"
+                         OnHelp="definition => _help = definition" />
+
         </aside>
     </div>
 
@@ -229,6 +237,11 @@ else
 
     // Схема существует независимо от уровня: уровень задаёт только доступные блоки, правила и тесты.
     private readonly GraphProgram _program = new();
+    // Реестр основной программы: встроенные блоки и свои блоки игрока. Пересобирается, когда меняются свои блоки.
+    private NodeRegistry _registry = NodeRegistry.Default;
+    // Свой блок, чья схема сейчас открыта на поле; null — основная программа.
+    private string? _editingBlockId;
+    private List<GraphCustomBlock> _library = [];
     private readonly GraphRunView _run = new();
     private GraphCanvas? _canvas;
     private List<LevelDefinition> _levels = [];
@@ -242,6 +255,8 @@ else
     private string _loadError = "";
     private bool _showSuccess;
     private bool _showDescription;
+    // Блок пошаговой проверки в правой панели свёрнут по умолчанию и раскрывается по кнопке «По шагам».
+    private bool _stepPanelOpen;
 
     // Запуск и пошаговая отладка.
     private bool _running;
@@ -270,11 +285,67 @@ else
     private LevelDefinition? ActiveLevel => _levels.FirstOrDefault(level => level.Id == _activeLevelId) ?? _levels.FirstOrDefault();
     private bool HasNextLevel => ActiveLevel is not null && _levels.IndexOf(ActiveLevel) < _levels.Count - 1;
 
-    private IReadOnlyList<NodeDefinition> AvailableNodes => Sandbox || ActiveLevel is null
-        ? Registry.All
-        : LevelNodes.Available(ActiveLevel, Registry).ToList();
+    private GraphCustomBlock? EditingBlock => _program.FindBlock(_editingBlockId);
 
-    private bool ShowVariables => _program.Variables.Count > 0 || AvailableNodes.Any(node => node.Category == NodeCategories.Memory);
+    /// <summary>Схема на поле: основная программа или схема открытого своего блока.</summary>
+    private GraphProgram EditedProgram => EditingBlock?.Body ?? _program;
+
+    private NodeRegistry EditRegistry => EditingBlock is { } block && _registry.CustomScope is { } scope
+        ? scope.BodyRegistry(block)
+        : _registry;
+
+    private IReadOnlyList<NodeDefinition> AvailableNodes
+    {
+        get
+        {
+            var registry = EditRegistry;
+            var nodes = Sandbox || ActiveLevel is null ? registry.All : LevelNodes.Available(ActiveLevel, registry);
+            // Внутри блока нельзя поставить его самого и блоки, которые его используют.
+            if (EditingBlock is { } block && registry.CustomScope is { } scope)
+                nodes = nodes.Where(definition => definition is not CustomNodeDefinition custom || !scope.DependsOn(custom.Block, block));
+            return nodes.ToList();
+        }
+    }
+
+    /// <summary>Путь в шапке поля, пока открыта схема своего блока.</summary>
+    private RenderFragment BlockCrumbs => @<nav class="canvas-crumbs" aria-label="Открытая схема">
+        <button type="button" @onclick="CloseBlock">← Программа</button><span class="crumb-sep" aria-hidden="true">›</span><b><em aria-hidden="true"></em>@EditingBlock?.Name</b>
+    </nav>;
+
+    /// <summary>Шапка вкладки «Мои блоки»: создание блока и личная библиотека.</summary>
+    private RenderFragment CustomBlocksHeader => @<div class="custom-blocks-head">
+        <button type="button" class="custom-create" @onclick="CreateBlock">+ Новый блок</button>
+        <p>Соберите схему один раз и ставьте её как обычный чип. Чтобы изменить блок, дважды щёлкните по его названию на поле.</p>
+        @if (_library.Count > 0)
+        {
+            <details class="block-library-list">
+                <summary>Библиотека · @_library.Count</summary>
+                @foreach (var item in _library)
+                {
+                    var saved = item;
+                    var inProgram = _program.FindBlock(saved.Id) is not null;
+                    <div class="library-item">
+                        <span><b>@saved.Name</b><small>@saved.Inputs.Count → @saved.Outputs.Count</small></span>
+                        <button type="button" disabled="@inProgram" @onclick="() => ImportBlock(saved)">@(inProgram ? "в схеме" : "добавить")</button>
+                        <button type="button" class="library-remove" @onclick="() => RemoveFromLibrary(saved.Id)" aria-label="Убрать из библиотеки">×</button>
+                    </div>
+                }
+            </details>
+        }
+    </div>;
+
+    /// <summary>Выбор задания: в шапке сайта в игре и над полем в песочнице.</summary>
+    private RenderFragment LevelPicker(LevelDefinition level) => @<select class="level-picker" value="@level.Id" @onchange="SelectLevel" aria-label="Задание">
+        @foreach (var item in _levels)
+        {
+            <option value="@item.Id">@(_completed.Contains(item.Id) ? "✓" : "○") @item.Order.ToString("00") · @item.Title</option>
+        }
+    </select>;
+
+    // Вкладка «Переменные» в боковой панели.
+    private RenderFragment VariablesTab => @<VariablesPanel Program="EditedProgram" Registry="EditRegistry" Run="_run" OnChanged="ProgramChanged" />;
+
+    private bool ShowVariables => EditedProgram.Variables.Count > 0 || AvailableNodes.Any(node => node.Category == NodeCategories.Memory);
 
     private bool CanStepProgram => ActiveLevel is { Tests.Count: > 0 } && !_running && !_stepSessionFinished;
     private string StepButtonLabel => _stepSessionFinished
@@ -294,6 +365,7 @@ else
             if (Sandbox)
                 _levels = _levels.Select(CloneForSandbox).ToList();
             _completed = await ProgressStore.LoadAsync();
+            _library = await Library.LoadAsync();
             _activeLevelId = RequestedLevel is Guid requested && _levels.Any(level => level.Id == requested)
                 ? requested
                 : _levels.FirstOrDefault(level => !_completed.Contains(level.Id))?.Id ?? _levels.FirstOrDefault()?.Id;
@@ -337,21 +409,43 @@ else
         _canvas?.Refresh();
     }
 
-    /// <summary>Подставляет сохранённую программу или стартовую: «Вход» и «Выход» уже стоят на поле.</summary>
-    private void ReplaceProgram(GraphProgram? source)
+    /// <summary>Подставляет сохранённую программу или стартовую: «Вход» и «Выход» уже стоят на поле и соединены порядком.</summary>
+    private void ReplaceProgram(GraphProgram? source, bool keepBlocks = false)
     {
+        _editingBlockId = null;
         _program.Nodes.Clear();
         _program.Links.Clear();
         _program.Variables.Clear();
+        if (!keepBlocks)
+            _program.CustomBlocks.Clear();
+        FillProgram(source);
+        RebuildBlocks();
+    }
+
+    private void FillProgram(GraphProgram? source)
+    {
         if (source is not null && source.Nodes.Count > 0)
         {
+            _program.CustomBlocks.Clear();
+            _program.CustomBlocks.AddRange(source.CustomBlocks);
+            // Чипы стоят по сетке платы: старые координаты округляем до узлов.
+            foreach (var node in source.Nodes)
+            {
+                node.X = NodeLayout.Snap(node.X);
+                node.Y = NodeLayout.Snap(node.Y);
+            }
             _program.Nodes.AddRange(source.Nodes);
             _program.Links.AddRange(source.Links);
             _program.Variables.AddRange(source.Variables);
             return;
         }
-        _program.Nodes.Add(new GraphNode { Type = StartNode.Id, X = GraphCanvas.OriginX + 40, Y = GraphCanvas.OriginY + 80 });
-        _program.Nodes.Add(new GraphNode { Type = OutputNode.Id, X = GraphCanvas.OriginX + 640, Y = GraphCanvas.OriginY + 80 });
+        // Белый провод порядка «Вход → Выход» уже проложен: игроку остаётся провести данные.
+        // Новый провод из «Входа» к другому чипу просто заменит этот.
+        var start = new GraphNode { Type = StartNode.Id, X = NodeLayout.Snap(GraphCanvas.OriginX + 40), Y = NodeLayout.Snap(GraphCanvas.OriginY + 80) };
+        var output = new GraphNode { Type = OutputNode.Id, X = NodeLayout.Snap(GraphCanvas.OriginX + 520), Y = NodeLayout.Snap(GraphCanvas.OriginY + 80) };
+        _program.Nodes.Add(start);
+        _program.Nodes.Add(output);
+        _program.Links.Add(new GraphLink { FromNode = start.Id, FromPort = "next", ToNode = output.Id, ToPort = "in" });
     }
 
     private async Task PersistProgramAsync(int generation)
@@ -373,9 +467,99 @@ else
 
     private void ClearProgram()
     {
-        ReplaceProgram(null);
+        if (EditingBlock is { } block)
+        {
+            // В открытом блоке очищается только его схема: остаются «Параметры» → «Вернуть».
+            var fresh = CustomBlocks.Create(block.Name, NodeLayout.Snap(GraphCanvas.OriginX + 40), NodeLayout.Snap(GraphCanvas.OriginY + 80));
+            block.Body.Nodes.Clear();
+            block.Body.Links.Clear();
+            block.Body.Variables.Clear();
+            block.Body.Nodes.AddRange(fresh.Body.Nodes);
+            block.Body.Links.AddRange(fresh.Body.Links.Where(link => link.FromPort == "next"));
+        }
+        else
+        {
+            // Свои блоки остаются в палитре: очищается только основная схема.
+            ReplaceProgram(null, keepBlocks: true);
+        }
         ResetExecution();
         _canvas?.Refresh();
+    }
+
+    // ───────────── Свои блоки ─────────────
+
+    private void RebuildBlocks()
+    {
+        _registry = CustomBlocks.Build(_program, Registry);
+        if (_editingBlockId is not null && EditingBlock is null)
+            _editingBlockId = null;
+    }
+
+    private void OpenBlock(string blockId)
+    {
+        if (_program.FindBlock(blockId) is null) return;
+        _editingBlockId = blockId;
+        _help = null;
+        ResetExecution(persist: false);
+    }
+
+    private void CloseBlock()
+    {
+        _editingBlockId = null;
+        ResetExecution(persist: false);
+    }
+
+    private void CreateBlock()
+    {
+        var number = 1;
+        while (_program.CustomBlocks.Any(block => block.Name == $"Блок {number}")) number++;
+        var created = CustomBlocks.Create($"Блок {number}", NodeLayout.Snap(GraphCanvas.OriginX + 40), NodeLayout.Snap(GraphCanvas.OriginY + 80));
+        _program.CustomBlocks.Add(created);
+        RebuildBlocks();
+        _editingBlockId = created.Id;
+        ResetExecution();
+    }
+
+    private void BlockStructureChanged()
+    {
+        RebuildBlocks();
+        ResetExecution();
+    }
+
+    private void DeleteBlock(GraphCustomBlock block)
+    {
+        CustomBlocks.RemoveBlock(_program, block);
+        _editingBlockId = null;
+        RebuildBlocks();
+        ResetExecution();
+        _canvas?.Refresh();
+    }
+
+    private async Task SaveToLibrary(GraphCustomBlock block)
+    {
+        _library = await Library.SaveAsync(block);
+        // Вместе с блоком сохраняются и блоки, которые стоят внутри него.
+        if (_registry.CustomScope is { } scope)
+            foreach (var used in _program.CustomBlocks.Where(item => item != block && scope.DependsOn(block, item)))
+                _library = await Library.SaveAsync(used);
+    }
+
+    private async Task RemoveFromLibrary(string id) => _library = await Library.RemoveAsync(id);
+
+    /// <summary>Добавляет копию блока из библиотеки, а заодно — блоки, которые использует его схема.</summary>
+    private void ImportBlock(GraphCustomBlock saved)
+    {
+        var queue = new Queue<GraphCustomBlock>([saved]);
+        while (queue.TryDequeue(out var item))
+        {
+            if (_program.FindBlock(item.Id) is not null) continue;
+            _program.CustomBlocks.Add(GraphJson.Clone(item));
+            foreach (var type in item.Body.Nodes.Select(node => node.Type).Where(CustomBlocks.IsCustomType))
+                if (_library.FirstOrDefault(entry => string.Equals(entry.Id, type, StringComparison.OrdinalIgnoreCase)) is { } dependency)
+                    queue.Enqueue(dependency);
+        }
+        RebuildBlocks();
+        ResetExecution();
     }
 
     private void AddSandboxTest()
@@ -412,16 +596,27 @@ else
     {
         _issues = [];
         _warnings = [];
-        foreach (var issue in GraphValidator.Validate(_program, Registry))
+        foreach (var issue in GraphValidator.Validate(_program, _registry))
             (issue.Severity == IssueSeverity.Error ? _issues : _warnings).Add(issue.Message);
+
+        // Открытый блок, который ещё нигде не стоит, проверяется отдельно — его замечания не мешают запуску.
+        if (EditingBlock is { } editing && _registry.CustomScope is { } editScope && !editScope.UsedBy(_program).Contains(editing))
+            _warnings.AddRange(GraphValidator.ValidateBlock(editing, editScope).Select(issue => issue.Message));
 
         if (Sandbox || ActiveLevel is not { } level) return;
 
-        foreach (var node in _program.Nodes)
-            if (Registry.TryGet(node.Type, out var definition) && !LevelNodes.Allows(level, definition))
-                _issues.Add($"Блок «{definition.Label}» недоступен в этом задании.");
+        void CheckAllowed(GraphProgram program, NodeRegistry registry, string prefix)
+        {
+            foreach (var node in program.Nodes)
+                if (registry.TryGet(node.Type, out var definition) && !LevelNodes.Allows(level, definition))
+                    _issues.Add($"{prefix}Блок «{definition.Label}» недоступен в этом задании.");
+        }
+        CheckAllowed(_program, _registry, "");
+        if (_registry.CustomScope is { } scope)
+            foreach (var block in _program.CustomBlocks)
+                CheckAllowed(block.Body, scope.BodyRegistry(block), $"«{block.Name}»: ");
 
-        foreach (var rule in GraphRules.Check(_program, level.Rules, Registry).Where(rule => !rule.Passed))
+        foreach (var rule in GraphRules.Check(_program, level.Rules, _registry).Where(rule => !rule.Passed))
             _issues.Add($"Условие задания: {rule.Description}.");
 
         _issues = _issues.Distinct().ToList();
@@ -467,7 +662,7 @@ else
     }
 
     private string NodeLabel(Guid nodeId)
-        => _program.FindNode(nodeId) is { } node && Registry.TryGet(node.Type, out var definition) ? definition.Label : "—";
+        => _program.FindNode(nodeId) is { } node && _registry.TryGet(node.Type, out var definition) ? definition.Label : "—";
 
     /// <summary>Блок, на котором программа ошиблась или вернула неверный ответ.</summary>
     private static Guid? FailedNode(GraphExecution execution) => execution.ErrorNodeId ?? (execution.Visited.Count > 0 ? execution.Visited[^1] : null);
@@ -484,6 +679,8 @@ else
     private bool PrepareStepRun()
     {
         if (!CanStepProgram || ActiveLevel is not { } level) return false;
+        // Запуск показывает основную программу, даже если была открыта схема блока.
+        _editingBlockId = null;
         var test = level.Tests.FirstOrDefault(item => !item.Hidden) ?? level.Tests[0];
         ResetExecution(persist: false);
         if (_issues.Count > 0)
@@ -559,6 +756,7 @@ else
     private async Task RunTests()
     {
         if (ActiveLevel is not { } level || _running) return;
+        _editingBlockId = null;
         ResetExecution(persist: false);
         if (_issues.Count > 0)
         {

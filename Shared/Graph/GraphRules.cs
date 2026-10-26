@@ -35,7 +35,8 @@ public static class GraphRules
     public static bool Matches(string target, NodeDefinition definition)
         => target.StartsWith(CategoryPrefix, StringComparison.OrdinalIgnoreCase)
             ? string.Equals(definition.Category, target[CategoryPrefix.Length..], StringComparison.OrdinalIgnoreCase)
-            : string.Equals(definition.TypeId, target, StringComparison.OrdinalIgnoreCase);
+            : string.Equals(definition.TypeId, target, StringComparison.OrdinalIgnoreCase)
+              || definition.RuleAliases.Contains(target, StringComparer.OrdinalIgnoreCase);
 
     public static string TargetLabel(string target, NodeRegistry? registry = null)
     {
@@ -60,11 +61,28 @@ public static class GraphRules
 
     public static IReadOnlyList<GraphRuleResult> Check(GraphProgram program, IEnumerable<GraphRule> rules, NodeRegistry? registry = null)
     {
-        registry ??= NodeRegistry.Default;
+        registry = CustomBlocks.Resolve(program, registry ?? NodeRegistry.Default);
+        var scope = registry.CustomScope;
         var definitions = new Dictionary<Guid, NodeDefinition>();
         foreach (var node in program.Nodes)
             if (registry.TryGet(node.Type, out var definition))
                 definitions.TryAdd(node.Id, definition);
+
+        // Чипы внутри своих блоков тоже считаются: блок нельзя использовать, чтобы обойти ограничение.
+        int Count(string target)
+            => definitions.Values.Sum(definition => (Matches(target, definition) ? 1 : 0) + Inside(definition, target, []));
+
+        int Inside(NodeDefinition definition, string target, HashSet<GraphCustomBlock> path)
+        {
+            if (definition is not CustomNodeDefinition custom || scope is null || !path.Add(custom.Block)) return 0;
+            var body = scope.BodyRegistry(custom.Block);
+            var total = 0;
+            foreach (var node in custom.Block.Body.Nodes)
+                if (body.TryGet(node.Type, out var inner))
+                    total += (Matches(target, inner) ? 1 : 0) + Inside(inner, target, path);
+            path.Remove(custom.Block);
+            return total;
+        }
 
         GraphAnalysis? analysis = null;
         var results = new List<GraphRuleResult>();
@@ -75,11 +93,11 @@ public static class GraphRules
             switch (rule.Kind)
             {
                 case GraphRuleKind.MinNodes:
-                    actual = definitions.Values.Count(definition => Matches(rule.Target, definition));
+                    actual = Count(rule.Target);
                     passed = actual >= rule.Count;
                     break;
                 case GraphRuleKind.MaxNodes:
-                    actual = definitions.Values.Count(definition => Matches(rule.Target, definition));
+                    actual = Count(rule.Target);
                     passed = actual <= rule.Count;
                     break;
                 case GraphRuleKind.MinNodesInScope:

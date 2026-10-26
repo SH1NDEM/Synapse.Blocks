@@ -33,6 +33,10 @@ else
                 <span>@(CompletedCount == _levels.Count ? "Все задания выполнены. Можно пройти их ещё раз." : "Каждая схема — ещё один шаг вперёд.")</span>
             </aside>
         </section>
+        <section class="mission-feed games-feed">
+            <header><div><small>ИГРЫ</small><h2>Схемы в деле</h2></div><p>Когда блоки освоены, попробуйте их на живых системах города: схема управляет станцией, а вы смотрите на результат.</p></header>
+            <GamesGrid Completed="_completed" />
+        </section>
         <section class="mission-feed">
             <header><div><small>ПРАКТИКА</small><h2>Выберите задание</h2></div><p>Разные схемы могут привести к правильному ответу. Экспериментируйте и проверяйте результат.</p></header>
             <div class="mission-feed-grid">

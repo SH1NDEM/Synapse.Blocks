@@ -52,12 +52,14 @@ public sealed class GraphRunner(NodeRegistry? registry = null, int maxSteps = 10
 
     public GraphExecution Run(GraphProgram program, Value input)
     {
-        var issues = GraphValidator.Validate(program, Registry);
+        // Свои блоки программы добавляются в реестр на время запуска.
+        var registry = CustomBlocks.Resolve(program, Registry);
+        var issues = GraphValidator.Validate(program, registry);
         var firstError = issues.FirstOrDefault(issue => issue.Severity == IssueSeverity.Error);
         if (firstError is not null)
             return new GraphExecution(false, Value.Null, firstError.Message, firstError.NodeId, [], [], issues);
 
-        return new GraphRuntime(program, Registry, input, maxSteps).Run(issues);
+        return new GraphRuntime(program, registry, input, new RunBudget(maxSteps), depth: 0, arguments: null).Run(issues);
     }
 
     public IReadOnlyList<GraphTestResult> RunTests(GraphProgram program, IEnumerable<LevelTestCase> tests)
@@ -78,10 +80,19 @@ public sealed class GraphRunner(NodeRegistry? registry = null, int maxSteps = 10
         }).ToList();
 }
 
-/// <summary>Состояние одного запуска программы.</summary>
+/// <summary>Общий на весь запуск запас шагов: схемы своих блоков тратят его вместе с основной программой.</summary>
+internal sealed class RunBudget(int max)
+{
+    public int Max { get; } = max;
+    public int Remaining { get; set; } = max;
+}
+
+/// <summary>Состояние одного запуска программы (или схемы своего блока внутри неё).</summary>
 internal sealed class GraphRuntime
 {
-    private readonly int _maxSteps;
+    private readonly RunBudget _budget;
+    private readonly int _depth;
+    private readonly IReadOnlyDictionary<string, Value> _arguments;
     private readonly Dictionary<Guid, (GraphNode Node, NodeDefinition Definition)> _nodes = [];
     // Провода исполнения ищутся по выходу, провода данных — по входу: так их обходит интерпретатор.
     private readonly Dictionary<(Guid Node, string Port), GraphLink> _execByOutput = [];
@@ -96,10 +107,12 @@ internal sealed class GraphRuntime
     private Dictionary<string, string> _stepInputs = [];
     private Dictionary<string, string> _stepOutputs = [];
 
-    public GraphRuntime(GraphProgram program, NodeRegistry registry, Value input, int maxSteps)
+    public GraphRuntime(GraphProgram program, NodeRegistry registry, Value input, RunBudget budget, int depth, IReadOnlyDictionary<string, Value>? arguments)
     {
         ProgramInput = input;
-        _maxSteps = maxSteps;
+        _budget = budget;
+        _depth = depth;
+        _arguments = arguments ?? new Dictionary<string, Value>();
 
         foreach (var node in program.Nodes)
             if (registry.TryGet(node.Type, out var definition))
@@ -122,6 +135,28 @@ internal sealed class GraphRuntime
 
     public Value ProgramInput { get; }
 
+    /// <summary>Значения, которые схема своего блока вернула через «Вернуть».</summary>
+    public Dictionary<string, Value> Returns { get; } = new(StringComparer.Ordinal);
+
+    public Value Argument(string portId, Guid nodeId)
+        => _arguments.TryGetValue(portId, out var value)
+            ? value
+            : throw new GraphRuntimeException($"Блок не получил значение входа «{portId}».", nodeId);
+
+    /// <summary>Запускает схему своего блока с заданными входами и возвращает его выходы.</summary>
+    public Dictionary<string, Value> RunCustomBlock(GraphCustomBlock block, NodeRegistry registry, IReadOnlyDictionary<string, Value> arguments, string label, Guid callerId)
+    {
+        if (_depth + 1 > CustomBlocks.MaxDepth)
+            throw new GraphRuntimeException($"Свои блоки вызывают друг друга слишком глубоко (больше {CustomBlocks.MaxDepth} уровней).", callerId);
+
+        // Входные данные программы видны и внутри блока: так блоки игр (например, «Поезд») работают и в своих блоках.
+        var inner = new GraphRuntime(block.Body, registry, ProgramInput, _budget, _depth + 1, arguments);
+        var execution = inner.Run([]);
+        if (!execution.Success)
+            throw new GraphRuntimeException($"Внутри блока «{label}»: {execution.Error}", callerId);
+        return inner.Returns;
+    }
+
     public GraphExecution Run(IReadOnlyList<GraphIssue> issues)
     {
         var visited = new List<Guid>();
@@ -129,7 +164,7 @@ internal sealed class GraphRuntime
         var entry = _nodes.Values.First(item => item.Definition.IsEntry);
         var current = entry.Node;
 
-        for (var step = 0; step < _maxSteps; step++)
+        while (_budget.Remaining-- > 0)
         {
             var definition = _nodes[current.Id].Definition;
             visited.Add(current.Id);
@@ -195,7 +230,7 @@ internal sealed class GraphRuntime
             }
         }
 
-        return Fail($"Программа превысила безопасный предел в {_maxSteps} шагов. Возможно, цикл никогда не заканчивается.", current.Id);
+        return Fail($"Программа превысила безопасный предел в {_budget.Max} шагов. Возможно, цикл никогда не заканчивается.", current.Id);
 
         GraphExecution Fail(string error, Guid? nodeId)
             => new(false, Value.Null, error, nodeId, visited, steps, issues);
@@ -361,6 +396,16 @@ public sealed class NodeContext
     public Value GetVariable(string name) => _runtime.GetVariable(name, Node.Id);
 
     public void SetVariable(string name, Value value) => _runtime.SetVariable(name, value, Node.Id);
+
+    /// <summary>Значение входа своего блока — для чипа «Параметры».</summary>
+    public Value Argument(string portId) => _runtime.Argument(portId, Node.Id);
+
+    /// <summary>Выход своего блока — для чипа «Вернуть».</summary>
+    public void Return(string portId, Value value) => _runtime.Returns[portId] = value;
+
+    /// <summary>Запускает схему своего блока и возвращает значения его выходов.</summary>
+    internal Dictionary<string, Value> RunCustomBlock(GraphCustomBlock block, NodeRegistry registry, IReadOnlyDictionary<string, Value> arguments, string label)
+        => _runtime.RunCustomBlock(block, registry, arguments, label, Node.Id);
 
     /// <summary>Создаёт ошибку для игрока, привязанную к этому блоку: <c>throw context.Error("...")</c>.</summary>
     public GraphRuntimeException Error(string message) => new(message, Node.Id);

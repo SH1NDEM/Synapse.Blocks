@@ -89,8 +89,15 @@ public static class LevelNodes
     public static bool IsMandatory(string typeId)
         => Mandatory.Contains(typeId, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Можно ли использовать блок в уровне. Свои блоки и их служебные чипы доступны всегда:
+    /// ограничения уровня проверяются для чипов внутри них.
+    /// </summary>
     public static bool Allows(LevelDefinition level, NodeDefinition definition)
-        => IsMandatory(definition.TypeId) || level.AllowedNodes.Any(target => GraphRules.Matches(target, definition));
+        => IsMandatory(definition.TypeId)
+           || definition.Category == NodeCategories.Custom
+           || CustomBlocks.IsServiceType(definition.TypeId)
+           || level.AllowedNodes.Any(target => GraphRules.Matches(target, definition));
 
     public static IEnumerable<NodeDefinition> Available(LevelDefinition level, NodeRegistry registry)
         => registry.All.Where(definition => Allows(level, definition));

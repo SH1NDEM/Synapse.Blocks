@@ -10,7 +10,8 @@ public enum IssueSeverity
     Warning
 }
 
-public sealed record GraphIssue(IssueSeverity Severity, string Message, Guid? NodeId = null, Guid? LinkId = null);
+/// <summary>Замечание к схеме. BlockId задан, если замечание относится к схеме внутри своего блока.</summary>
+public sealed record GraphIssue(IssueSeverity Severity, string Message, Guid? NodeId = null, Guid? LinkId = null, string? BlockId = null);
 
 /// <summary>
 /// Общие проверки структуры программы. Ничего не знает о конкретных блоках: всё, что ему нужно,
@@ -20,7 +21,7 @@ public static class GraphValidator
 {
     public static IReadOnlyList<GraphIssue> Validate(GraphProgram program, NodeRegistry? registry = null)
     {
-        registry ??= NodeRegistry.Default;
+        registry = CustomBlocks.Resolve(program, registry ?? NodeRegistry.Default);
         var issues = new List<GraphIssue>();
         void Error(string message, Guid? node = null, Guid? link = null) => issues.Add(new(IssueSeverity.Error, message, node, link));
         void Warn(string message, Guid? node = null, Guid? link = null) => issues.Add(new(IssueSeverity.Warning, message, node, link));
@@ -182,8 +183,8 @@ public static class GraphValidator
                     Warn($"Блок «{definition.Label}» не выполнится: к нему не ведёт провод исполнения.", nodeId);
 
             bool IsTerminal(NodeDefinition definition) => !definition.IsPure && !definition.Outputs.Any(port => port.IsExec);
-            if (definitions.Values.Any(IsTerminal) && !reachable.Any(id => definitions.TryGetValue(id, out var definition) && IsTerminal(definition)))
-                Error("Провода исполнения не доводят программу до блока «Выход».");
+            if (definitions.Values.FirstOrDefault(IsTerminal) is { } terminal && !reachable.Any(id => definitions.TryGetValue(id, out var definition) && IsTerminal(definition)))
+                Error($"Провода исполнения не доводят программу до блока «{terminal.Label}».");
 
             var linkedExecOutputs = execOutputs.Keys.ToHashSet();
             foreach (var nodeId in reachable)
@@ -200,7 +201,45 @@ public static class GraphValidator
             }
         }
 
+        // Свои блоки: проверяются те, что выполнятся при запуске (стоят в программе или внутри таких блоков).
+        if (registry.CustomScope is { } scope && registry.BodyOf is null)
+            foreach (var block in scope.UsedBy(program))
+                issues.AddRange(ValidateBlock(block, scope));
+
         return issues;
+    }
+
+    /// <summary>
+    /// Проверяет свой блок: входы и выходы и схему внутри него. Замечания помечены Id блока,
+    /// а в тексте названо имя блока, чтобы их можно было показать и снаружи.
+    /// </summary>
+    public static IReadOnlyList<GraphIssue> ValidateBlock(GraphCustomBlock block, CustomBlockScope scope)
+    {
+        var issues = new List<GraphIssue>();
+        var name = string.IsNullOrWhiteSpace(block.Name) ? "Мой блок" : block.Name.Trim();
+        void Add(IssueSeverity severity, string message, Guid? node = null, Guid? link = null)
+            => issues.Add(new GraphIssue(severity, $"«{name}»: {message}", node, link, block.Id));
+
+        if (string.IsNullOrWhiteSpace(block.Name))
+            Add(IssueSeverity.Error, "дайте блоку название.");
+        if (block.Outputs.Count == 0)
+            Add(IssueSeverity.Error, "у блока должен быть хотя бы один выход.");
+        foreach (var port in block.Inputs.Concat(block.Outputs).Where(port => string.IsNullOrWhiteSpace(port.Name)))
+            Add(IssueSeverity.Error, "у каждого входа и выхода должно быть название.");
+        if (!scope.IsConnected(block))
+        {
+            Add(IssueSeverity.Error, "блок не удалось подключить: проверьте, что названия его входов и выходов не повторяются.");
+            return issues.DistinctBy(issue => issue.Message).ToList();
+        }
+        if (scope.DependsOn(block, block))
+        {
+            Add(IssueSeverity.Error, "блок использует сам себя (прямо или через другие блоки) — такой блок никогда не закончит работу.");
+            return issues;
+        }
+
+        foreach (var issue in Validate(block.Body, scope.BodyRegistry(block)))
+            Add(issue.Severity, issue.Message, issue.NodeId, issue.LinkId);
+        return issues.DistinctBy(issue => issue.Message).ToList();
     }
 
     /// <summary>Чистые блоки, которые через провода данных зависят сами от себя.</summary>

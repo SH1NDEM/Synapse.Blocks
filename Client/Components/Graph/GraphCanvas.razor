@@ -1,11 +1,15 @@
 @using Synapse.Blocks.Graph
 @using Synapse.Blocks.Graph.Nodes
 @inject IJSRuntime JS
-@* Рабочее поле: блоки, провода двух видов, перетаскивание, соединение портов и масштаб.
+@* Рабочее поле: чипы стоят по сетке и соединяются плавными проводами.
+   Шевроны показывают направление потока, при запуске по проводам бегут волны.
    Компонент выводит два соседних элемента (шапку и поле), чтобы встать в сетку .workspace-pane. *@
 
 <div class="canvas-head">
-    <div><i></i><span>РАБОЧЕЕ ПОЛЕ</span><small>@Program.Nodes.Count блоков · @Program.Links.Count проводов</small></div>
+    <div class="canvas-head-start">
+        @HeadStart
+        <small>@Program.Nodes.Count чипов · @Program.Links.Count проводов</small>
+    </div>
     <div class="canvas-legend" aria-hidden="true">
         <span><i class="legend-exec"></i>порядок</span>
         <span><i class="legend-data"></i>данные</span>
@@ -27,6 +31,7 @@
      data-origin-x="@NodeLayout.Num(OffsetX)"
      data-origin-y="@NodeLayout.Num(OffsetY)"
      data-zoom="@NodeLayout.Num(_zoom)"
+     style="--grid:@NodeLayout.Px(GridStep);--dot:@NodeLayout.Px(GridDot);--dot-alpha:@NodeLayout.Num(GridAlpha)"
      @onpointermove="MovePointer"
      @onpointerup="CancelPointer"
      @onwheel="ZoomWithWheel"
@@ -38,24 +43,32 @@
         <svg class="wire-layer" width="@NodeLayout.Num(WorldWidth)" height="@NodeLayout.Num(WorldHeight)" viewBox="0 0 @NodeLayout.Num(WorldWidth) @NodeLayout.Num(WorldHeight)" aria-hidden="true">
             @foreach (var scope in ScopeAreas())
             {
-                <rect class="loop-group-area" x="@NodeLayout.Num(scope.X)" y="@NodeLayout.Num(scope.Y)" width="@NodeLayout.Num(scope.Width)" height="@NodeLayout.Num(scope.Height)" rx="18" />
-                <foreignObject x="@NodeLayout.Num(scope.X + 12)" y="@NodeLayout.Num(scope.Y + 8)" width="260" height="24"><div class="loop-group-label">@scope.Label</div></foreignObject>
+                <rect class="loop-group-area" x="@NodeLayout.Num(scope.X)" y="@NodeLayout.Num(scope.Y)" width="@NodeLayout.Num(scope.Width)" height="@NodeLayout.Num(scope.Height)" rx="10" />
+                <foreignObject x="@NodeLayout.Num(scope.X + 12)" y="@NodeLayout.Num(scope.Y + 6)" width="260" height="24"><div class="loop-group-label">@scope.Label</div></foreignObject>
             }
             @foreach (var link in Program.Links)
             {
-                if (WirePath(link) is not { } wire) continue;
-                <path class="wire-hit" d="@wire.Path" @onclick="() => RemoveLink(link.Id)" />
-                <path class="wire-line @wire.Css" d="@wire.Path" />
-                @if (wire.Active)
-                {
-                    <circle class="wire-particle" r="4">
-                        <animateMotion dur="0.38s" repeatCount="indefinite" path="@wire.Path" />
-                    </circle>
-                }
+                if (Trace(link) is not { } trace) continue;
+                <g class="wire @trace.Css">
+                    <path class="wire-hit" d="@trace.Path" @onclick="() => RemoveLink(link.Id)" />
+                    <path class="trace-casing" d="@trace.Path" />
+                    <path class="trace" d="@trace.Path" />
+                    @if (trace.Flowing)
+                    {
+                        <path class="trace-flow" d="@trace.Path" />
+                    }
+                    @foreach (var arrow in trace.Chevrons)
+                    {
+                        <path class="trace-arrow" d="M-4 -4.5 L4.5 0 L-4 4.5 Q-2.2 0 -4 -4.5 Z" transform="translate(@NodeLayout.Num(arrow.X) @NodeLayout.Num(arrow.Y)) rotate(@NodeLayout.Num(arrow.Angle))" />
+                    }
+                </g>
             }
-            @if (PreviewWire() is { } preview)
+            @if (PreviewTrace() is { } preview)
             {
-                <path class="wire-line wire-preview @preview.Css" d="@preview.Path" />
+                <g class="wire wire-preview @preview.Css">
+                    <path class="trace-casing" d="@preview.Path" />
+                    <path class="trace" d="@preview.Path" />
+                </g>
             }
         </svg>
 
@@ -79,18 +92,23 @@
                            OnEdited="NotifyChanged"
                            OnInteract="() => OnInteract.InvokeAsync()"
                            OnHelp="() => OnHelp.InvokeAsync(definition)"
+                           CanOpen="@(definition is CustomNodeDefinition)"
+                           OnOpen="() => OnOpenBlock.InvokeAsync(definition.TypeId)"
                            OnDelete="() => RemoveNode(current.Id)" />
         }
     </div>
 </div>
 
 @code {
-    // Логические координаты блоков не зависят от прокрутки: мир смещается, когда блок уходит в минус.
+    // Логические координаты чипов кратны клетке и не зависят от прокрутки:
+    // мир смещается на целое число клеток, когда чип уходит в минус.
     public const double OriginX = 520;
     public const double OriginY = 300;
+    private const double Cell = NodeLayout.Cell;
     private const double LeadX = 1600;
     private const double LeadY = 1200;
-    private const double PortOverhang = 14;
+    private const double Margin = 3 * Cell;
+    private const double ChevronSpacing = 96;
 
     [Parameter, EditorRequired] public GraphProgram Program { get; set; } = default!;
     [Parameter] public NodeRegistry Registry { get; set; } = NodeRegistry.Default;
@@ -98,12 +116,30 @@
     /// <summary>TypeId блока, который сейчас перетаскивают из палитры.</summary>
     [Parameter] public string? DraggedType { get; set; }
 
-    /// <summary>Программа изменилась: блоки, провода, настройки или переменные.</summary>
+    /// <summary>Программа изменилась: чипы, дорожки, настройки или переменные.</summary>
     [Parameter] public EventCallback OnChanged { get; set; }
     /// <summary>Игрок начал что-то менять — пора убрать подсветку прошлого запуска.</summary>
     [Parameter] public EventCallback OnInteract { get; set; }
     [Parameter] public EventCallback<NodeDefinition> OnHelp { get; set; }
     [Parameter] public EventCallback OnDropped { get; set; }
+    /// <summary>Открыть схему своего блока: передаётся его TypeId.</summary>
+    [Parameter] public EventCallback<string> OnOpenBlock { get; set; }
+    /// <summary>Содержимое слева в шапке поля — например, путь «Программа › Мой блок».</summary>
+    [Parameter] public RenderFragment? HeadStart { get; set; }
+
+    private GraphProgram? _shownProgram;
+
+    protected override void OnParametersSet()
+    {
+        // Показали другую схему (вошли в свой блок или вышли из него) — заново центрируем камеру.
+        if (_shownProgram is not null && !ReferenceEquals(_shownProgram, Program))
+        {
+            _centered = false;
+            _connecting = null;
+            _draggingNodeId = null;
+        }
+        _shownProgram = Program;
+    }
 
     private ElementReference _canvasElement;
     private double _zoom = 1;
@@ -118,7 +154,8 @@
     private double _connectStartClientX, _connectStartClientY, _connectStartWorldX, _connectStartWorldY;
     private double _pointerX, _pointerY;
 
-    private sealed record Wire(string Path, string Css, bool Active);
+    private sealed record Chevron(double X, double Y, double Angle);
+    private sealed record TraceView(string Path, string Css, bool Flowing, IReadOnlyList<Chevron> Chevrons);
     private sealed record ScopeArea(double X, double Y, double Width, double Height, string Label);
 
     // ───────────── Геометрия мира ─────────────
@@ -126,12 +163,13 @@
     private NodeLayout? LayoutOf(GraphNode node) => Registry.TryGet(node.Type, out var definition) ? NodeLayout.For(definition) : null;
     private double HeightOf(GraphNode node) => LayoutOf(node)?.Height ?? 80;
 
-    private double LogicalMinX => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Min(node => node.X) - PortOverhang;
-    private double LogicalMinY => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Min(node => node.Y) - 30;
-    private double LogicalMaxX => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Max(node => node.X + NodeLayout.Width) + PortOverhang;
+    private double LogicalMinX => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Min(node => node.X) - Margin;
+    private double LogicalMinY => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Min(node => node.Y) - Margin;
+    private double LogicalMaxX => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Max(node => node.X + NodeLayout.Width) + Margin;
     private double LogicalMaxY => Program.Nodes.Count == 0 ? 0 : Program.Nodes.Max(node => node.Y + HeightOf(node));
-    private double OffsetX => LeadX - Math.Min(0, LogicalMinX);
-    private double OffsetY => LeadY - Math.Min(0, LogicalMinY);
+    // Смещение кратно клетке, чтобы сетка мира совпадала с сеткой чипов.
+    private double OffsetX => LeadX - NodeLayout.Snap(Math.Min(0, LogicalMinX));
+    private double OffsetY => LeadY - NodeLayout.Snap(Math.Min(0, LogicalMinY));
     private double ContentMinX => LogicalMinX + OffsetX;
     private double ContentMinY => LogicalMinY + OffsetY;
     private double ContentMaxX => LogicalMaxX + OffsetX;
@@ -141,13 +179,26 @@
     private double CenterLeft => OffsetX + OriginX - 100;
     private double CenterTop => OffsetY + OriginY - 100;
 
+    /// <summary>
+    /// Шаг точек сетки на экране. Сетка нарисована на самом поле (а не на мире схемы),
+    /// поэтому закрывает весь экран при любом масштабе; при уменьшении точки реже (через 2 и 4 клетки).
+    /// </summary>
+    private double GridStep => Cell * _zoom * (_zoom < .4 ? 4 : _zoom < .7 ? 2 : 1);
+
+    /// <summary>Размер и яркость точек: при отдалении точки мельче и бледнее, чтобы поле не рябило.</summary>
+    private double GridDot => _zoom >= .7 ? 1 : _zoom >= .4 ? .8 : .7;
+    private double GridAlpha => _zoom >= .7 ? .11 : _zoom >= .4 ? .08 : .06;
+
     private string NodePosition(GraphNode node) => $"left:{NodeLayout.Px(node.X + OffsetX)};top:{NodeLayout.Px(node.Y + OffsetY)}";
 
+    /// <summary>
+    /// Точка порта на экране мира, куда приходит провод. Без округления до сетки:
+    /// чипы стоят по сетке, а порт может быть между узлами (он утоплен в корпус).
+    /// </summary>
     private (double X, double Y) PortWorld(GraphNode node, string portId)
     {
-        var layout = LayoutOf(node);
-        var (x, y) = layout?.PortPosition(portId) ?? (0, 0);
-        return (node.X + OffsetX + x, node.Y + OffsetY + y);
+        var (x, y) = LayoutOf(node)?.PortPosition(portId) ?? (0, 0);
+        return (node.X + x + OffsetX, node.Y + y + OffsetY);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -178,9 +229,9 @@
         StateHasChanged();
     }
 
-    // ───────────── Блоки ─────────────
+    // ───────────── Чипы ─────────────
 
-    /// <summary>Добавляет блок. Без координат ставит его в свободное место около центра.</summary>
+    /// <summary>Добавляет чип. Без координат ставит его в свободное место около центра.</summary>
     public async Task<bool> AddNode(string type, double? x = null, double? y = null)
     {
         if (!Registry.TryGet(type, out var definition)) return false;
@@ -191,11 +242,11 @@
         var node = new GraphNode
         {
             Type = definition.TypeId,
-            X = x ?? OriginX + 80 + index % 3 * 300,
-            Y = y ?? OriginY + 60 + index / 3 * 200,
+            X = NodeLayout.Snap(x ?? OriginX + 80 + index % 3 * 272),
+            Y = NodeLayout.Snap(y ?? OriginY + 60 + index / 3 * 192),
         };
 
-        // Блоку памяти сразу назначаем переменную; если их ещё нет — создаём первую.
+        // Чипу памяти сразу назначаем переменную; если их ещё нет — создаём первую.
         foreach (var param in definition.Params.Where(param => param.Type == ParamType.Variable))
         {
             if (Program.Variables.Count == 0)
@@ -240,8 +291,9 @@
     {
         if (_draggingNodeId is Guid id && Program.FindNode(id) is { } node)
         {
-            node.X = _dragStartX + (args.ClientX - _dragStartClientX) / _zoom;
-            node.Y = _dragStartY + (args.ClientY - _dragStartClientY) / _zoom;
+            // Чип перескакивает по клеткам сетки — так разъёмы портов всегда стоят в узлах.
+            node.X = NodeLayout.Snap(_dragStartX + (args.ClientX - _dragStartClientX) / _zoom);
+            node.Y = NodeLayout.Snap(_dragStartY + (args.ClientY - _dragStartClientY) / _zoom);
         }
         if (_connecting is not null)
         {
@@ -258,12 +310,12 @@
         if (moved)
         {
             _needsRefresh = true;
-            // Положение блока — часть сохранённого решения.
+            // Положение чипа — часть сохранённого решения.
             await OnChanged.InvokeAsync();
         }
     }
 
-    // ───────────── Провода ─────────────
+    // ───────────── Дорожки ─────────────
 
     private async Task StartConnection(GraphNode node, PortDef port, PointerEventArgs args)
     {
@@ -288,7 +340,7 @@
             ? (source.Node, source.Port, node, port)
             : (node, port, source.Node, source.Port);
 
-        // У выхода исполнения и у входа данных может быть только один провод — новый заменяет старый.
+        // У выхода порядка и у входа данных может быть только один провод — новый заменяет старый.
         if (fromPort.IsExec)
             Program.Links.RemoveAll(link => link.FromNode == fromNode.Id && link.FromPort == fromPort.Id);
         else
@@ -310,8 +362,8 @@
     private string PortClass(GraphNode node, PortDef port)
     {
         if (_connecting is not { } source) return "";
-        if (source.Node.Id == node.Id && source.Port.Id == port.Id) return "gport-source";
-        return CanLink(source.Node, source.Port, node, port) ? "gport-ok" : "gport-dim";
+        if (source.Node.Id == node.Id && source.Port.Id == port.Id) return "port-source";
+        return CanLink(source.Node, source.Port, node, port) ? "port-ok" : "port-dim";
     }
 
     private async Task RemoveLink(Guid id)
@@ -331,7 +383,7 @@
         return result;
     }
 
-    private Wire? WirePath(GraphLink link)
+    private TraceView? Trace(GraphLink link)
     {
         if (Program.FindNode(link.FromNode) is not { } from || Program.FindNode(link.ToNode) is not { } to) return null;
         if (!Registry.TryGet(from.Type, out var fromDefinition) || !Registry.TryGet(to.Type, out var toDefinition)) return null;
@@ -339,40 +391,98 @@
         var toPort = toDefinition.FindPort(link.ToPort);
         if (fromPort is null || toPort is null) return null;
 
-        var (x1, y1) = PortWorld(from, fromPort.Id);
-        var (x2, y2) = PortWorld(to, toPort.Id);
-        var path = Bezier(x1, y1, x2, y2);
-
+        var curve = Curve(PortWorld(from, fromPort.Id), PortWorld(to, toPort.Id));
+        string css;
+        bool flowing;
         if (fromPort.IsExec)
         {
-            var active = Run is not null && Run.PreviousNode == from.Id && Run.ActiveNode == to.Id;
-            var branch = fromPort.Id switch { "true" => "wire-true", "false" => "wire-false", _ when fromPort.OpensScope => "wire-scope", _ => "" };
-            return new Wire(path, $"wire-exec {branch} {(active ? "wire-active" : "")}", active);
+            // Импульс порядка бежит по проводу, по которому управление пришло на этом шаге.
+            flowing = Run is not null && Run.PreviousNode == from.Id && Run.ActiveNode == to.Id;
+            var branch = fromPort.Id switch { "true" => "trace-true", "false" => "trace-false", _ when fromPort.OpensScope => "trace-scope", _ => "" };
+            css = $"trace-exec {branch}";
         }
-
-        var type = fromPort.Type == DataType.Any ? toPort.Type : fromPort.Type;
-        var feeding = Run?.ActiveNode == to.Id;
-        return new Wire(path, $"wire-data {GraphStyle.TypeClass(type)} {(feeding ? "wire-feeding" : "")}", false);
+        else
+        {
+            // Волны данных бегут к чипу, который сейчас читает значение.
+            flowing = Run?.ActiveNode == to.Id;
+            var type = fromPort.Type == DataType.Any ? toPort.Type : fromPort.Type;
+            css = $"trace-data {GraphStyle.TypeClass(type)}";
+        }
+        if (flowing) css += " trace-live";
+        return new TraceView(curve.Path, css, flowing, ChevronsOf(curve.Samples));
     }
 
-    private Wire? PreviewWire()
+    private TraceView? PreviewTrace()
     {
         if (_connecting is not { } source) return null;
-        var (px, py) = PortWorld(source.Node, source.Port.Id);
-        var path = source.Port.IsOutput ? Bezier(px, py, _pointerX, _pointerY) : Bezier(_pointerX, _pointerY, px, py);
-        var css = source.Port.IsExec ? "wire-exec" : $"wire-data {GraphStyle.TypeClass(source.Port.Type)}";
-        return new Wire(path, css, false);
+        var port = PortWorld(source.Node, source.Port.Id);
+        var pointer = (_pointerX, _pointerY);
+        var curve = source.Port.IsOutput ? Curve(port, pointer) : Curve(pointer, port);
+        var css = source.Port.IsExec ? "trace-exec" : $"trace-data {GraphStyle.TypeClass(source.Port.Type)}";
+        return new TraceView(curve.Path, css, false, []);
     }
 
-    private static string Bezier(double x1, double y1, double x2, double y2)
+    /// <summary>
+    /// Плавный провод от выхода (справа) ко входу (слева): кубическая кривая Безье.
+    /// Samples — точки вдоль кривой для расстановки шевронов по направлению потока.
+    /// </summary>
+    private static (string Path, IReadOnlyList<(double X, double Y)> Samples) Curve((double X, double Y) from, (double X, double Y) to)
     {
         // Ограниченные управляющие точки не дают короткому проводу сделать большой крюк.
-        var dx = x2 - x1;
+        var dx = to.X - from.X;
         var pull = dx >= 0
-            ? Math.Clamp(dx * .45, 12, 130)
-            : Math.Clamp(40 + Math.Abs(y2 - y1) * .15, 40, 110);
-        return FormattableString.Invariant($"M {x1:0.##} {y1:0.##} C {x1 + pull:0.##} {y1:0.##}, {x2 - pull:0.##} {y2:0.##}, {x2:0.##} {y2:0.##}");
+            ? Math.Clamp(dx * .45, 16, 140)
+            : Math.Clamp(60 + Math.Abs(to.Y - from.Y) * .2, 60, 160);
+        var c1 = (X: from.X + pull, Y: from.Y);
+        var c2 = (X: to.X - pull, Y: to.Y);
+        var path = FormattableString.Invariant($"M {from.X:0.##} {from.Y:0.##} C {c1.X:0.##} {c1.Y:0.##}, {c2.X:0.##} {c2.Y:0.##}, {to.X:0.##} {to.Y:0.##}");
+
+        const int steps = 32;
+        var samples = new List<(double X, double Y)>(steps + 1);
+        for (var index = 0; index <= steps; index++)
+        {
+            var t = (double)index / steps;
+            var u = 1 - t;
+            samples.Add((
+                u * u * u * from.X + 3 * u * u * t * c1.X + 3 * u * t * t * c2.X + t * t * t * to.X,
+                u * u * u * from.Y + 3 * u * u * t * c1.Y + 3 * u * t * t * c2.Y + t * t * t * to.Y));
+        }
+        return (path, samples);
     }
+
+    /// <summary>Шевроны вдоль провода через равные промежутки, повёрнутые по направлению потока.</summary>
+    private static List<Chevron> ChevronsOf(IReadOnlyList<(double X, double Y)> points)
+    {
+        var result = new List<Chevron>();
+        var total = 0.0;
+        for (var index = 1; index < points.Count; index++)
+            total += Distance(points[index - 1], points[index]);
+        if (total < ChevronSpacing * .8) return result;
+
+        // Шевроны распределяются равномерно, с отступом от ножек.
+        var count = Math.Max(1, (int)((total - 24) / ChevronSpacing));
+        var spacing = (total - 24) / count;
+        var target = 12 + spacing / 2;
+        var walked = 0.0;
+        for (var index = 1; index < points.Count && result.Count < count; index++)
+        {
+            var (from, to) = (points[index - 1], points[index]);
+            var length = Distance(from, to);
+            if (length < .01) continue;
+            var angle = Math.Atan2(to.Y - from.Y, to.X - from.X) * 180 / Math.PI;
+            while (target <= walked + length && result.Count < count)
+            {
+                var t = (target - walked) / length;
+                result.Add(new Chevron(from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t, angle));
+                target += spacing;
+            }
+            walked += length;
+        }
+        return result;
+    }
+
+    private static double Distance((double X, double Y) a, (double X, double Y) b)
+        => Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
 
     private IEnumerable<ScopeArea> ScopeAreas()
     {
@@ -382,10 +492,10 @@
             var body = analysis.ScopeBody(ownerId);
             var nodes = Program.Nodes.Where(node => body.Contains(node.Id)).ToList();
             if (nodes.Count == 0 || Program.FindNode(ownerId) is not { } owner || !Registry.TryGet(owner.Type, out var definition)) continue;
-            var left = nodes.Min(node => node.X + OffsetX) - 26;
-            var top = nodes.Min(node => node.Y + OffsetY) - 38;
-            var right = nodes.Max(node => node.X + OffsetX + NodeLayout.Width) + 26;
-            var bottom = nodes.Max(node => node.Y + OffsetY + HeightOf(node)) + 22;
+            var left = nodes.Min(node => node.X + OffsetX) - 2 * Cell;
+            var top = nodes.Min(node => node.Y + OffsetY) - 2 * Cell;
+            var right = nodes.Max(node => node.X + OffsetX + NodeLayout.Width) + 2 * Cell;
+            var bottom = nodes.Max(node => node.Y + OffsetY + HeightOf(node)) + Cell;
             yield return new ScopeArea(left, top, right - left, bottom - top, $"ТЕЛО · {definition.Label.ToUpperInvariant()}");
         }
     }

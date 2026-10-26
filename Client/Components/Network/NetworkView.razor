@@ -1,0 +1,104 @@
+@using Synapse.Blocks.Games.Network
+@* Карта сети: узлы-районы и каналы связи. Пакеты по очереди бегут по каналам от узла к узлу,
+   пройденный маршрут подсвечивается. Положение пакета считается по времени Time из прогона Run. *@
+
+<div class="network-view">
+    <svg viewBox="0 0 1000 340" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Карта сети">
+        @foreach (var link in Level.Links)
+        {
+            if (Find(link.A) is not { } a || Find(link.B) is not { } b) continue;
+            var css = link.Broken ? "broken" : IsTrail(link) ? "trail" : "";
+            <line class="net-link @css" x1="@N(a.X)" y1="@N(a.Y)" x2="@N(b.X)" y2="@N(b.Y)" />
+            if (link.Broken)
+            {
+                var mx = (a.X + b.X) / 2;
+                var my = (a.Y + b.Y) / 2;
+                <path class="net-break" d="M @N(mx - 7) @N(my - 7) L @N(mx + 7) @N(my + 7) M @N(mx + 7) @N(my - 7) L @N(mx - 7) @N(my + 7)" />
+            }
+        }
+
+        @foreach (var node in Level.Nodes)
+        {
+            var role = NodeRole(node.Id);
+            <g class="net-node @role">
+                <circle class="net-node-halo" cx="@N(node.X)" cy="@N(node.Y)" r="27" />
+                <circle class="net-node-body" cx="@N(node.X)" cy="@N(node.Y)" r="19" />
+                <circle class="net-node-core" cx="@N(node.X)" cy="@N(node.Y)" r="5" />
+            </g>
+            @:@SvgText("net-node-label", node.X, node.Y + (node.Y > 280 ? -30 : 38), node.Id)
+        }
+
+        @if (ActivePacket() is { } packet)
+        {
+            var (x, y) = PacketPosition(packet);
+            <g class="net-packet @(packet.Passed ? "" : "failed")">
+                <circle class="net-packet-glow" cx="@N(x)" cy="@N(y)" r="14" />
+                <circle class="net-packet-dot" cx="@N(x)" cy="@N(y)" r="7" />
+            </g>
+            @:@SvgText("net-packet-label", x, y - 18, $"№{packet.Packet.Number}")
+        }
+    </svg>
+    <div class="station-clock"><span>@($"{(int)Time / 60:00}:{(int)Time % 60:00}")</span>@if (Status.Length > 0) { <b>@Status</b> }</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public NetworkLevel Level { get; set; } = default!;
+    [Parameter] public NetworkRun? Run { get; set; }
+    [Parameter] public double Time { get; set; }
+    [Parameter] public string Status { get; set; } = "";
+
+    private static string N(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Подпись SVG готовой разметкой: Razor не даёт задать атрибуты тегу text.</summary>
+    private static MarkupString SvgText(string css, double x, double y, string content)
+        => new($"<text class=\"{css}\" x=\"{N(x)}\" y=\"{N(y)}\" text-anchor=\"middle\">{System.Net.WebUtility.HtmlEncode(content)}</text>");
+
+    private NetNode? Find(string id) => Level.Nodes.FirstOrDefault(node => string.Equals(node.Id, id, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Пакет, который сейчас на карте: идёт по сети или остановился с ошибкой.</summary>
+    private NetworkPacketResult? ActivePacket()
+    {
+        if (Run is null) return null;
+        var current = Run.Packets.LastOrDefault(result => Time >= result.Start);
+        if (current is null) return null;
+        return Time < current.End || !current.Passed ? current : null;
+    }
+
+    /// <summary>Сколько передач пакет уже сделал (может быть дробным — пакет между узлами).</summary>
+    private double Progress(NetworkPacketResult packet)
+        => Math.Clamp((Time - packet.Start) / NetworkSimulator.HopTime, 0, packet.Path.Count - 1);
+
+    private (double X, double Y) PacketPosition(NetworkPacketResult packet)
+    {
+        var progress = Progress(packet);
+        var index = Math.Min((int)Math.Floor(progress), packet.Path.Count - 1);
+        var from = Find(packet.Path[index]);
+        if (from is null) return (0, 0);
+        if (index + 1 >= packet.Path.Count) return (from.X, from.Y);
+        var to = Find(packet.Path[index + 1]) ?? from;
+        var t = progress - index;
+        t = t * t * (3 - 2 * t);
+        return (from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t);
+    }
+
+    /// <summary>Канал уже пройден текущим пакетом.</summary>
+    private bool IsTrail(NetLink link)
+    {
+        if (ActivePacket() is not { } packet) return false;
+        var done = (int)Math.Floor(Progress(packet));
+        for (var index = 0; index < done && index + 1 < packet.Path.Count; index++)
+            if (link.Connects(packet.Path[index], packet.Path[index + 1]))
+                return true;
+        return false;
+    }
+
+    private string NodeRole(string id)
+    {
+        if (ActivePacket() is not { } packet) return "";
+        var same = (string other) => string.Equals(other, id, StringComparison.OrdinalIgnoreCase);
+        if (!packet.Passed && same(packet.Path[^1]) && Time >= packet.End - 1.2) return "net-failed";
+        if (same(packet.Packet.To)) return "net-target";
+        if (same(packet.Packet.From)) return "net-source";
+        return packet.Path.Take((int)Math.Floor(Progress(packet)) + 1).Any(same) ? "net-visited" : "";
+    }
+}

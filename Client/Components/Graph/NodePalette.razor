@@ -1,40 +1,107 @@
 @using Synapse.Blocks.Graph
-@* Палитра блоков, сгруппированная по категориям. Блок можно перетащить на поле или добавить щелчком. *@
+@* Палитра: вкладки по разделам (каждый раздел — свой цвет) и настоящие уменьшенные чипы.
+   Чип можно перетащить на поле или добавить щелчком. Если передан Variables — появляется вкладка переменных. *@
 
-<div class="block-library node-palette @CssClass">
-    @foreach (var group in Nodes.GroupBy(node => node.Category))
+<div class="palette-tabs" role="tablist" aria-label="Разделы блоков">
+    <button type="button" role="tab" class="palette-tab tab-all @(ActiveTab == AllTab ? "active" : "")" aria-selected="@(ActiveTab == AllTab)" @onclick="() => _tab = AllTab">
+        Все
+    </button>
+    @foreach (var category in Categories)
     {
-        <section class="palette-group">
-            <h3>@NodeCategories.Label(group.Key)</h3>
-            @foreach (var definition in group)
-            {
-                var item = definition;
-                <div class="library-block palette-item @GraphStyle.AccentClass(item) @(item.IsPure ? "palette-pure" : "")"
-                     draggable="true"
-                     title="Перетащите на поле или нажмите, чтобы добавить"
-                     @ondragstart="() => OnDragStart.InvokeAsync(item)"
-                     @onclick="() => OnAdd.InvokeAsync(item)">
-                    <small>@(item.IsPure ? "ДАННЫЕ" : "ДЕЙСТВИЕ")</small>
-                    <strong>@item.Label</strong>
-                    <span>@item.Description</span>
-                    <div class="palette-ports" aria-hidden="true">
-                        @foreach (var port in item.Ports)
-                        {
-                            <i class="@(port.IsExec ? "pp-exec" : $"pp-data {GraphStyle.TypeClass(port.Type)}") @(port.IsInput ? "pp-in" : "pp-out")"></i>
-                        }
+        var key = category;
+        <button type="button" role="tab" class="palette-tab cat-@key @(ActiveTab == key ? "active" : "")" aria-selected="@(ActiveTab == key)" @onclick="() => _tab = key">
+            <i aria-hidden="true"></i><span>@NodeCategories.Label(key)</span>
+        </button>
+    }
+    @if (Variables is not null)
+    {
+        <button type="button" role="tab" class="palette-tab cat-memory tab-variables @(ActiveTab == VariablesTab ? "active" : "")" aria-selected="@(ActiveTab == VariablesTab)" @onclick="() => _tab = VariablesTab">
+            <i aria-hidden="true"></i><span>Переменные</span>@if (VariableCount > 0) { <b>@VariableCount</b> }
+        </button>
+    }
+</div>
+
+<div class="block-library node-palette @CssClass" role="tabpanel">
+    @if (ActiveTab == VariablesTab && Variables is not null)
+    {
+        @Variables
+    }
+    else
+    {
+        if (ActiveTab == NodeCategories.Custom && CustomHeader is not null)
+        {
+            @CustomHeader
+        }
+        foreach (var group in Nodes.Where(node => ActiveTab == AllTab || node.Category == ActiveTab).GroupBy(node => node.Category))
+        {
+            <section class="palette-group cat-@group.Key">
+                @if (ActiveTab == AllTab)
+                {
+                    <h3><i aria-hidden="true"></i>@NodeCategories.Label(group.Key)</h3>
+                }
+                @foreach (var definition in group)
+                {
+                    var item = definition;
+                    var layout = NodeLayout.For(item);
+                    <div class="palette-chip"
+                         draggable="true"
+                         title="@item.Label — @item.Description Перетащите на поле или нажмите, чтобы добавить."
+                         @ondragstart="() => OnDragStart.InvokeAsync(item)"
+                         @onclick="() => OnAdd.InvokeAsync(item)">
+                        <div class="palette-chip-stage" style="width:@NodeLayout.Px(StageWidth * Scale);height:@NodeLayout.Px((layout.Height + 4) * Scale)">
+                            <div class="palette-chip-scale" style="width:@NodeLayout.Px(StageWidth);height:@NodeLayout.Px(layout.Height + 4);transform:scale(@NodeLayout.Num(Scale))">
+                                <GraphNodeView Node="_sample" Definition="item" Preview="true" Style="@($"left:{NodeLayout.Px(NodeLayout.PortReach)};top:2px")" />
+                            </div>
+                        </div>
+                        <b class="palette-help" role="button" tabindex="0" aria-label="Справка: @item.Label"
+                           @onclick="() => OnHelp.InvokeAsync(item)" @onclick:stopPropagation="true">?</b>
                     </div>
-                    <b class="palette-help" role="button" tabindex="0" aria-label="Справка: @item.Label"
-                       @onclick="() => OnHelp.InvokeAsync(item)" @onclick:stopPropagation="true">?</b>
-                </div>
-            }
-        </section>
+                }
+            </section>
+        }
     }
 </div>
 
 @code {
+    private const string AllTab = "all";
+    private const string VariablesTab = "variables";
+    // Чипы в палитре — в натуральную величину: такие же, как на поле.
+    private const double Scale = 1;
+    private const double StageWidth = NodeLayout.Width + 2 * NodeLayout.PortReach;
+
+    // Миниатюры только показывают блок и ничего не меняют, поэтому им хватает одного пустого экземпляра.
+    private readonly GraphNode _sample = new();
+    private string _tab = AllTab;
+
     [Parameter, EditorRequired] public IEnumerable<NodeDefinition> Nodes { get; set; } = [];
     [Parameter] public string CssClass { get; set; } = "";
+    /// <summary>Содержимое вкладки «Переменные»; без него вкладка не показывается.</summary>
+    [Parameter] public RenderFragment? Variables { get; set; }
+    [Parameter] public int VariableCount { get; set; }
+    /// <summary>Шапка вкладки «Мои блоки» (создание блока, библиотека); с ней вкладка видна, даже если блоков ещё нет.</summary>
+    [Parameter] public RenderFragment? CustomHeader { get; set; }
     [Parameter] public EventCallback<NodeDefinition> OnAdd { get; set; }
     [Parameter] public EventCallback<NodeDefinition> OnDragStart { get; set; }
     [Parameter] public EventCallback<NodeDefinition> OnHelp { get; set; }
+
+    private IEnumerable<string> Categories
+    {
+        get
+        {
+            var categories = Nodes.Select(node => node.Category).Where(category => category != NodeCategories.Custom).Distinct().ToList();
+            // «Мои блоки» — всегда последней вкладкой.
+            if (CustomHeader is not null || Nodes.Any(node => node.Category == NodeCategories.Custom))
+                categories.Add(NodeCategories.Custom);
+            return categories;
+        }
+    }
+
+    /// <summary>Выбранная вкладка; если в новом уровне такого раздела нет, показываются все блоки.</summary>
+    private string ActiveTab => _tab switch
+    {
+        AllTab => AllTab,
+        VariablesTab when Variables is not null => VariablesTab,
+        var category when Categories.Contains(category) => category,
+        _ => AllTab
+    };
 }

@@ -1,9 +1,11 @@
 @using Synapse.Blocks.Graph
-@* Полоса результатов проверки под рабочим полем. *@
+@* Нижняя панель: тесты уровня и их результаты в одних карточках.
+   До запуска — «вход → ожидается», во время и после запуска — отметка и полученный ответ.
+   Скрытые проверки до запуска собраны в одну карточку и раскрываются по мере прогона. *@
 
-<div class="test-console">
+<div class="test-console @CssClass">
     <div class="console-title">
-        <span><i></i> ПРОВЕРКА ПРОГРАММЫ</span>
+        <span><i></i> ТЕСТЫ</span>
         @if (Running)
         {
             <small class="console-running">Тест @ActiveIndex из @ActiveCount</small>
@@ -14,25 +16,47 @@
         }
         else
         {
-            <small>Ещё не запускалась</small>
+            <small>@Level.Tests.Count(test => !test.Hidden) открытых@(HiddenCount > 0 ? $" · {HiddenCount} скрытых" : "")</small>
         }
     </div>
-    @if (Results.Count == 0)
-    {
-        <p class="console-placeholder">@(Running ? "Сейчас выполняется первый тест. Результаты будут добавляться по очереди." : "Здесь появится результат каждого открытого и скрытого теста.")</p>
-    }
-    else
-    {
-        <div class="result-strip">
-            @foreach (var result in Results)
+    <div class="result-strip">
+        @for (var index = 0; index < Level.Tests.Count; index++)
+        {
+            var test = Level.Tests[index];
+            var result = Results.FirstOrDefault(item => item.TestId == test.Id);
+            var active = Running && ActiveIndex == index + 1;
+            if (test.Hidden && result is null && !active)
             {
-                <article class="@(result.Passed ? "pass" : "fail")">
-                    <b>@(result.Passed ? "✓" : "×")</b>
-                    <span><strong>@TestResultText.Title(Level, result)</strong><small>@TestResultText.Detail(Level, result)</small></span>
-                </article>
+                continue;
             }
-        </div>
-    }
+            var state = result is null ? (active ? "running" : "pending") : result.Passed ? "pass" : "fail";
+            <article class="test-card @state">
+                <b>@(state switch { "pass" => "✓", "fail" => "×", "running" => "●", _ => "○" })</b>
+                <span>
+                    <strong>@(result is null ? (test.Hidden ? $"Скрытая проверка {index + 1}" : test.Name) : TestResultText.Title(Level, result))</strong>
+                    @if (result is not null)
+                    {
+                        <small>@TestResultText.Detail(Level, result)</small>
+                    }
+                    else if (!test.Hidden)
+                    {
+                        <span class="test-io"><code>@TestResultText.Display(test.Input)</code><i>→</i><code>@TestResultText.Display(test.ExpectedOutput)</code></span>
+                    }
+                    else
+                    {
+                        <small>выполняется…</small>
+                    }
+                </span>
+            </article>
+        }
+        @if (PendingHidden > 0)
+        {
+            <article class="test-card hidden-summary">
+                <b>+@PendingHidden</b>
+                <span><strong>Скрытые проверки</strong><small>данные откроются, если проверка не пройдена</small></span>
+            </article>
+        }
+    </div>
 </div>
 
 @code {
@@ -41,4 +65,14 @@
     [Parameter] public bool Running { get; set; }
     [Parameter] public int ActiveIndex { get; set; }
     [Parameter] public int ActiveCount { get; set; }
+    [Parameter] public string CssClass { get; set; } = "";
+
+    private int HiddenCount => Level.Tests.Count(test => test.Hidden);
+
+    /// <summary>Скрытые проверки, которые ещё не запускались в этом прогоне.</summary>
+    private int PendingHidden => Level.Tests
+        .Select((test, index) => (test, index))
+        .Count(item => item.test.Hidden
+                       && Results.All(result => result.TestId != item.test.Id)
+                       && !(Running && ActiveIndex == item.index + 1));
 }

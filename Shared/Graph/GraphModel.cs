@@ -13,7 +13,16 @@ public sealed class GraphProgram
     public List<GraphLink> Links { get; set; } = [];
     public List<GraphVariable> Variables { get; set; } = [];
 
+    /// <summary>
+    /// Свои блоки игрока: подсхемы, которые снаружи работают как обычные чипы данных.
+    /// Хранятся только у основной программы; у тела своего блока список пуст.
+    /// </summary>
+    public List<GraphCustomBlock> CustomBlocks { get; set; } = [];
+
     public GraphNode? FindNode(Guid id) => Nodes.FirstOrDefault(node => node.Id == id);
+
+    public GraphCustomBlock? FindBlock(string? id)
+        => CustomBlocks.FirstOrDefault(block => string.Equals(block.Id, id, StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed class GraphNode

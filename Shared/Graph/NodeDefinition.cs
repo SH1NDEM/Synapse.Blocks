@@ -33,6 +33,9 @@ public sealed record ParamDef(string Id, string Label, ParamType Type, string De
 /// <summary>Категории для палитры блоков и для правил уровня (<c>category:math</c>).</summary>
 public static class NodeCategories
 {
+    /// <summary>Начало и конец программы: «Вход» и «Выход».</summary>
+    public const string Io = "io";
+    /// <summary>Циклы.</summary>
     public const string Flow = "flow";
     public const string Data = "data";
     public const string Math = "math";
@@ -40,16 +43,23 @@ public static class NodeCategories
     public const string Text = "text";
     public const string Memory = "memory";
     public const string List = "list";
+    /// <summary>Свои блоки игрока.</summary>
+    public const string Custom = "custom";
+    /// <summary>Блоки игр (например, «Поезд» на станции).</summary>
+    public const string Game = "game";
 
     public static string Label(string category) => category switch
     {
-        Flow => "Управление",
+        Io => "Вход и выход",
+        Flow => "Циклы",
         Data => "Данные",
         Math => "Математика",
         Logic => "Логика",
         Text => "Текст",
         Memory => "Память",
         List => "Списки",
+        Custom => "Мои блоки",
+        Game => "Игра",
         _ => category
     };
 }
@@ -96,6 +106,12 @@ public abstract class NodeDefinition
     public virtual string Description => "";
     public abstract IReadOnlyList<PortDef> Ports { get; }
     public virtual IReadOnlyList<ParamDef> Params => [];
+
+    /// <summary>
+    /// Другие TypeId, под которые подходит этот блок в списках доступных блоков и правилах уровня.
+    /// Например, «Если» засчитывается там, где уровень требует «Условие».
+    /// </summary>
+    public virtual IReadOnlyList<string> RuleAliases => [];
 
     /// <summary>С этого блока начинается выполнение. В программе должен быть ровно один такой блок.</summary>
     public virtual bool IsEntry => false;

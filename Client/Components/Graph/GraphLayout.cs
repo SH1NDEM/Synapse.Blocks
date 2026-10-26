@@ -4,27 +4,39 @@ using Synapse.Blocks.Graph;
 
 namespace Synapse.Blocks.Components.Graph;
 
-/// <summary>Строка нода: слева вход данных, справа выход (исполнения или данных).</summary>
+/// <summary>Узел сетки поля (в клетках).</summary>
+public readonly record struct GridPoint(int X, int Y);
+
+/// <summary>Строка портов чипа: слева вход данных, справа выход (исполнения или данных).</summary>
 public sealed record NodeRow(PortDef? Left, PortDef? Right);
 
 /// <summary>
-/// Геометрия блока, вычисленная по его описанию. Одна и та же для разметки нода,
-/// позиций портов и концов проводов, поэтому провода всегда приходят точно в порт.
+/// Геометрия чипа, вычисленная по описанию блока. Все размеры кратны клетке сетки,
+/// поэтому разъёмы портов всегда стоят в узлах сетки и схема выглядит аккуратно.
 ///
 /// <code>
-/// ▶ in   ЗАГОЛОВОК      next ▶    ← шапка: вход исполнения и единственный выход исполнения
-///        [настройка]              ← настройки (вид операции, переменная)
-/// ● a  [0]            результат ● ← строки портов: входы данных слева, выходы справа
-/// ● b  [1]                 да ▶
+///      ┌──────────────────┐
+///  ▶━━━┤ МАРКИРОВКА       ├━━━▶   ← шапка: порты порядка
+///      │ Название         │
+///      │ [настройка]      │       ← настройки, по 2 клетки
+///  ●━━━┤ a  [0]   результат├━━━●   ← строки ножек, по 2 клетки
+///  ●━━━┤ b  [1]           │
+///      └──────────────────┘
 /// </code>
+/// Разъём порта выступает за корпус на одну клетку: в его внешний конец приходит провод.
 /// </summary>
 public sealed class NodeLayout
 {
-    public const double Width = 236;
-    public const double HeaderHeight = 50;
-    public const double ParamHeight = 36;
-    public const double RowHeight = 32;
-    public const double PaddingBottom = 10;
+    public const double Cell = 16;
+    public const double Width = 12 * Cell;
+    public const double HeaderHeight = 36;
+    public const double ParamHeight = 2 * Cell;
+    public const double RowHeight = 2 * Cell;
+    public const double PaddingBottom = Cell;
+    /// <summary>Точка, куда приходит провод: чуть за краем корпуса, под разъёмом порта (он утоплен в корпус).</summary>
+    public const double PortReach = 8;
+    /// <summary>Высота портов порядка в шапке (от верха корпуса).</summary>
+    public const double HeaderPinY = HeaderHeight / 2;
 
     private static readonly ConditionalWeakTable<NodeDefinition, NodeLayout> Cache = new();
     private readonly Dictionary<string, (double X, double Y)> _ports = [];
@@ -35,7 +47,7 @@ public sealed class NodeLayout
         HeaderIn = definition.Inputs.FirstOrDefault(port => port.IsExec);
 
         var execOutputs = definition.Outputs.Where(port => port.IsExec).ToList();
-        // Единственный обычный выход исполнения рисуется в шапке — так цепочка блоков читается как одна линия.
+        // Единственный обычный выход порядка — в шапке, напротив входа: цепочка чипов читается как одна линия.
         if (execOutputs.Count == 1 && !execOutputs[0].OpensScope)
         {
             HeaderOut = execOutputs[0];
@@ -53,13 +65,13 @@ public sealed class NodeLayout
         RowsTop = ParamsTop + definition.Params.Count * ParamHeight;
         Height = RowsTop + rows.Count * RowHeight + PaddingBottom;
 
-        if (HeaderIn is not null) _ports[HeaderIn.Id] = (0, HeaderHeight / 2);
-        if (HeaderOut is not null) _ports[HeaderOut.Id] = (Width, HeaderHeight / 2);
+        if (HeaderIn is not null) _ports[HeaderIn.Id] = (-PortReach, HeaderPinY);
+        if (HeaderOut is not null) _ports[HeaderOut.Id] = (Width + PortReach, HeaderPinY);
         for (var index = 0; index < rows.Count; index++)
         {
-            var y = RowsTop + index * RowHeight + RowHeight / 2;
-            if (rows[index].Left is { } input) _ports[input.Id] = (0, y);
-            if (rows[index].Right is { } output) _ports[output.Id] = (Width, y);
+            var y = RowPinY(index);
+            if (rows[index].Left is { } input) _ports[input.Id] = (-PortReach, y);
+            if (rows[index].Right is { } output) _ports[output.Id] = (Width + PortReach, y);
         }
     }
 
@@ -72,16 +84,23 @@ public sealed class NodeLayout
     public double ParamsTop { get; }
     public double RowsTop { get; }
     public double Height { get; }
+    public int WidthCells => (int)(Width / Cell);
+    public int HeightCells => (int)Math.Round(Height / Cell);
 
-    /// <summary>Центр порта относительно левого верхнего угла нода.</summary>
+    public double RowPinY(int index) => RowsTop + index * RowHeight + RowHeight / 2;
+
+    /// <summary>Внешний конец разъёма порта относительно левого верхнего угла корпуса.</summary>
     public (double X, double Y) PortPosition(string portId)
-        => _ports.TryGetValue(portId, out var position) ? position : (Width / 2, HeaderHeight / 2);
+        => _ports.TryGetValue(portId, out var position) ? position : (Width / 2, HeaderPinY);
+
+    /// <summary>Округляет координату до узла сетки.</summary>
+    public static double Snap(double value) => Math.Round(value / Cell) * Cell;
 
     public static string Px(double value) => value.ToString("0.###", CultureInfo.InvariantCulture) + "px";
     public static string Num(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
 }
 
-/// <summary>Цвета и подписи, общие для палитры, нодов и справки.</summary>
+/// <summary>Цвета, подписи и маркировка, общие для палитры, чипов и справки.</summary>
 public static class GraphStyle
 {
     public static string TypeClass(DataType type) => type switch
@@ -101,7 +120,23 @@ public static class GraphStyle
         ? $"{NodeCategories.Label(definition.Category).ToUpperInvariant()} · ДАННЫЕ"
         : NodeCategories.Label(definition.Category).ToUpperInvariant();
 
+    /// <summary>
+    /// Маркировка на корпусе, как у настоящей микросхемы: серия, тип и номер в каталоге.
+    /// Например, «СН-MATH 11» для «Арифметики».
+    /// </summary>
+    public static string Marking(NodeDefinition definition, NodeRegistry? registry = null)
+    {
+        if (definition is CustomNodeDefinition)
+            return "СН-USER";
+        registry ??= NodeRegistry.Default;
+        var index = 0;
+        for (var position = 0; position < registry.All.Count; position++)
+            if (registry.All[position] == definition) index = position + 1;
+        var code = definition.TypeId.Replace("-", "").ToUpperInvariant();
+        return $"СН-{(code.Length > 6 ? code[..6] : code)} {index:00}";
+    }
+
     public static string PortTitle(PortDef port) => port.IsExec
-        ? $"{(port.IsInput ? "Вход" : "Выход")} исполнения{(port.Label.Length > 0 ? $" «{port.Label}»" : "")}"
+        ? $"{(port.IsInput ? "Вход" : "Выход")} порядка{(port.Label.Length > 0 ? $" «{port.Label}»" : "")}"
         : $"{(port.IsInput ? "Вход" : "Выход")} «{port.DisplayName}»: {DataTypes.Label(port.Type)}";
 }

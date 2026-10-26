@@ -1,0 +1,65 @@
+@using Synapse.Blocks.Games.Station
+@using Synapse.Blocks.Games.Network
+@* Карточки игр для главной и страницы «Игры». *@
+
+<div class="games-grid">
+    <a class="game-card station-card" href="games/station">
+        <div class="game-art" aria-hidden="true">
+            <svg viewBox="0 0 320 120">
+                <path class="art-rail" d="M0 60 L40 60 L90 30 L230 30 L280 60 L320 60" />
+                <path class="art-rail" d="M0 60 L40 60 L90 60 L230 60 L280 60 L320 60" />
+                <path class="art-rail" d="M0 60 L40 60 L90 90 L230 90 L280 60 L320 60" />
+                <rect class="art-platform" x="110" y="40" width="100" height="6" rx="2" />
+                <rect class="art-platform" x="110" y="70" width="100" height="6" rx="2" />
+                <g class="art-train"><rect x="118" y="24" width="18" height="12" rx="4" /><rect x="139" y="24" width="18" height="12" rx="2" /><rect x="160" y="24" width="18" height="12" rx="2" /></g>
+                <g class="art-train art-freight"><rect x="150" y="84" width="18" height="12" rx="4" /><rect x="171" y="84" width="18" height="12" rx="2" /><rect x="192" y="84" width="18" height="12" rx="2" /><rect x="213" y="84" width="18" height="12" rx="2" /></g>
+            </svg>
+        </div>
+        <div class="game-copy">
+            <small>ИГРА · ДИСПЕТЧЕР</small>
+            <h3>Станция Синапс</h3>
+            <p>Поезда приходят с запада и востока. Ваша схема решает, на какой путь их принять, — и сразу видно, как они въезжают и уезжают.</p>
+        </div>
+        <footer>
+            <span><b>@StationDone</b> / @StationLevels.All.Count заданий</span>
+            <progress value="@StationDone" max="@StationLevels.All.Count"></progress>
+            <b class="game-go">Играть →</b>
+        </footer>
+    </a>
+    <a class="game-card network-card" href="games/network">
+        <div class="game-art" aria-hidden="true">
+            <svg viewBox="0 0 320 120">
+                <line class="art-link" x1="60" y1="30" x2="160" y2="20" /><line class="art-link art-route" x1="60" y1="30" x2="100" y2="90" />
+                <line class="art-link art-route" x1="100" y1="90" x2="210" y2="96" /><line class="art-link art-broken" x1="160" y1="20" x2="260" y2="40" />
+                <line class="art-link art-route" x1="210" y1="96" x2="260" y2="40" /><line class="art-link" x1="160" y1="20" x2="210" y2="96" />
+                <circle class="art-node" cx="60" cy="30" r="9" /><circle class="art-node" cx="160" cy="20" r="9" /><circle class="art-node" cx="100" cy="90" r="9" />
+                <circle class="art-node" cx="210" cy="96" r="9" /><circle class="art-node art-target" cx="260" cy="40" r="9" />
+                <circle class="art-packet" cx="235" cy="68" r="5" />
+            </svg>
+        </div>
+        <div class="game-copy">
+            <small>ИГРА · МАРШРУТИЗАТОР</small>
+            <h3>Связь Синапса</h3>
+            <p>Авария оборвала каналы между районами. Ваша схема в каждом узле решает, куда передать пакет, — и проводит данные в обход обрывов.</p>
+        </div>
+        <footer>
+            <span><b>@NetworkDone</b> / @NetworkLevels.All.Count заданий</span>
+            <progress value="@NetworkDone" max="@NetworkLevels.All.Count"></progress>
+            <b class="game-go">Играть →</b>
+        </footer>
+    </a>
+    <div class="game-card game-soon">
+        <div class="game-copy">
+            <small>СКОРО</small>
+            <h3>Новые игры города</h3>
+            <p>Светофоры на перекрёстках, сортировка посылок на почте и другие задачи, где схема управляет городом.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlySet<Guid> Completed { get; set; } = new HashSet<Guid>();
+
+    private int StationDone => StationLevels.All.Count(level => Completed.Contains(level.Id));
+    private int NetworkDone => NetworkLevels.All.Count(level => Completed.Contains(level.Id));
+}

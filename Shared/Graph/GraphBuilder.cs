@@ -61,6 +61,7 @@ public sealed class GraphBuilder
     UseStringEnumConverter = true)]
 [JsonSerializable(typeof(GraphProgram))]
 [JsonSerializable(typeof(List<GraphRule>))]
+[JsonSerializable(typeof(List<GraphCustomBlock>))]
 public partial class GraphJsonContext : JsonSerializerContext;
 
 public static class GraphJson
@@ -70,4 +71,14 @@ public static class GraphJson
 
     public static GraphProgram Deserialize(string json)
         => JsonSerializer.Deserialize(json, GraphJsonContext.Default.GraphProgram) ?? new GraphProgram();
+
+    public static string SerializeBlocks(List<GraphCustomBlock> blocks)
+        => JsonSerializer.Serialize(blocks, GraphJsonContext.Default.ListGraphCustomBlock);
+
+    public static List<GraphCustomBlock> DeserializeBlocks(string json)
+        => JsonSerializer.Deserialize(json, GraphJsonContext.Default.ListGraphCustomBlock) ?? [];
+
+    /// <summary>Глубокая копия своего блока (для библиотеки и импорта).</summary>
+    public static GraphCustomBlock Clone(GraphCustomBlock block)
+        => DeserializeBlocks(SerializeBlocks([block]))[0];
 }

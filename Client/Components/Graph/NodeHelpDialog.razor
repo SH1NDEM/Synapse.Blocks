@@ -5,8 +5,8 @@
     <section class="block-help-modal graph-help @GraphStyle.AccentClass(Definition)" role="dialog" aria-modal="true" aria-labelledby="node-help-title" @onclick:stopPropagation="true">
         <button type="button" class="help-close" @onclick="Close" aria-label="Закрыть">×</button>
         <div class="help-preview">
-            <div class="help-node-stage" style="width:@NodeLayout.Px(NodeLayout.Width + 40);height:@NodeLayout.Px(NodeLayout.For(Definition).Height + 40)">
-                <GraphNodeView Node="_sample" Definition="Definition" Preview="true" Style="left:20px;top:20px" />
+            <div class="help-node-stage board" style="width:@NodeLayout.Px(NodeLayout.Width + 2 * NodeLayout.PortReach + 2 * NodeLayout.Cell);height:@NodeLayout.Px(NodeLayout.For(Definition).Height + 2 * NodeLayout.Cell)">
+                <GraphNodeView Node="_sample" Definition="Definition" Preview="true" Style="@($"left:{NodeLayout.Px(NodeLayout.PortReach + NodeLayout.Cell)};top:{NodeLayout.Px(NodeLayout.Cell)}")" />
             </div>
         </div>
         <div class="help-content">
@@ -16,11 +16,11 @@
             <p class="help-kind">
                 @if (Definition.IsPure)
                 {
-                    <text>Это <b>блок данных</b>: у него нет проводов порядка. Он вычисляется сам, когда его значение понадобилось другому блоку.</text>
+                    <text>Это <b>блок данных</b>: у него нет дорожек порядка. Он вычисляется сам, когда его значение понадобилось другому блоку.</text>
                 }
                 else
                 {
-                    <text>Это <b>блок действия</b>: он выполняется, когда к нему приходит провод порядка (белый), и передаёт управление дальше.</text>
+                    <text>Это <b>блок действия</b>: он выполняется, когда к нему приходит дорожка порядка (белая), и передаёт управление дальше.</text>
                 }
             </p>
             <div class="help-port-table">

@@ -23,6 +23,24 @@ public sealed class NodeRegistry
         return registry;
     }
 
+    /// <summary>
+    /// Набор своих блоков, к которому относится реестр (null — обычный реестр без своих блоков).
+    /// Реестр основной программы и реестры тел своих блоков ссылаются на один и тот же набор.
+    /// </summary>
+    public CustomBlockScope? CustomScope { get; internal set; }
+
+    /// <summary>Свой блок, внутри которого действует этот реестр; null — основная программа.</summary>
+    public GraphCustomBlock? BodyOf { get; internal set; }
+
+    /// <summary>Новый реестр с теми же блоками: основа для реестров со своими блоками.</summary>
+    public NodeRegistry CloneDefinitions()
+    {
+        var copy = new NodeRegistry();
+        foreach (var definition in _ordered)
+            copy.Register(definition);
+        return copy;
+    }
+
     /// <summary>Блоки в порядке регистрации — в этом порядке их показывает палитра.</summary>
     public IReadOnlyList<NodeDefinition> All => _ordered;
 

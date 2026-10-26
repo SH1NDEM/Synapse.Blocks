@@ -12,6 +12,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<LevelStore>();
 builder.Services.AddScoped<ProgressStore>();
 builder.Services.AddScoped<SolutionStore>();
+builder.Services.AddScoped<BlockLibraryStore>();
 builder.Services.AddScoped<AdminSession>();
 // Реестр блоков и интерпретатор не хранят состояния между запусками.
 builder.Services.AddSingleton(NodeRegistry.Default);

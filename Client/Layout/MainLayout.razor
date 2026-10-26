@@ -1,7 +1,4 @@
 @inherits LayoutComponentBase
-@inject ProgressStore ProgressStore
-@inject SolutionStore SolutionStore
-@inject NavigationManager Navigation
 
 <div class="app-shell">
     <header class="app-header">
@@ -10,34 +7,10 @@
             <span><b>СИНАПС</b></span>
         </a>
         <NavMenu />
-        <button type="button"
-                class="runtime-badge player-reset"
-                disabled="@_resetting"
-                @onclick="ResetPlayerAsync">
-            <i></i> @(_resetting ? "Сброс…" : "Сбросить прогресс")
-        </button>
+        @* Сюда страница игры выводит выбор задания и свои кнопки — так под рабочее поле остаётся больше места. *@
+        <div class="header-tools"><SectionOutlet SectionName="header-tools" /></div>
     </header>
     <main class="app-main">
         @Body
     </main>
 </div>
-
-@code {
-    private bool _resetting;
-
-    private async Task ResetPlayerAsync()
-    {
-        if (_resetting) return;
-        _resetting = true;
-
-        // Новый ребёнок не должен получить ни отметки о прохождении,
-        // ни готовые схемы предыдущего игрока на этом компьютере.
-        try { await ProgressStore.ResetAsync(); }
-        catch { }
-        try { await SolutionStore.ResetAllAsync(); }
-        catch { }
-
-        // BaseUri возвращает на главную текущего приложения.
-        Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
-    }
-}

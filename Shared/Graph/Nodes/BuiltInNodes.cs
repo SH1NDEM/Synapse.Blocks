@@ -7,10 +7,9 @@ public static class BuiltInNodes
 {
     public static void RegisterAll(NodeRegistry registry)
     {
-        // Управление
+        // Вход и выход, циклы
         registry.Register(new StartNode());
         registry.Register(new OutputNode());
-        registry.Register(new IfNode());
         registry.Register(new RepeatNode());
         registry.Register(new WhileNode());
         registry.Register(new ForEachNode());
@@ -23,6 +22,8 @@ public static class BuiltInNodes
         // Данные и вычисления
         registry.Register(new ConstantNode());
         registry.Register(new MathNode());
+        registry.Register(new IfCompareNode());
+        registry.Register(new IfNode());
         registry.Register(new CompareNode());
         registry.Register(new LogicNode());
         registry.Register(new NotNode());
@@ -42,7 +43,7 @@ public sealed class StartNode : NodeDefinition
     public const string Id = "start";
     public override string TypeId => Id;
     public override string Label => "Вход";
-    public override string Category => NodeCategories.Flow;
+    public override string Category => NodeCategories.Io;
     public override string Description => "Начало программы. Отдаёт входные данные текущего теста.";
     public override bool IsEntry => true;
     public override int? MinPerGraph => 1;
@@ -67,7 +68,7 @@ public sealed class OutputNode : NodeDefinition
     public const string Id = "output";
     public override string TypeId => Id;
     public override string Label => "Выход";
-    public override string Category => NodeCategories.Flow;
+    public override string Category => NodeCategories.Io;
     public override string Description => "Завершает программу и возвращает результат для проверки.";
     public override int? MinPerGraph => 1;
 
@@ -86,7 +87,7 @@ public sealed class IfNode : NodeDefinition
 {
     public override string TypeId => "if";
     public override string Label => "Условие";
-    public override string Category => NodeCategories.Flow;
+    public override string Category => NodeCategories.Logic;
     public override string Description => "Выбирает ветку «да» или «нет» по логическому значению.";
 
     public override IReadOnlyList<PortDef> Ports { get; } =
@@ -101,6 +102,56 @@ public sealed class IfNode : NodeDefinition
         => context.Bool("condition")
             ? ExecResult.Next("true", "Условие выполнено — ветка «да»")
             : ExecResult.Next("false", "Условие не выполнено — ветка «нет»");
+}
+
+/// <summary>
+/// Ветвление со встроенным сравнением: «если a ? b — то да, иначе нет». Заменяет пару
+/// «Сравнение» + «Условие» в самом частом случае. Для сложных условий (И/ИЛИ, поиск в тексте,
+/// проверка типа) остаётся «Условие» с логическим входом.
+/// </summary>
+public sealed class IfCompareNode : NodeDefinition
+{
+    public const string Id = "if-compare";
+
+    public override string TypeId => Id;
+    public override string Label => "Если";
+    public override string Category => NodeCategories.Logic;
+    public override string Description => "Сравнивает a и b и выбирает ветку «да» или «нет». Числа сравниваются по величине, текст — без учёта регистра.";
+
+    /// <summary>Там, где уровень разрешает или требует «Условие», подходит и «Если».</summary>
+    public override IReadOnlyList<string> RuleAliases => ["if"];
+
+    public override IReadOnlyList<ParamDef> Params { get; } =
+    [
+        ParamDef.Choice("op", "Если a",
+            new ParamChoice(">", "> b"),
+            new ParamChoice("<", "< b"),
+            new ParamChoice(">=", "≥ b"),
+            new ParamChoice("<=", "≤ b"),
+            new ParamChoice("==", "= b"),
+            new ParamChoice("!=", "≠ b")),
+    ];
+
+    public override IReadOnlyList<PortDef> Ports { get; } =
+    [
+        Port.ExecIn(),
+        Port.Inline("a", "a", DataType.Any, "0"),
+        Port.Inline("b", "b", DataType.Any, "0"),
+        Port.ExecOut("true", "да"),
+        Port.ExecOut("false", "нет"),
+    ];
+
+    public override ExecResult Execute(NodeContext context)
+    {
+        var a = context.Input("a");
+        var b = context.Input("b");
+        var op = context.Param("op");
+        var passed = CompareNode.Check(op, a, b);
+        var sign = FindParam("op")!.ChoiceLabel(op);
+        return passed
+            ? ExecResult.Next("true", $"{a} {sign[..1]} {b} — да")
+            : ExecResult.Next("false", $"{a} {sign[..1]} {b} — нет");
+    }
 }
 
 /// <summary>Повторяет тело заданное число раз. Конец ветки тела сам возвращает управление сюда.</summary>
@@ -408,16 +459,19 @@ public sealed class CompareNode : NodeDefinition
     {
         var a = context.Input("a");
         var b = context.Input("b");
-        return Value.FromBool(context.Param("op") switch
-        {
-            "==" => ValueOps.LooseEquals(a, b),
-            "!=" => !ValueOps.LooseEquals(a, b),
-            ">" => ValueOps.Compare(a, b) > 0,
-            "<" => ValueOps.Compare(a, b) < 0,
-            ">=" => ValueOps.Compare(a, b) >= 0,
-            _ => ValueOps.Compare(a, b) <= 0
-        });
+        return Value.FromBool(Check(context.Param("op"), a, b));
     }
+
+    /// <summary>Сравнение по знаку: общее для «Сравнения» и «Если».</summary>
+    public static bool Check(string op, Value a, Value b) => op switch
+    {
+        "==" => ValueOps.LooseEquals(a, b),
+        "!=" => !ValueOps.LooseEquals(a, b),
+        ">" => ValueOps.Compare(a, b) > 0,
+        "<" => ValueOps.Compare(a, b) < 0,
+        ">=" => ValueOps.Compare(a, b) >= 0,
+        _ => ValueOps.Compare(a, b) <= 0
+    };
 }
 
 public sealed class LogicNode : NodeDefinition

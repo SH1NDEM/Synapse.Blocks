@@ -2,6 +2,8 @@ using System.Text;
 using Synapse.Blocks.Graph;
 using Synapse.Blocks.Graph.Nodes;
 using Synapse.Blocks.Models;
+using Synapse.Blocks.Games.Station;
+using Synapse.Blocks.Games.Network;
 
 // Проверки ядра графа: значения, блоки, интерпретатор, валидатор и правила уровня.
 // Запуск: dotnet run --project tests/GraphChecks
@@ -697,9 +699,520 @@ Test("прогон тестов уровня", () =>
     Equal("нет", results[1].Actual);
 });
 
+// ─────────────────────────────────────────────────────────────
+Console.WriteLine("Если");
+
+Test("«Если» выбирает ветку по сравнению", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var check = b.Node("if-compare", ("op", ">="), ("b", "7"));
+    var yes = b.Node("output");
+    var no = b.Node("output");
+    var yesValue = b.Node("const", ("value", "да"));
+    var noValue = b.Node("const", ("value", "нет"));
+    b.Exec(start, check).Exec(check, "true", yes).Exec(check, "false", no)
+        .Data(start, "value", check, "a").Data(yesValue, "value", yes, "value").Data(noValue, "value", no, "value");
+    Cases(b.Program, ("7", "да"), ("12", "да"), ("6", "нет"), ("-1", "нет"));
+});
+
+Test("«Если» сравнивает текст без учёта регистра", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var check = b.Node("if-compare", ("op", "=="), ("b", "запад"));
+    var yes = b.Node("output");
+    var no = b.Node("output");
+    var one = b.Node("const", ("value", "1"));
+    var two = b.Node("const", ("value", "2"));
+    b.Exec(start, check).Exec(check, "true", yes).Exec(check, "false", no)
+        .Data(start, "value", check, "a").Data(one, "value", yes, "value").Data(two, "value", no, "value");
+    Cases(b.Program, ("Запад", "1"), ("восток", "2"));
+});
+
+Test("«Если» засчитывается вместо «Условия»", () =>
+{
+    var registry = NodeRegistry.Default;
+    var level = new LevelDefinition { AllowedNodes = ["start", "output", "if"] };
+    Check(LevelNodes.Allows(level, registry.Get("if-compare")), "«Если» должно быть доступно там, где есть «Условие»");
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var check = b.Node("if-compare");
+    var yes = b.Node("output");
+    var no = b.Node("output");
+    b.Exec(start, check).Exec(check, "true", yes).Exec(check, "false", no).Data(start, "value", yes, "value").Data(start, "value", no, "value");
+    var results = GraphRules.Check(b.Program, [GraphRule.Min("if")]);
+    Check(results[0].Passed, "правило «нужно условие» не засчитало «Если»");
+});
+
+// ─────────────────────────────────────────────────────────────
+Console.WriteLine("Свои блоки");
+
+Test("новый блок возвращает вход", () =>
+{
+    var b = new GraphBuilder();
+    var block = CustomBlocks.Create("Повтор");
+    b.Program.CustomBlocks.Add(block);
+    var start = b.Node("start");
+    var call = b.Node(block.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(start, "value", call, "i1").Data(call, "o1", output, "value");
+    Cases(b.Program, ("5", "5"), ("привет", "привет"));
+});
+
+Test("блок «удвоить и прибавить» вызывается дважды", () =>
+{
+    var b = new GraphBuilder();
+    var block = DoubleAndAdd(b.Program);
+    var start = b.Node("start");
+    var first = b.Node(block.Id, ("i2", "1"));
+    var second = b.Node(block.Id, ("i2", "10"));
+    var output = b.Node("output");
+    b.Exec(start, output)
+        .Data(start, "value", first, "i1")
+        .Data(first, "o1", second, "i1")
+        .Data(second, "o1", output, "value");
+    // (5·2+1)·2+10 = 32
+    Cases(b.Program, ("5", "32"), ("0", "12"));
+});
+
+Test("цикл и переменная внутри блока", () =>
+{
+    var b = new GraphBuilder();
+    var block = Power(b.Program);
+    var start = b.Node("start");
+    var call = b.Node(block.Id, ("i1", "2"));
+    var output = b.Node("output");
+    b.Exec(start, output).Data(start, "value", call, "i2").Data(call, "o1", output, "value");
+    Cases(b.Program, ("0", "1"), ("3", "8"), ("10", "1024"));
+});
+
+Test("блок внутри блока и несколько выходов", () =>
+{
+    var b = new GraphBuilder();
+    var inner = DoubleAndAdd(b.Program);
+    var outer = CustomBlocks.Create("Два ответа");
+    CustomBlocks.AddPort(outer, input: false, "второй", DataType.Number);
+    b.Program.CustomBlocks.Add(outer);
+    var parameters = outer.Body.Nodes.First(node => node.Type == CustomParamsNode.Id);
+    var result = outer.Body.Nodes.First(node => node.Type == CustomReturnNode.Id);
+    var call = new GraphNode { Type = inner.Id, Params = { ["i2"] = "0" } };
+    outer.Body.Nodes.Add(call);
+    outer.Body.Links.Add(new GraphLink { FromNode = parameters.Id, FromPort = "i1", ToNode = call.Id, ToPort = "i1" });
+    outer.Body.Links.Add(new GraphLink { FromNode = call.Id, FromPort = "o1", ToNode = result.Id, ToPort = "o2" });
+
+    var start = b.Node("start");
+    var use = b.Node(outer.Id);
+    var join = b.Node("join");
+    var output = b.Node("output");
+    b.Exec(start, output)
+        .Data(start, "value", use, "i1")
+        .Data(use, "o1", join, "a")
+        .Data(use, "o2", join, "b")
+        .Data(join, "result", output, "value");
+    Cases(b.Program, ("4", "48"));
+});
+
+Test("ошибки внутри блока видны снаружи", () =>
+{
+    var b = new GraphBuilder();
+    var block = CustomBlocks.Create("Сломанный");
+    b.Program.CustomBlocks.Add(block);
+    block.Body.Links.RemoveAll(link => link.ToPort == "o1");
+    var start = b.Node("start");
+    var call = b.Node(block.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(call, "o1", output, "value");
+    var issues = GraphValidator.Validate(b.Program);
+    var issue = issues.FirstOrDefault(item => item.BlockId == block.Id && item.Severity == IssueSeverity.Error);
+    Check(issue is not null && issue.Message.Contains("«Сломанный»"), "нет ошибки блока");
+    Fails(b.Program, "1", "Сломанный");
+});
+
+Test("блок не может использовать сам себя", () =>
+{
+    var b = new GraphBuilder();
+    var first = CustomBlocks.Create("Первый");
+    var second = CustomBlocks.Create("Второй");
+    b.Program.CustomBlocks.AddRange([first, second]);
+    first.Body.Nodes.Add(new GraphNode { Type = second.Id });
+    second.Body.Nodes.Add(new GraphNode { Type = first.Id });
+    var start = b.Node("start");
+    var call = b.Node(first.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(call, "o1", output, "value");
+    Fails(b.Program, "1", "сам себя");
+});
+
+Test("«Вход» и «Выход» внутри блока недоступны", () =>
+{
+    var program = new GraphProgram();
+    var block = CustomBlocks.Create("Блок");
+    program.CustomBlocks.Add(block);
+    var scope = CustomBlocks.Build(program, NodeRegistry.Default).CustomScope!;
+    var body = scope.BodyRegistry(block);
+    Check(!body.TryGet("start", out _) && !body.TryGet("output", out _), "в теле есть «Вход» или «Выход»");
+    Check(body.TryGet("fn-params", out _) && body.TryGet("repeat", out _), "в теле нет нужных блоков");
+    Check(!body.TryGet(block.Id, out _), "блок доступен внутри себя");
+});
+
+Test("удаление входа убирает его провода", () =>
+{
+    var b = new GraphBuilder();
+    var block = DoubleAndAdd(b.Program);
+    var start = b.Node("start");
+    var call = b.Node(block.Id, ("i2", "3"));
+    var output = b.Node("output");
+    b.Exec(start, output).Data(start, "value", call, "i1").Data(call, "o1", output, "value");
+    CustomBlocks.RemovePort(b.Program, block, "i2");
+    Check(!call.Params.ContainsKey("i2"), "осталось значение входа");
+    Check(block.Body.Links.All(link => link.FromPort != "i2"), "внутри остался провод");
+    // Вход b у «Арифметики» внутри остался без провода и берёт своё значение по умолчанию 1.
+    Cases(b.Program, ("5", "11"));
+});
+
+Test("правила уровня считают чипы внутри своих блоков", () =>
+{
+    var b = new GraphBuilder();
+    var block = DoubleAndAdd(b.Program);
+    var start = b.Node("start");
+    var call = b.Node(block.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(start, "value", call, "i1").Data(call, "o1", output, "value");
+    var results = GraphRules.Check(b.Program, [GraphRule.Max("math", 1)]);
+    Equal(2, results[0].Actual, "математики внутри блока:");
+    Equal(false, results[0].Passed, "ограничение обойдено:");
+    var level = new LevelDefinition { AllowedNodes = ["math"] };
+    var registry = CustomBlocks.Build(b.Program, NodeRegistry.Default);
+    Check(LevelNodes.Allows(level, registry.Get(block.Id)), "свой блок должен быть доступен");
+});
+
+Test("свои блоки в JSON", () =>
+{
+    var b = new GraphBuilder();
+    var block = Power(b.Program);
+    var start = b.Node("start");
+    var call = b.Node(block.Id, ("i1", "3"));
+    var output = b.Node("output");
+    b.Exec(start, output).Data(start, "value", call, "i2").Data(call, "o1", output, "value");
+    var restored = GraphJson.Deserialize(GraphJson.Serialize(b.Program));
+    Equal(1, restored.CustomBlocks.Count, "блоков:");
+    Equal(DataType.Number, restored.CustomBlocks[0].Inputs[0].Type, "тип входа:");
+    Cases(restored, ("2", "9"));
+    var copy = GraphJson.Clone(block);
+    Check(copy != block && copy.Id == block.Id && copy.Body.Nodes.Count == block.Body.Nodes.Count, "копия блока");
+});
+
+// ─────────────────────────────────────────────────────────────
+Console.WriteLine("Станция");
+
+var stationRunner = new GraphRunner(StationNodes.Registry);
+
+void Solves(int order, GraphProgram program)
+{
+    var level = StationLevels.All.First(item => item.Order == order);
+    var definition = level.AsLevel();
+    var registry = CustomBlocks.Build(program, StationNodes.Registry);
+    foreach (var node in program.Nodes)
+        Check(LevelNodes.Allows(definition, registry.Get(node.Type)), $"блок «{node.Type}» недоступен в задании");
+    var run = StationSimulator.Run(level, program, stationRunner);
+    Check(run.Success, run.Error);
+    Equal(level.Trains.Count, run.Trains.Count, "поездов:");
+}
+
+// «Вход → Выход» и «Поезд»; answer строит ответ и возвращает выход данных, который идёт в «Выход».
+GraphProgram Dispatcher(Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> answer)
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var train = b.Node(TrainNode.Id);
+    var output = b.Node("output");
+    var (node, port) = answer(b, train);
+    b.Exec(start, output).Data(node, port, output, "value");
+    return b.Program;
+}
+
+// Условие с двумя «Выходами»: да → yes, нет → no.
+GraphProgram Branching(Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> condition, string yes, Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> no)
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var train = b.Node(TrainNode.Id);
+    var check = b.Node("if");
+    var outYes = b.Node("output");
+    var outNo = b.Node("output");
+    var (condNode, condPort) = condition(b, train);
+    var yesConst = b.Node("const", ("value", yes));
+    var (noNode, noPort) = no(b, train);
+    b.Exec(start, check).Exec(check, "true", outYes).Exec(check, "false", outNo)
+        .Data(condNode, condPort, check, "condition")
+        .Data(yesConst, "value", outYes, "value")
+        .Data(noNode, noPort, outNo, "value");
+    return b.Program;
+}
+
+Test("станция 1: первый путь", () => Solves(1, Dispatcher((b, _) => (b.Node("const", ("value", "1")), "value"))));
+
+Test("станция 1: другой путь не принимается", () =>
+{
+    var level = StationLevels.All[0];
+    var run = StationSimulator.Run(level, Dispatcher((b, _) => (b.Node("const", ("value", "2")), "value")), stationRunner);
+    Check(!run.Success && run.Error.Contains("путь 1"), run.Error);
+});
+
+Test("станция 2: две стороны", () => Solves(2, Branching(
+    (b, train) => { var c = b.Node("compare", ("op", "=="), ("b", "запад")); b.Data(train, "from", c, "a"); return (c, "result"); },
+    "1",
+    (b, _) => (b.Node("const", ("value", "2")), "value"))));
+
+Test("станция 3: длинные составы", () => Solves(3, Branching(
+    (b, train) => { var c = b.Node("compare", ("op", ">"), ("b", "6")); b.Data(train, "cars", c, "a"); return (c, "result"); },
+    "3",
+    (b, _) => (b.Node("const", ("value", "1")), "value"))));
+
+Test("станция 4: свободный путь", () => Solves(4, Dispatcher((b, train) =>
+{
+    var item = b.Node("list-item", ("index", "1"));
+    b.Data(train, "free", item, "list");
+    return (item, "item");
+})));
+
+Test("станция 4: всегда путь 1 — занято", () =>
+{
+    var run = StationSimulator.Run(StationLevels.All[3], Dispatcher((b, _) => (b.Node("const", ("value", "1")), "value")), stationRunner);
+    Check(!run.Success && run.Error.Contains("занят"), run.Error);
+});
+
+Test("станция 5: экспресс", () => Solves(5, Branching(
+    (b, train) => { var c = b.Node("compare", ("op", "=="), ("b", "экспресс")); b.Data(train, "kind", c, "a"); return (c, "result"); },
+    "1",
+    (b, train) =>
+    {
+        var count = b.Node("length");
+        var item = b.Node("list-item");
+        b.Data(train, "free", count, "value").Data(train, "free", item, "list").Data(count, "result", item, "index");
+        return (item, "item");
+    })));
+
+Test("станция: «Поезд» внутри своего блока", () =>
+{
+    var b = new GraphBuilder();
+    var block = CustomBlocks.Create("Первый свободный");
+    b.Program.CustomBlocks.Add(block);
+    var body = block.Body;
+    body.Links.RemoveAll(link => link.ToPort == "o1");
+    var train = new GraphNode { Type = TrainNode.Id };
+    var item = new GraphNode { Type = "list-item" };
+    body.Nodes.AddRange([train, item]);
+    var result = body.Nodes.First(node => node.Type == CustomReturnNode.Id);
+    body.Links.Add(new GraphLink { FromNode = train.Id, FromPort = "free", ToNode = item.Id, ToPort = "list" });
+    body.Links.Add(new GraphLink { FromNode = item.Id, FromPort = "item", ToNode = result.Id, ToPort = "o1" });
+    var start = b.Node("start");
+    var call = b.Node(block.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(call, "o1", output, "value");
+    Solves(4, b.Program);
+});
+
+// ─────────────────────────────────────────────────────────────
+Console.WriteLine("Связь");
+
+var networkRunner = new GraphRunner(NetworkNodes.Registry);
+
+NetworkRun Route(int order, GraphProgram program)
+{
+    var level = NetworkLevels.All.First(item => item.Order == order);
+    var definition = level.AsLevel();
+    var registry = CustomBlocks.Build(program, NetworkNodes.Registry);
+    foreach (var node in program.Nodes)
+        Check(LevelNodes.Allows(definition, registry.Get(node.Type)), $"блок «{node.Type}» недоступен в задании");
+    return NetworkSimulator.Run(level, program, networkRunner);
+}
+
+// «Условие» с двумя «Выходами»: condition → да/нет, значения для каждой ветки строят yes и no.
+GraphProgram Router(
+    Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> condition,
+    Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> yes,
+    Func<GraphBuilder, GraphNode, (GraphNode Node, string Port)> no)
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var check = b.Node("if");
+    var outYes = b.Node("output");
+    var outNo = b.Node("output");
+    var (c, cp) = condition(b, packet);
+    var (y, yp) = yes(b, packet);
+    var (n, np) = no(b, packet);
+    b.Exec(start, check).Exec(check, "true", outYes).Exec(check, "false", outNo)
+        .Data(c, cp, check, "condition").Data(y, yp, outYes, "value").Data(n, np, outNo, "value");
+    return b.Program;
+}
+
+Test("связь 1: прямой канал", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(packet, "target", output, "value");
+    var run = Route(1, b.Program);
+    Check(run.Success, run.Error);
+    Check(run.Packets.All(result => result.Path.Count == 2), "лишние передачи");
+});
+
+Test("связь 2: через центр", () =>
+{
+    var run = Route(2, Router(
+        (b, p) => { var c = b.Node("compare", ("op", "=="), ("b", "Центр")); b.Data(p, "current", c, "a"); return (c, "result"); },
+        (b, p) => (p, "target"),
+        (b, _) => (b.Node("const", ("value", "Центр")), "value")));
+    Check(run.Success, run.Error);
+    Equal(3, run.Packets[0].Path.Count, "Север → Центр → Юг:");
+});
+
+Test("связь 2: без центра — нет канала", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(packet, "target", output, "value");
+    var run = Route(2, b.Program);
+    Check(!run.Success && run.Error.Contains("нет канала"), run.Error);
+});
+
+Test("связь 3: ретрансляторы", () =>
+{
+    var run = Route(3, Router(
+        (b, p) => { var c = b.Node("compare", ("op", ">")); b.Data(p, "target", c, "a").Data(p, "current", c, "b"); return (c, "result"); },
+        (b, p) => { var m = b.Node("math", ("op", "+"), ("b", "1")); b.Data(p, "current", m, "a"); return (m, "result"); },
+        (b, p) => { var m = b.Node("math", ("op", "-"), ("b", "1")); b.Data(p, "current", m, "a"); return (m, "result"); }));
+    Check(run.Success, run.Error);
+    Equal(8, run.Packets[2].Path.Count, "1 → 8:");
+});
+
+Test("связь 4: обход обрыва", () =>
+{
+    var run = Route(4, Router(
+        (b, p) =>
+        {
+            var first = b.Node("list-item", ("index", "1"));
+            var c = b.Node("compare", ("op", "!="));
+            b.Data(p, "neighbors", first, "list").Data(first, "item", c, "a").Data(p, "previous", c, "b");
+            return (c, "result");
+        },
+        (b, p) => { var first = b.Node("list-item", ("index", "1")); b.Data(p, "neighbors", first, "list"); return (first, "item"); },
+        (b, p) =>
+        {
+            var count = b.Node("length");
+            var last = b.Node("list-item");
+            b.Data(p, "neighbors", count, "value").Data(p, "neighbors", last, "list").Data(count, "result", last, "index");
+            return (last, "item");
+        }));
+    Check(run.Success, run.Error);
+});
+
+Test("связь 3: ретрансляторы через «Если»", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var check = b.Node("if-compare", ("op", ">"));
+    var up = b.Node("math", ("op", "+"), ("b", "1"));
+    var down = b.Node("math", ("op", "-"), ("b", "1"));
+    var outUp = b.Node("output");
+    var outDown = b.Node("output");
+    b.Exec(start, check).Exec(check, "true", outUp).Exec(check, "false", outDown)
+        .Data(packet, "target", check, "a").Data(packet, "current", check, "b")
+        .Data(packet, "current", up, "a").Data(packet, "current", down, "a")
+        .Data(up, "result", outUp, "value").Data(down, "result", outDown, "value");
+    var run = Route(3, b.Program);
+    Check(run.Success, run.Error);
+});
+
+Test("связь 4: через обрыв не пройти", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var output = b.Node("output");
+    b.Exec(start, output).Data(packet, "target", output, "value");
+    var run = Route(4, b.Program);
+    Check(!run.Success, "пакет не мог дойти напрямую");
+});
+
+Test("связь: пакет по кругу теряется", () =>
+{
+    var b = new GraphBuilder();
+    var start = b.Node("start");
+    var packet = b.Node(PacketNode.Id);
+    var first = b.Node("list-item", ("index", "1"));
+    var output = b.Node("output");
+    b.Exec(start, output).Data(packet, "neighbors", first, "list").Data(first, "item", output, "value");
+    var run = Route(4, b.Program);
+    Check(!run.Success && run.Error.Contains("по кругу"), run.Error);
+});
+
 Console.WriteLine();
 Console.WriteLine($"Итого: {passed} пройдено, {failed} с ошибками.");
 return failed == 0 ? 0 : 1;
+
+// Блок (x, b) → x·2 + b: два чипа «Арифметика» внутри.
+static GraphCustomBlock DoubleAndAdd(GraphProgram program)
+{
+    var block = CustomBlocks.Create("Удвоить и прибавить");
+    block.Inputs[0].Type = DataType.Number;
+    CustomBlocks.AddPort(block, input: true, "b", DataType.Number);
+    block.Outputs[0].Type = DataType.Number;
+    program.CustomBlocks.Add(block);
+
+    var body = block.Body;
+    var parameters = body.Nodes.First(node => node.Type == CustomParamsNode.Id);
+    var result = body.Nodes.First(node => node.Type == CustomReturnNode.Id);
+    body.Links.RemoveAll(link => link.ToPort == "o1");
+    var times = new GraphNode { Type = "math", Params = { ["op"] = "*", ["b"] = "2" } };
+    var plus = new GraphNode { Type = "math", Params = { ["op"] = "+" } };
+    body.Nodes.AddRange([times, plus]);
+    body.Links.Add(new GraphLink { FromNode = parameters.Id, FromPort = "i1", ToNode = times.Id, ToPort = "a" });
+    body.Links.Add(new GraphLink { FromNode = times.Id, FromPort = "result", ToNode = plus.Id, ToPort = "a" });
+    body.Links.Add(new GraphLink { FromNode = parameters.Id, FromPort = "i2", ToNode = plus.Id, ToPort = "b" });
+    body.Links.Add(new GraphLink { FromNode = plus.Id, FromPort = "result", ToNode = result.Id, ToPort = "o1" });
+    return block;
+}
+
+// Блок (основание, степень) → основание^степень: цикл и своя переменная внутри.
+static GraphCustomBlock Power(GraphProgram program)
+{
+    var block = CustomBlocks.Create("Степень");
+    block.Inputs[0].Name = "основание";
+    block.Inputs[0].Type = DataType.Number;
+    CustomBlocks.AddPort(block, input: true, "степень", DataType.Number);
+    program.CustomBlocks.Add(block);
+
+    var body = block.Body;
+    body.Variables.Add(new GraphVariable { Name = "R", Initial = "1" });
+    var parameters = body.Nodes.First(node => node.Type == CustomParamsNode.Id);
+    var result = body.Nodes.First(node => node.Type == CustomReturnNode.Id);
+    body.Links.Clear();
+    var loop = new GraphNode { Type = "repeat" };
+    var read = new GraphNode { Type = "get-var", Params = { ["variable"] = "R" } };
+    var times = new GraphNode { Type = "math", Params = { ["op"] = "*" } };
+    var store = new GraphNode { Type = "set-var", Params = { ["variable"] = "R" } };
+    var final = new GraphNode { Type = "get-var", Params = { ["variable"] = "R" } };
+    body.Nodes.AddRange([loop, read, times, store, final]);
+    void Link(GraphNode from, string fromPort, GraphNode to, string toPort)
+        => body.Links.Add(new GraphLink { FromNode = from.Id, FromPort = fromPort, ToNode = to.Id, ToPort = toPort });
+    Link(parameters, "next", loop, "in");
+    Link(parameters, "i2", loop, "count");
+    Link(loop, "body", store, "in");
+    Link(read, "value", times, "a");
+    Link(parameters, "i1", times, "b");
+    Link(times, "result", store, "value");
+    Link(loop, "done", result, "in");
+    Link(final, "value", result, "o1");
+    return block;
+}
 
 // ─────────────────────────────────────────────────────────────
 

@@ -944,7 +944,7 @@ body { font-size: 16px; }
 .child-toolbar { height: 56px; padding-inline: 18px; }
 .child-toolbar > div:first-child small { display: none; }
 .child-toolbar .toolbar-stats { gap: 8px; }
-.child-game-layout { height: calc(100dvh - 134px); grid-template-columns: 290px minmax(520px,1fr) 315px; }
+.child-game-layout { height: calc(100dvh - 79px); grid-template-columns: 290px minmax(520px,1fr) 315px; }
 .child-game-layout .mission-scroll { padding: 22px 20px 28px; }
 .child-game-layout .operation-number { margin-top: 16px; }
 .child-story-card { padding: 0; background: transparent; }

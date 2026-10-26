@@ -1,0 +1,20 @@
+@page "/games"
+@inject ProgressStore ProgressStore
+
+<PageTitle>Игры — Синапс</PageTitle>
+
+<div class="signal-home">
+    <section class="mission-feed games-feed games-page">
+        <header>
+            <div><small>ИГРЫ</small><h2>Схемы в деле</h2></div>
+            <p>Здесь схемы управляют живыми системами города. Те же блоки, что в кампании, — и свои блоки тоже работают.</p>
+        </header>
+        <GamesGrid Completed="_completed" />
+    </section>
+</div>
+
+@code {
+    private HashSet<Guid> _completed = [];
+
+    protected override async Task OnInitializedAsync() => _completed = await ProgressStore.LoadAsync();
+}
