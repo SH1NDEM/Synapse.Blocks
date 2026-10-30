@@ -8,6 +8,9 @@ public sealed class ProgressStore(IJSRuntime js)
 {
     private const string StorageKey = "synapse-csharp-progress-v1";
 
+    /// <summary>Прогресс изменился: меню обновляет замок игр.</summary>
+    public event Action? Changed;
+
     public async Task<HashSet<Guid>> LoadAsync()
     {
         try
@@ -37,8 +40,12 @@ public sealed class ProgressStore(IJSRuntime js)
         {
             // Прогресс текущей сессии не должен останавливать игру при переполненном хранилище.
         }
+        Changed?.Invoke();
     }
 
     public async Task ResetAsync()
-        => await js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+    {
+        await js.InvokeVoidAsync("localStorage.removeItem", StorageKey);
+        Changed?.Invoke();
+    }
 }

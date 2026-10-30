@@ -72,6 +72,13 @@
             }
         </svg>
 
+        @if (DraggedType is { } draggedType && Registry.TryGet(draggedType, out var draggedDefinition))
+        {
+            @* Серая зона: куда примагнитится блок из палитры. Двигает её canvas-pan.js. *@
+            var ghostHeight = NodeLayout.For(draggedDefinition).Height;
+            <div class="drop-ghost" data-width="@NodeLayout.Num(NodeLayout.Width)" data-height="@NodeLayout.Num(ghostHeight)" style="width:@NodeLayout.Px(NodeLayout.Width);height:@NodeLayout.Px(ghostHeight)" aria-hidden="true"></div>
+        }
+
         @foreach (var node in Program.Nodes)
         {
             if (!Registry.TryGet(node.Type, out var definition)) continue;
@@ -350,9 +357,9 @@
     private async Task DropTemplate(DragEventArgs args)
     {
         if (DraggedType is not { } type || !Registry.TryGet(type, out var definition)) return;
-        var point = await JS.InvokeAsync<double[]>("synapseCanvas.worldPoint", _canvasElement, args.ClientX, args.ClientY, _zoom);
-        var layout = NodeLayout.For(definition);
-        await AddNode(type, point[0] - OffsetX - NodeLayout.Width / 2, point[1] - OffsetY - layout.Height / 2);
+        // Точку считает браузер: блок встаёт ровно туда, где была серая зона.
+        var point = await JS.InvokeAsync<double[]>("synapseCanvas.dropPoint", _canvasElement, args.ClientX, args.ClientY);
+        await AddNode(definition.TypeId, point[0], point[1]);
         await OnDropped.InvokeAsync();
     }
 

@@ -1,7 +1,9 @@
-@* Пошаговое вступление к уровню с подсветкой частей интерфейса. *@
+@using Synapse.Blocks.Components.Tutorial
+@* Пошаговое вступление к уровню с подсветкой частей интерфейса.
+   Картинка шага — GIF по ссылке или обучающий ролик из чипов игры (clip:имя). *@
 
 <div class="level-intro-backdrop" role="presentation"></div>
-<section class="level-intro-modal intro-field-@Step.FieldKind.ToString().ToLowerInvariant() intro-target-@Step.HighlightTarget.ToString().ToLowerInvariant()" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
+<section class="level-intro-modal intro-field-@Step.FieldKind.ToString().ToLowerInvariant() intro-target-@Step.HighlightTarget.ToString().ToLowerInvariant() @(TutorialClips.IsClip(Step.MediaUrl) ? "has-clip" : "")" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
     <div class="intro-progress" aria-label="Шаг пояснения">
         @for (var index = 0; index < Level.IntroSteps.Count; index++)
         {
@@ -12,7 +14,11 @@
     <h2 id="level-intro-title">@Step.Title</h2>
     <p>@Step.Body</p>
 
-    @if (!string.IsNullOrWhiteSpace(Step.MediaUrl))
+    @if (TutorialClips.IsClip(Step.MediaUrl))
+    {
+        <TutorialClipView @key="Step.MediaUrl" Name="@Step.MediaUrl" />
+    }
+    else if (!string.IsNullOrWhiteSpace(Step.MediaUrl))
     {
         <figure class="intro-media">
             <img src="@Step.MediaUrl" alt="Анимация к пояснению: @Step.Title" loading="lazy" decoding="async" />

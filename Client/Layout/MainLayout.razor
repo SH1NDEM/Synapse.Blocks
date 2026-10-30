@@ -1,10 +1,12 @@
 @inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Navigation
 
-<div class="app-shell">
+@* Главная, список игр и справка — светлые и спокойные; рабочие экраны с полем остаются тёмными. *@
+<div class="@($"app-shell {(IsLight ? "theme-light" : "")}")">
     <header class="app-header">
-        <a class="brand" href="">
-            <span class="brand-mark" aria-hidden="true"></span>
-            <span><b>СИНАПС</b></span>
+        <a class="brand" href="" aria-label="Синапс — на главную">
+            <BrandLogo />
         </a>
         <NavMenu />
         @* Сюда страница игры выводит выбор задания и свои кнопки — так под рабочее поле остаётся больше места. *@
@@ -14,3 +16,22 @@
         @Body
     </main>
 </div>
+
+@code {
+    private static readonly string[] LightPages = ["", "games", "guide"];
+
+    private bool IsLight
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+            return LightPages.Contains(path, StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+}

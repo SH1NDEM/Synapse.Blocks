@@ -346,9 +346,14 @@ else
 
     /// <summary>Выбор задания: в шапке сайта в игре и над полем в песочнице.</summary>
     private RenderFragment LevelPicker(LevelDefinition level) => @<select class="level-picker" value="@level.Id" @onchange="SelectLevel" aria-label="Задание">
-        @foreach (var item in _levels)
+        @foreach (var group in _levels.GroupBy(item => item.Training).OrderByDescending(group => group.Key))
         {
-            <option value="@item.Id">@(_completed.Contains(item.Id) ? "✓" : "○") @item.Order.ToString("00") · @item.Title</option>
+            <optgroup label="@(group.Key ? "Обучение" : _levels.Any(other => other.Training) ? "Усложнённые задания" : "Задания")">
+                @foreach (var item in group)
+                {
+                    <option value="@item.Id">@(_completed.Contains(item.Id) ? "✓" : "○") @item.Order.ToString("00") · @item.Title</option>
+                }
+            </optgroup>
         }
     </select>;
 

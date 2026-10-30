@@ -135,6 +135,59 @@
     document.addEventListener("pointerup", finish);
     document.addEventListener("pointercancel", finish);
 
+
+    // ───── Перетаскивание блока из палитры ─────
+    // Запоминаем, за какую точку блока взялись (в долях ширины и высоты): после отпускания
+    // блок встаёт так, что эта же точка оказывается под курсором, и не «прыгает».
+    // Пока блок над полем, серая зона показывает клетки, куда он примагнитится.
+    const cell = 16;
+    let grab = { fx: .5, fy: .2 };
+
+    document.addEventListener("dragstart", event => {
+        const tile = event.target instanceof Element ? event.target.closest(".palette-chip") : null;
+        if (!tile) return;
+        const card = tile.querySelector(".node-card") || tile;
+        const rect = card.getBoundingClientRect();
+        grab = {
+            fx: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
+            fy: clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1)
+        };
+    }, true);
+
+    function dropPlace(canvas, ghost, clientX, clientY) {
+        const zoom = Math.max(.01, readNumber(canvas, "zoom") || 1);
+        const bounds = canvas.getBoundingClientRect();
+        const worldX = (clientX - bounds.left + canvas.scrollLeft) / zoom;
+        const worldY = (clientY - bounds.top + canvas.scrollTop) / zoom;
+        const width = Number.parseFloat(ghost?.dataset.width || "192");
+        const height = Number.parseFloat(ghost?.dataset.height || "96");
+        const originX = readNumber(canvas, "originX");
+        const originY = readNumber(canvas, "originY");
+        // Логические координаты блока — те же, что потом посчитает C# (кратны клетке).
+        const x = Math.round((worldX - grab.fx * width - originX) / cell) * cell;
+        const y = Math.round((worldY - grab.fy * height - originY) / cell) * cell;
+        return { x, y, left: x + originX, top: y + originY };
+    }
+
+    const hideGhosts = () => document.querySelectorAll(".drop-ghost.visible").forEach(ghost => ghost.classList.remove("visible"));
+
+    document.addEventListener("dragover", event => {
+        const canvas = event.target instanceof Element ? event.target.closest(".node-canvas") : null;
+        const ghost = canvas?.querySelector(".drop-ghost");
+        if (!ghost) return;
+        const place = dropPlace(canvas, ghost, event.clientX, event.clientY);
+        ghost.style.transform = `translate(${place.left}px, ${place.top}px)`;
+        ghost.classList.add("visible");
+    });
+    document.addEventListener("dragleave", event => {
+        const canvas = event.target instanceof Element ? event.target.closest(".node-canvas") : null;
+        if (!canvas) return;
+        const next = event.relatedTarget instanceof Element ? event.relatedTarget.closest(".node-canvas") : null;
+        if (next !== canvas) canvas.querySelector(".drop-ghost")?.classList.remove("visible");
+    });
+    document.addEventListener("drop", hideGhosts);
+    document.addEventListener("dragend", hideGhosts);
+
     window.synapseCanvas = {
         center(canvas, left, top) {
             observeBounds(canvas);
@@ -175,6 +228,12 @@
                 canvas.scrollLeft = Math.max(0, desiredLeft);
                 canvas.scrollTop = Math.max(0, desiredTop);
             }
+        },
+        // Куда встанет блок, отпущенный в точке clientX/clientY: логические координаты [x, y].
+        dropPoint(canvas, clientX, clientY) {
+            const place = dropPlace(canvas, canvas.querySelector(".drop-ghost"), clientX, clientY);
+            hideGhosts();
+            return [place.x, place.y];
         },
         worldPoint(canvas, clientX, clientY, zoom) {
             const bounds = canvas.getBoundingClientRect();

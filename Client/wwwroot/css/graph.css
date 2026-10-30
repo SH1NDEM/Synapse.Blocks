@@ -657,3 +657,242 @@ a.network-card:hover { border-color: rgba(79,210,255,.6); }
 .security-card .game-copy small, .security-card .game-go { color: #ff8a3d; }
 .security-card footer progress { accent-color: #ff8a3d; }
 a.security-card:hover { border-color: rgba(255,138,61,.6); }
+
+/* ───────────── Обучающие ролики ───────────── */
+
+.tclip { margin: 16px 0 4px; border: 1px solid #263029; border-radius: 12px; overflow: hidden; background: #0a120e; }
+.tclip-svg { display: block; width: 100%; height: auto; }
+.tclip-board {
+    position: relative; overflow: hidden;
+    background-color: #0a120e;
+    background-image: radial-gradient(circle, rgba(150,185,165,.12) 1px, transparent 1.5px);
+    background-size: 16px 16px; background-position: -8px -8px;
+}
+.tclip-board .node-card { position: absolute; }
+.tclip-chip { position: absolute; opacity: 0; transform-origin: center; }
+.tclip-wires { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.tclip-wires .trace-casing, .tclip-wires .trace { opacity: 0; }
+.tclip-palette { position: absolute; top: 0; right: 0; bottom: 0; width: 132px; padding: 10px 8px; border-left: 1px solid #263029; background: #0e1411; }
+.tclip-palette small { color: #6f7b74; font: 9px/1 ui-monospace, monospace; letter-spacing: .12em; }
+.tclip-tile { position: absolute; left: 8px; right: 8px; height: 28px; padding: 0 8px; display: flex; align-items: center; gap: 7px; border: 1px solid color-mix(in srgb, var(--accent) 45%, #263029); border-radius: 7px; background: color-mix(in srgb, var(--accent) 14%, #111613); color: #dfe7e2; font: 600 11px/1 system-ui, sans-serif; white-space: nowrap; }
+.tclip-tile i { width: 8px; height: 8px; border-radius: 2px; background: var(--chip-panel, var(--accent)); }
+.tclip-glow { position: absolute; opacity: 0; border-radius: 12px; border: 2px solid #9cf097; box-shadow: 0 0 18px rgba(156,240,151,.55), inset 0 0 12px rgba(156,240,151,.18); pointer-events: none; }
+.tclip-pulse { position: absolute; left: 0; top: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px; opacity: 0; border-radius: 50%; background: #e9f7ff; box-shadow: 0 0 10px 3px rgba(255,255,255,.55); }
+.tclip-pulse span { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 2px 7px; border-radius: 6px; background: #0b100d; border: 1px solid #3d8bff; color: #dbe9ff; font: 700 12px/1.2 ui-monospace, monospace; white-space: nowrap; }
+.tclip-pulse.pulse-data { background: #3d8bff; box-shadow: 0 0 10px 3px rgba(61,139,255,.6); }
+.tclip-pulse.pulse-text { background: #ff7a3d; box-shadow: 0 0 10px 3px rgba(255,122,61,.6); }
+.tclip-pulse.pulse-text span { border-color: #ff7a3d; color: #ffe0d1; }
+.tclip-pulse.pulse-bool { background: #ffd23f; box-shadow: 0 0 10px 3px rgba(255,210,63,.6); }
+.tclip-pulse.pulse-bool span { border-color: #ffd23f; color: #fff2c4; }
+.tclip-pulse.pulse-true { background: #6ca8ff; }
+.tclip-pulse.pulse-false { background: #ff7474; box-shadow: 0 0 10px 3px rgba(255,116,116,.6); }
+.tclip-pulse.pulse-scope { background: #b9a3ff; box-shadow: 0 0 10px 3px rgba(169,139,255,.6); }
+.tclip-badge { position: absolute; opacity: 0; padding: 4px 9px; border-radius: 7px; font: 700 12px/1.2 ui-monospace, monospace; white-space: nowrap; pointer-events: none; }
+.tclip-badge.clip-input { background: #121a24; border: 1px solid #3d8bff; color: #cfe0ff; }
+.tclip-badge.clip-ok { background: #13221a; border: 1px solid #5fd35a; color: #b8f2b5; }
+.tclip-badge.clip-no { background: #241414; border: 1px solid #ff7474; color: #ffc4c4; }
+.tclip-badge.clip-memory { background: #102221; border: 1px solid #35cfc2; color: #b5f1eb; }
+.tclip-badge.clip-memory-hot { box-shadow: 0 0 12px rgba(53,207,194,.45); }
+.tclip-badge.clip-test { background: #13221a; border: 1px solid #5fd35a; color: #b8f2b5; font-size: 11px; }
+.tclip-badge.clip-button { padding: 10px 14px; background: #b7ed63; color: #0b1206; font: 800 12px/1 system-ui, sans-serif; border-radius: 9px; }
+.tclip-badge.clip-field { min-width: 22px; padding: 3px 7px; background: #070b09; border: 1px solid #b7ed63; color: #f3f8ef; text-align: center; box-shadow: 0 0 10px rgba(183,237,99,.35); }
+.tclip-badge.clip-select { min-width: 74px; text-align: left; }
+.tclip-cursor { position: absolute; left: 0; top: 0; z-index: 30; opacity: 0; pointer-events: none; }
+.tclip-cursor svg { display: block; margin: -2px 0 0 -2px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+.tclip-cursor path { fill: #ffffff; stroke: #0a120e; stroke-width: 1.5; stroke-linejoin: round; }
+.tclip-click { position: absolute; left: -18px; top: -18px; z-index: 29; width: 36px; height: 36px; opacity: 0; border-radius: 50%; border: 2px solid #b7ed63; pointer-events: none; }
+.tclip-captions { position: relative; border-top: 1px solid #1e2722; background: #0e1411; }
+.tclip-captions span { position: absolute; inset: 0; padding: 0 14px; display: flex; align-items: center; opacity: 0; color: #e3ebe6; font: 600 15px/1.25 system-ui, sans-serif; }
+.level-intro-modal.has-clip { width: min(680px, calc(100% - 40px)); }
+.intro-clip-preview { grid-template-columns: minmax(0, 1fr) auto; }
+.intro-clip-preview .tclip { margin: 0; }
+
+/* Обучающие ролики: упрощённые блоки — только цвет, форма и разъёмы. */
+.tclip-shape { position: absolute; inset: 0; overflow: hidden; border: 1.5px solid color-mix(in srgb, var(--chip-panel, var(--accent)) 45%, #2a332e); border-radius: 12px; background: #141a17; box-shadow: 0 8px 18px rgba(0,0,0,.35); }
+.tclip-shape-head { height: 36px; background: var(--chip-panel, var(--accent)); }
+.tclip-shape-bar { position: absolute; left: 18px; height: 8px; border-radius: 4px; background: #2a332e; }
+.tclip-port { position: absolute; z-index: 2; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; }
+.tclip-port.data { border: 3px solid var(--dt, #9aa8a1); background: #0e1411; }
+.tclip-port.exec { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 3px; background: #f2f6ee; transform: rotate(45deg); box-shadow: 0 0 0 2px #0e1411; }
+.tclip-tile b { flex: 1; height: 6px; border-radius: 3px; background: #2f3934; }
+.tclip-badge.clip-field, .tclip-badge.clip-select { display: none; }
+.tclip-scale { position: absolute; inset: 0; transform-origin: 50% 50%; }
+.tclip-scale .tclip-port { width: 18px; height: 18px; margin: -9px 0 0 -9px; border-width: 4px; }
+.tclip-scale .tclip-port.exec { width: 17px; height: 17px; margin: -8.5px 0 0 -8.5px; box-shadow: 0 0 0 3px #0e1411; }
+.tclip-scale .tclip-shape { border-width: 2px; border-radius: 16px; }
+.tclip-scale .tclip-shape-bar { height: 11px; border-radius: 6px; }
+
+/* Серая зона: куда примагнитится блок, который тянут из палитры. */
+.drop-ghost { position: absolute; left: 0; top: 0; display: none; border: 2px dashed rgba(255,255,255,.3); border-radius: 12px; background: rgba(255,255,255,.07); pointer-events: none; transition: transform .07s ease-out; will-change: transform; }
+.drop-ghost.visible { display: block; }
+
+/* Значения в блоках крупнее, а поля узкие: чаще всего там одно число или знак действия. */
+.chip .gnode-param { grid-template-columns: 50px minmax(0, 1fr); }
+.gnode-param select, .gnode-param input { height: 26px; font-size: 15px; font-weight: 650; }
+.gnode-param select:not(.gnode-variable) { font-size: 17px; font-weight: 750; letter-spacing: .02em; }
+.gnode-variable { font-size: 14px !important; }
+input.gnode-inline, select.gnode-inline {
+    width: 52px; height: 26px; padding: 0 6px;
+    font-size: 15px; font-weight: 700; text-align: center;
+}
+input.gnode-inline { width: auto; field-sizing: content; min-width: 40px; max-width: 96px; }
+@supports not (field-sizing: content) { input.gnode-inline { width: 56px; } }
+select.gnode-inline { width: 66px; text-align: left; font-size: 13px; }
+.gnode-static { font-size: 14px; font-weight: 650; }
+.gnode-static.gnode-inline { min-width: 32px; padding: 3px 8px; text-align: center; }
+
+/* Подписи разъёмов и настроек крупнее; выбор действия — компактный, по размеру знака. */
+.gnode-label { font-size: 13px; font-weight: 600; }
+.chip .gnode-param { grid-template-columns: auto minmax(0, max-content); justify-content: start; gap: 10px; }
+.gnode-param > span { color: #9aa69f; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.gnode-param select:not(.gnode-variable) { width: auto; min-width: 58px; max-width: 120px; field-sizing: content; padding: 0 8px; }
+@supports not (field-sizing: content) { .gnode-param select:not(.gnode-variable) { width: 72px; } }
+.gnode-param .gnode-variable { width: auto; min-width: 64px; max-width: 120px; }
+.gnode-param input { width: 72px; text-align: center; }
+
+/* ───────────── «Защита серверов»: новая серверная ───────────── */
+.sec2 { background: radial-gradient(ellipse at 55% 40%, #1d1822, #0d0b10 75%); }
+.sec2-zone { fill: #7a7f8c; font: 700 11px/1 ui-monospace, monospace; letter-spacing: .14em; }
+.sec2-plate { fill: #1b1d25; stroke: #343846; stroke-width: 1.5; }
+.sec2-queue { opacity: .62; }
+.sec2-queue.next { opacity: 1; }
+.sec2-queue.next .sec2-plate { stroke: #8e95a8; }
+.sec2-port { fill: #2a2e3a; }
+.sec2-port-text, .sec2-card-port { fill: #e6e9f0; font: 800 12px/1 ui-monospace, monospace; }
+.sec2-card-port { font-size: 14px; }
+.sec2-addr, .sec2-card-addr { fill: #e6e9f0; font: 700 12px/1 ui-monospace, monospace; }
+.sec2-card-addr { font-size: 14px; }
+.sec2-addr.listed { fill: #ff8a8a; }
+.sec2-action, .sec2-card-action { fill: #8e95a8; font: 500 10.5px/1 system-ui, sans-serif; }
+.sec2-card-action { font-size: 12px; }
+.sec2-more { fill: #6c7180; font: 600 11px/1 system-ui, sans-serif; }
+
+.sec2-pillar { fill: #2a1f1a; stroke: #ff8a3d; stroke-width: 2.5; }
+.sec2-ring { fill: #16110f; stroke: #ff8a3d; stroke-width: 3; }
+.sec2-shield { fill: #ff8a3d; opacity: .9; }
+.sec2-mark { fill: none; stroke: #16110f; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.sec2-gate.checking .sec2-ring { stroke: #ffd0a8; animation: sec2-scan .6s ease-in-out infinite alternate; }
+.sec2-gate.open .sec2-ring, .sec2-gate.open .sec2-pillar { stroke: #5fd35a; }
+.sec2-gate.open .sec2-shield { fill: #5fd35a; }
+.sec2-gate.blocking .sec2-ring, .sec2-gate.blocking .sec2-pillar { stroke: #ff5b5b; filter: drop-shadow(0 0 8px rgba(255,91,91,.7)); }
+.sec2-gate.blocking .sec2-shield { fill: #ff5b5b; }
+.sec2-gate.wrong .sec2-ring, .sec2-gate.wrong .sec2-pillar, .sec2-gate.breach .sec2-ring, .sec2-gate.breach .sec2-pillar { stroke: #ffb02e; filter: drop-shadow(0 0 8px rgba(255,176,46,.7)); }
+.sec2-gate.wrong .sec2-shield, .sec2-gate.breach .sec2-shield { fill: #ffb02e; }
+@keyframes sec2-scan { from { stroke-width: 3; } to { stroke-width: 6; } }
+
+.sec2-tray rect { fill: #1d1418; stroke: #5a2f35; stroke-width: 1.5; }
+.sec2-tray.ok rect { fill: #13201a; stroke: #2f5a3a; }
+.sec2-tray.alert rect { stroke: #ffb02e; filter: drop-shadow(0 0 6px rgba(255,176,46,.6)); }
+.sec2-count { font: 800 12.5px/1 system-ui, sans-serif; letter-spacing: .02em; }
+.sec2-count.bad { fill: #ff8a8a; }
+.sec2-count.ok { fill: #8de38a; }
+
+.sec2-case { fill: #14161d; stroke: #3c4452; stroke-width: 2; }
+.sec2-rack { fill: #1c2029; stroke: #343a48; stroke-width: 1.5; }
+.sec2-slot { fill: #0d1014; }
+.sec2-led { fill: #3d8bff; }
+.sec2-server.served .sec2-case { stroke: #5fd35a; }
+.sec2-server.served .sec2-led { fill: #5fd35a; filter: drop-shadow(0 0 5px #5fd35a); }
+.sec2-server.breached .sec2-case, .sec2-server.breached .sec2-rack { stroke: #ff5b5b; animation: train-alarm .35s ease-in-out infinite alternate; }
+.sec2-server.breached .sec2-led { fill: #ff5b5b; }
+
+.sec2-card .sec2-plate { fill: #f1f3f7; stroke: #0d0b10; stroke-width: 2; }
+.sec2-card .sec2-port { fill: #d9dde6; }
+.sec2-card .sec2-card-port, .sec2-card .sec2-card-addr { fill: #14161d; }
+.sec2-card .sec2-card-action { fill: #4b5160; }
+.sec2-card.sec-allowed .sec2-plate { fill: #d9f5d7; stroke: #5fd35a; }
+.sec2-card.sec-blocked .sec2-plate { fill: #ffdcdc; stroke: #ff5b5b; }
+.sec2-card.sec-breach .sec2-plate { fill: #ff5b5b; stroke: #ffd0d0; }
+.sec2-card.sec-wrong-block .sec2-plate { fill: #ffd38a; stroke: #ffb02e; }
+.sec2-who-plate.citizen { fill: #3d8bff; }
+.sec2-who-plate.attacker { fill: #ff5b5b; }
+.sec2-who { fill: #fff; font: 800 12px/1 system-ui, sans-serif; }
+.sec2-verdict { fill: #e6e9f0; font: 800 15px/1 system-ui, sans-serif; letter-spacing: .04em; paint-order: stroke; stroke: #0d0b10; stroke-width: 4px; }
+.sec2-verdict.sec-allowed { fill: #8de38a; }
+.sec2-verdict.sec-blocked { fill: #ff8a8a; }
+.sec2-verdict.sec-breach, .sec2-verdict.sec-wrong-block { fill: #ffb02e; }
+
+/* ───────────── Игра «Робот-курьер» ───────────── */
+.robot-view { position: relative; min-height: 0; padding: 10px 10px 34px; border-bottom: 1px solid #1f2622; background: radial-gradient(ellipse at 50% 30%, #13221f, #0a0f0e 75%); overflow: hidden; }
+.robot-view svg { display: block; width: 100%; height: 100%; }
+.rb-wall { fill: #3a4a45; stroke: #4e625b; stroke-width: 1.5; }
+.rb-floor { fill: #0d1413; stroke: #18221f; stroke-width: 1; }
+.rb-floor.visited { fill: #10302b; stroke: #1b4a42; }
+.rb-mark.red { fill: #ff6b5b; }
+.rb-mark.blue { fill: #4f8dff; }
+.rb-finish { fill: none; stroke: #5fd35a; stroke-width: 2.5; stroke-dasharray: 5 4; }
+.rb-flag { fill: #5fd35a; stroke: #5fd35a; stroke-width: 2.5; stroke-linejoin: round; }
+.rb-start { fill: none; stroke: #4a5a55; stroke-width: 2; }
+.rb-battery rect { fill: #ffc94a; }
+.rb-battery .cap { fill: #c9a03a; }
+.rb-battery path { fill: none; stroke: #5a3d00; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rb-wheel { fill: #2a2f36; }
+.rb-body { fill: #35cfc2; stroke: #0a0f0e; stroke-width: 1.5; }
+.rb-nose { fill: #e9fffb; }
+.rb-eye { fill: #0a0f0e; stroke: #e9fffb; stroke-width: 2; }
+.rb-robot.error .rb-body { fill: #ff5b5b; }
+.rb-robot.stop .rb-body { fill: #5fd35a; }
+.rb-bubble rect { fill: #e9fffb; }
+.rb-bubble.error rect { fill: #ff5b5b; }
+.rb-bubble.stop rect { fill: #5fd35a; }
+.rb-bubble-text { fill: #0a0f0e; font: 800 11px/1 system-ui, sans-serif; }
+.robot-pill { background: rgba(53,207,194,.1); color: #35cfc2; }
+.robot-layout .station-speed button.active { border-color: #35cfc2; color: #35cfc2; }
+.robot-sensors { margin-top: 18px; padding: 10px 12px; display: grid; gap: 6px; border: 1px solid rgba(53,207,194,.28); border-radius: 10px; background: rgba(53,207,194,.04); }
+.robot-sensors header { display: flex; justify-content: space-between; align-items: baseline; }
+.robot-sensors header small { color: #35cfc2; font: 700 10px/1 ui-monospace, monospace; letter-spacing: .12em; }
+.robot-sensors header span { color: #66726b; font-size: 11px; }
+.robot-sensors div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.robot-sensors div span { color: #9aa69f; }
+.robot-sensors div b { color: #e6ece8; font: 700 13px/1.2 ui-monospace, monospace; }
+.robot-sensors b.floor-красный { color: #ff6b5b; }
+.robot-sensors b.floor-синий { color: #4f8dff; }
+.robot-sensors b.floor-финиш { color: #5fd35a; }
+.robot-sensors .robot-command { margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(53,207,194,.2); }
+.robot-sensors .robot-command b { color: #35cfc2; }
+.robot-commands-note { margin: 10px 0 0; color: #7d8982; font-size: 12px; line-height: 1.9; }
+.robot-commands-note code { padding: 2px 6px; border-radius: 5px; background: #121a18; color: #bdeee8; font-size: 11.5px; }
+
+/* ───────────── Игра «Веб-разработчик» ───────────── */
+.web-view { position: relative; min-height: 0; padding: 14px 18px 36px; border-bottom: 1px solid #1f2622; background: radial-gradient(ellipse at 50% 0%, #241a26, #0e0b10 75%); overflow: hidden; display: grid; }
+.web-browser { min-height: 0; display: grid; grid-template-rows: 30px 1fr; overflow: hidden; border-radius: 12px; background: #f6f4ef; box-shadow: 0 16px 40px rgba(0,0,0,.4); }
+.web-bar { display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #e6e1d7; }
+.web-bar > i { width: 10px; height: 10px; border-radius: 50%; background: #f06060; }
+.web-bar > i:nth-child(2) { background: #f0b54a; }
+.web-bar > i:nth-child(3) { background: #5cb87a; }
+.web-url { margin-left: 10px; padding: 3px 12px; border-radius: 8px; background: #fff; color: #5b6560; font: 500 12px/1.2 ui-monospace, monospace; }
+.web-page { min-height: 0; padding: 14px 18px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; color: #1f2523; }
+.web-form { display: grid; gap: 8px; }
+.web-form h4 { margin: 0 0 2px; font-size: 16px; }
+.web-field { display: grid; grid-template-columns: 74px minmax(0, 1fr); align-items: center; gap: 8px; }
+.web-field span { color: #616b66; font-size: 13px; }
+.web-field b { min-height: 28px; padding: 5px 10px; display: flex; align-items: center; border: 1.5px solid #d8d2c5; border-radius: 8px; background: #fff; font: 600 14px/1.2 system-ui, sans-serif; overflow: hidden; white-space: nowrap; }
+.web-field.wrong b { border-color: #e0605a; background: #fff1f0; }
+.web-field i.caret { width: 2px; height: 16px; margin-left: 1px; background: #2f6bd8; animation: web-caret .8s steps(1) infinite; }
+@keyframes web-caret { 50% { opacity: 0; } }
+.web-submit { justify-self: start; margin-top: 4px; padding: 7px 18px; border: 0; border-radius: 9px; background: #d0457a; color: #fff; font-weight: 700; cursor: default; transition: transform .1s; }
+.web-submit.pressed { transform: scale(.94); background: #a8335f; }
+.web-result { display: grid; gap: 10px; }
+.web-toast { padding: 12px 14px; display: grid; gap: 4px; border-radius: 12px; border: 1.5px solid #e6e1d7; background: #fff; }
+.web-toast b { font-size: 15px; }
+.web-toast span { color: #616b66; font-size: 13px; line-height: 1.45; }
+.web-toast.ok { border-color: #8fd3a0; background: #e9f7ec; }
+.web-toast.ok b { color: #23864a; }
+.web-toast.error { border-color: #f0a29c; background: #fff1f0; }
+.web-toast.error b { color: #c8423a; }
+.web-toast.mistake { border-color: #f0c35a; background: #fff6dc; }
+.web-toast.mistake b { color: #8a6200; }
+.web-toast.idle b { color: #8b938f; }
+.web-stats { display: flex; gap: 12px; font-size: 13px; font-weight: 700; }
+.web-stats .ok { color: #23864a; }
+.web-stats .bad { color: #c8423a; }
+.web-pill { background: rgba(208,69,122,.12); color: #f07aa6; }
+.web-layout .station-speed button.active { border-color: #f07aa6; color: #f07aa6; }
+.web-view { padding: 10px 16px 34px; }
+.web-page { padding: 10px 16px; }
+.web-form { gap: 6px; }
+.web-form h4 { font-size: 15px; }
+.web-field b { min-height: 26px; padding: 3px 10px; }
+.web-submit { margin-top: 2px; padding: 5px 16px; }
+.web-form-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.web-form-head .web-submit { margin-top: 0; }

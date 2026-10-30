@@ -1,0 +1,125 @@
+@using Synapse.Blocks.Games.WebDev
+@* Окно браузера с формой регистрации. Житель вводит поля (они набираются по буквам),
+   нажимает кнопку — и сайт показывает результат проверки, которую собрал игрок. *@
+
+<div class="web-view">
+    <div class="web-browser">
+        <div class="web-bar">
+            <i></i><i></i><i></i>
+            <span class="web-url">🔒 @Level.Site/register</span>
+        </div>
+        <div class="web-page">
+            <div class="web-form">
+                @{ var active = ActiveForm(); var typed = Typed(active); }
+                <div class="web-form-head"><h4>Запись в библиотеку</h4><button type="button" tabindex="-1" class="@($"web-submit {(Pressed(active) ? "pressed" : "")}")">Записаться</button></div>
+                <label class="@($"web-field {FieldCss(active, "name")}")"><span>Имя</span><b>@typed.Name<i class="@(typed.Field == "name" ? "caret" : "")"></i></b></label>
+                <label class="@($"web-field {FieldCss(active, "age")}")"><span>Возраст</span><b>@typed.Age<i class="@(typed.Field == "age" ? "caret" : "")"></i></b></label>
+                <label class="@($"web-field {FieldCss(active, "email")}")"><span>Почта</span><b>@typed.Email<i class="@(typed.Field == "email" ? "caret" : "")"></i></b></label>
+            </div>
+            <div class="web-result">
+                @if (active is not null && Time >= active.Decided)
+                {
+                    <div class="@($"web-toast {ResultCss(active)}")">
+                        <b>@ResultTitle(active)</b>
+                        <span>@ResultText(active)</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="web-toast idle"><b>Сайт ждёт анкету</b><span>Твоя схема проверит поля, когда житель нажмёт «Записаться».</span></div>
+                }
+                <div class="web-stats">
+                    <span class="ok">✓ записались: @Accepted</span>
+                    <span class="bad">✕ с ошибкой: @Rejected</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="station-clock"><span>@($"{(int)Time / 60:00}:{(int)Time % 60:00}")</span>@if (Status.Length > 0) { <b>@Status</b> }</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public WebLevel Level { get; set; } = default!;
+    [Parameter] public WebRun? Run { get; set; }
+    [Parameter] public double Time { get; set; }
+    [Parameter] public string Status { get; set; } = "";
+
+    private sealed record TypedForm(string Name, string Age, string Email, string Field);
+
+    private WebFormResult? ActiveForm()
+    {
+        if (Run is null) return null;
+        var current = Run.Forms.LastOrDefault(result => Time >= result.Start);
+        if (current is null) return null;
+        return Time < current.End + WebSimulator.Gap || !current.Passed ? current : null;
+    }
+
+    private int Accepted => Run?.Forms.Count(result => result.Accepted == true && result.Passed && Time >= result.Decided) ?? 0;
+    private int Rejected => Run?.Forms.Count(result => result.Accepted == false && result.Passed && Time >= result.Decided) ?? 0;
+
+    /// <summary>Поля набираются по очереди: имя, возраст, почта — за первые 80% времени заполнения.</summary>
+    private TypedForm Typed(WebFormResult? result)
+    {
+        if (result is null) return new("", "", "", "");
+        var form = result.Form;
+        var age = form.Age.ToString();
+        var total = form.Name.Length + age.Length + form.Email.Length;
+        var progress = Math.Clamp((Time - result.Start) / (WebSimulator.Typing * .8), 0, 1);
+        var letters = (int)Math.Round(total * progress);
+        string Take(string text, ref int left)
+        {
+            var count = Math.Min(text.Length, left);
+            left -= count;
+            return text[..count];
+        }
+        var left = letters;
+        var name = Take(form.Name, ref left);
+        var ageText = Take(age, ref left);
+        var email = Take(form.Email, ref left);
+        var field = progress >= 1 ? "" : name.Length < form.Name.Length ? "name" : ageText.Length < age.Length ? "age" : "email";
+        return new(name, ageText, email, field);
+    }
+
+    private bool Pressed(WebFormResult? result)
+        => result is not null && Time >= result.Start + WebSimulator.Typing * .85 && Time < result.Decided + .2;
+
+    /// <summary>После проверки неверные поля подсвечиваются, если схема отклонила анкету.</summary>
+    private string FieldCss(WebFormResult? result, string field)
+    {
+        if (result is null || Time < result.Decided || result.Accepted != false) return "";
+        var form = result.Form;
+        var wrong = field switch
+        {
+            "age" => form.Age < 7,
+            "email" => !form.Email.Contains('@'),
+            _ => false
+        };
+        return wrong ? "wrong" : "";
+    }
+
+    private static string ResultCss(WebFormResult result) => result switch
+    {
+        { Accepted: null } => "mistake",
+        { Passed: false } => "mistake",
+        { Accepted: true } => "ok",
+        _ => "error"
+    };
+
+    private static string ResultTitle(WebFormResult result) => result switch
+    {
+        { Accepted: null } => "Сайт не понял ответ схемы",
+        { Passed: false, Accepted: true } => "Ошибка в программе!",
+        { Passed: false } => "Ошибка в программе!",
+        { Accepted: true } => $"Добро пожаловать, {result.Form.Name}!",
+        _ => "Проверьте анкету"
+    };
+
+    private static string ResultText(WebFormResult result) => result switch
+    {
+        { Accepted: null } => $"Схема ответила «{result.Answer}», а нужно «да» или «нет».",
+        { Passed: false, Accepted: true } => $"Сайт принял неправильную анкету: {result.Form.Note}",
+        { Passed: false } => $"{result.Form.Name} не смог(ла) записаться, хотя {result.Form.Note}",
+        { Accepted: true } => "Анкета сохранена, читательский билет готов.",
+        _ => result.Form.Note
+    };
+}

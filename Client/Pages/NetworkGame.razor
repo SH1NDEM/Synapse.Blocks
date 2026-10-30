@@ -10,6 +10,8 @@
 
 <PageTitle>Связь — Синапс</PageTitle>
 
+<TrainingLock Title="Связь Синапса">
+
 <SectionContent SectionName="header-tools">
     <select class="level-picker" value="@Level.Id" @onchange="SelectLevel" aria-label="Задание связи">
         @foreach (var item in NetworkLevels.All)
@@ -144,6 +146,8 @@
 {
     <NodeHelpDialog Definition="help" OnClose="() => _help = null" />
 }
+
+</TrainingLock>
 
 @code {
     [Inject] private NavigationManager Navigation { get; set; } = default!;

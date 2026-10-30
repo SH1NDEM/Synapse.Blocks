@@ -1,4 +1,7 @@
 @page "/"
+@using Synapse.Blocks.Games.Station
+@using Synapse.Blocks.Games.Network
+@using Synapse.Blocks.Games.Security
 @inject LevelStore LevelStore
 @inject ProgressStore ProgressStore
 
@@ -14,52 +17,131 @@ else if (_error.Length > 0)
 }
 else
 {
-    <div class="signal-home">
-        <section class="signal-hero learning-hero">
-            <div class="signal-copy">
-                <span class="signal-eyebrow"><i></i> СИНАПС / УЧИСЬ СОЗДАВАТЬ</span>
-                <h1>Собери логику.<br /><em>Найди решение.</em></h1>
-                <p>Программирование начинается с простых шагов. Соединяйте блоки, проверяйте идеи и решайте задания в своём темпе.</p>
-                <div class="signal-actions">
-                    <a class="signal-start" href="@NextLevelUrl">@(CompletedCount > 0 ? "Продолжить обучение" : "Начать обучение") <b>→</b></a>
-                    <a class="signal-guide" href="guide">Как это работает</a>
+    @* ───── Первый экран: зелёная полоса, одна мысль и одна кнопка ───── *@
+    <div class="home-top">
+        <i class="home-blob one"></i><i class="home-blob two"></i>
+        <section class="home-hero">
+            <div class="home-hero-text">
+                <span class="home-tag">Город Синапс ждёт помощи</span>
+                <h1>Собирай программы из блоков — <em>и чини город</em></h1>
+                <p>Вирус стёр программы городских систем. Соединяй блоки, запускай проверки и возвращай Синапсу свет, связь и поезда.</p>
+                <div class="home-actions">
+                    <a class="home-button" href="@ContinueUrl">@ContinueLabel</a>
+                    <a class="home-link" href="guide">Как устроены блоки →</a>
                 </div>
-            </div>
-            <aside class="learning-progress" aria-label="Прогресс обучения">
-                <small>ВАШ ПРОГРЕСС</small>
-                <strong>@CompletedCount <span>/ @_levels.Count</span></strong>
-                <p>уровней пройдено</p>
-                <progress value="@CompletedCount" max="@Math.Max(1, _levels.Count)">@ProgressPercent%</progress>
-                <span>@(CompletedCount == _levels.Count ? "Все задания выполнены. Можно пройти их ещё раз." : "Каждая схема — ещё один шаг вперёд.")</span>
-            </aside>
-        </section>
-        <section class="mission-feed games-feed">
-            <header><div><small>ИГРЫ</small><h2>Схемы в деле</h2></div><p>Когда блоки освоены, попробуйте их на живых системах города: схема управляет станцией, а вы смотрите на результат.</p></header>
-            <GamesGrid Completed="_completed" />
-        </section>
-        <section class="mission-feed">
-            <header><div><small>ПРАКТИКА</small><h2>Выберите задание</h2></div><p>Разные схемы могут привести к правильному ответу. Экспериментируйте и проверяйте результат.</p></header>
-            <div class="mission-feed-grid">
-                @foreach (var level in _levels)
+                @if (NextLevel is { } next && _completed.Count > 0)
                 {
-                    var complete = _completed.Contains(level.Id);
-                    <a class="mission-ticket @(complete ? "complete" : "")" href="game?level=@level.Id">
-                        <span>@level.Order.ToString("00")</span><div><small>@level.Direction · @level.Tests.Count проверок</small><h3>@level.Title</h3><p>@level.Objective</p></div><b aria-label="@(complete ? "Пройден" : "Открыть")">@(complete ? "✓" : "→")</b>
-                    </a>
+                    <p class="home-next">Дальше: <b>@next.Title</b></p>
                 }
             </div>
+
+            <figure class="home-city" aria-label="@CityLabel">
+                <span class="home-float f1" aria-hidden="true"><i></i>Если</span>
+                <span class="home-float f2" aria-hidden="true"><i></i>Повторить × 3</span>
+                <svg viewBox="0 0 560 230" role="img" aria-hidden="true">
+                    <path class="home-city-ground" d="M10 206 H550" />
+                    @foreach (var district in Districts)
+                    {
+                        <g class="@($"home-building {district.Key} {(district.Restored ? "on" : "")}")" transform="@($"translate({district.X} 0)")">
+                            @DistrictArt(district.Key)
+                        </g>
+                    }
+                </svg>
+                <figcaption>
+                    <span>Восстановлено систем: <b>@RestoredCount из @Districts.Count</b></span>
+                    <i class="home-meter"><i style="@($"width:{Percent(RestoredCount, Districts.Count)}")"></i></i>
+                </figcaption>
+            </figure>
         </section>
+    </div>
+
+    <div class="home">
+        @* ───── Обучение ───── *@
+        @if (_training.Count > 0)
+        {
+            <section class="home-section">
+                <header class="home-head">
+                    <h2><i class="home-icon blue">@Icon("book")</i>Обучение</h2>
+                    <p>@(Training.Unlocked ? "Пройдено! Игры города открыты." : $"{TrainingDone} из {_training.Count} уровней. После обучения откроются игры.")</p>
+                </header>
+                <ol class="home-steps">
+                    @for (var index = 0; index < _training.Count; index++)
+                    {
+                        var level = _training[index];
+                        var state = LevelState(level);
+                        <li class="@($"home-step {state}")">
+                            <a href="@($"game?level={level.Id}")">
+                                <span class="home-step-dot">@(state == "done" ? "✓" : (index + 1).ToString())</span>
+                                <b>@level.Title</b>
+                                @if (state == "current")
+                                {
+                                    <small>сейчас</small>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ol>
+            </section>
+        }
+
+        @* ───── Игры города ───── *@
+        <section class="home-section">
+            <header class="home-head">
+                <h2><i class="home-icon orange">@Icon("game")</i>Игры по направлениям</h2>
+                <p>Каждая игра — своя сфера программирования. Попробуй профессии будущего.</p>
+            </header>
+            <GamesGrid Completed="_completed" Training="Training" />
+        </section>
+
+        @* ───── Усложнённые задания ───── *@
+        @if (_advanced.Count > 0)
+        {
+            <section class="home-section">
+                <header class="home-head">
+                    <h2><i class="home-icon purple">@Icon("star")</i>Усложнённые задания</h2>
+                    <p>Меньше подсказок, больше условий.</p>
+                </header>
+                <div class="home-tasks">
+                    @foreach (var level in _advanced)
+                    {
+                        var complete = _completed.Contains(level.Id);
+                        <a class="@($"home-task tone-{level.Order % 4} {(complete ? "done" : "")}")" href="@($"game?level={level.Id}")">
+                            <span>@level.Order.ToString("00")</span>
+                            <b>@level.Title</b>
+                            <small>@level.Direction</small>
+                            <i aria-label="@(complete ? "Пройден" : "Открыть")">@(complete ? "✓" : "→")</i>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
     </div>
 }
 
 @code {
+    private sealed record District(string Key, string Name, int X, bool Restored);
+
     private List<LevelDefinition> _levels = [];
+    private List<LevelDefinition> _training = [];
+    private List<LevelDefinition> _advanced = [];
     private HashSet<Guid> _completed = [];
+    private List<District> Districts = [];
     private bool _loading = true;
     private string _error = "";
-    private int CompletedCount => _levels.Count(level => _completed.Contains(level.Id));
-    private int ProgressPercent => _levels.Count == 0 ? 0 : (int)Math.Round(CompletedCount * 100d / _levels.Count);
-    private string NextLevelUrl => $"game?level={(_levels.FirstOrDefault(level => !_completed.Contains(level.Id)) ?? _levels.FirstOrDefault())?.Id}";
+
+    private TrainingStatus Training => TrainingStatus.From(_levels, _completed);
+    private int TrainingDone => _training.Count(level => _completed.Contains(level.Id));
+    private int RestoredCount => Districts.Count(item => item.Restored);
+    private string CityLabel => $"Восстановлено систем города: {RestoredCount} из {Districts.Count}";
+
+    private LevelDefinition? NextLevel => (_training.Count > 0 && !Training.Unlocked ? _training : _levels)
+        .FirstOrDefault(level => !_completed.Contains(level.Id));
+
+    private string ContinueUrl => $"game?level={(NextLevel ?? _levels.FirstOrDefault())?.Id}";
+
+    private string ContinueLabel => _completed.Count == 0 ? "Начать обучение"
+        : !Training.Unlocked ? "Продолжить обучение"
+        : NextLevel is null ? "Пройти задания ещё раз" : "Продолжить";
 
     protected override async Task OnInitializedAsync()
     {
@@ -69,8 +151,98 @@ else
         {
             _levels = await LevelStore.LoadGameAsync();
             _completed = await ProgressStore.LoadAsync();
+            _training = _levels.Where(level => level.Training).ToList();
+            _advanced = _levels.Where(level => !level.Training).ToList();
+            Districts = BuildDistricts();
         }
         catch { _error = "Нет связи с сервером. Проверьте подключение и повторите загрузку."; }
         finally { _loading = false; }
     }
+
+    // Обучение чинит три системы: связь (первая половина уровней), энергосеть и архив. Игры чинят остальные.
+    private List<District> BuildDistricts()
+    {
+        var count = _training.Count;
+        var comms = _training.Take((count + 1) / 2).ToList();
+        var power = _training.Skip(comms.Count).Take(Math.Max(0, (count - comms.Count) / 2)).ToList();
+        var archive = _training.Skip(comms.Count + power.Count).ToList();
+        return
+        [
+            new("comms", "Связь", 60, Done(comms.Select(level => level.Id))),
+            new("power", "Энергосеть", 150, Done(power.Select(level => level.Id))),
+            new("archive", "Архив", 242, Done(archive.Select(level => level.Id))),
+            new("station", "Вокзал", 338, Training.Unlocked && Done(StationLevels.All.Select(level => level.Id))),
+            new("network", "Сеть районов", 428, Training.Unlocked && Done(NetworkLevels.All.Select(level => level.Id))),
+            new("security", "Серверы", 506, Training.Unlocked && Done(SecurityLevels.All.Select(level => level.Id))),
+        ];
+    }
+
+    private bool Done(IEnumerable<Guid> ids)
+    {
+        var list = ids.ToList();
+        return list.Count == 0 ? Training.Unlocked : list.All(_completed.Contains);
+    }
+
+    private string LevelState(LevelDefinition level)
+        => _completed.Contains(level.Id) ? "done"
+            : level.Id == _training.FirstOrDefault(item => !_completed.Contains(item.Id))?.Id ? "current" : "next";
+
+    private static string Percent(int value, int total)
+        => (total == 0 ? 0 : value * 100d / total).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
+
+    private static RenderFragment Icon(string name) => name switch
+    {
+        "book" => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z" /><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3" /></svg>,
+        "game" => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h10a4 4 0 0 1 4 4v1a4 4 0 0 1-7.2 2.4L13 14h-2l-.8 1.4A4 4 0 0 1 3 13v-1a4 4 0 0 1 4-4z" /><path d="M7.5 10.5v3M6 12h3" /></svg>,
+        _ => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z" /></svg>
+    };
+
+    private static RenderFragment DistrictArt(string key) => key switch
+    {
+        "comms" => CommsArt,
+        "power" => PowerArt,
+        "archive" => ArchiveArt,
+        "station" => StationArt,
+        "network" => NetworkArt,
+        _ => SecurityArt
+    };
+
+    // Простые силуэты зданий: серые, пока система сломана, и цветные, когда её починили.
+    private static readonly RenderFragment CommsArt = @<g>
+        <path class="wall" d="M-20 206 L0 92 L20 206 Z" />
+        <path class="line" d="M-13 170 H13 M-8 136 H8" />
+        <circle class="light" cx="0" cy="84" r="6" />
+    </g>;
+
+    private static readonly RenderFragment PowerArt = @<g>
+        <path class="wall" d="M-38 206 L-32 124 H-14 L-8 206 Z" />
+        <path class="wall" d="M-4 206 L1 140 H17 L22 206 Z" />
+        <rect class="wall" x="-42" y="172" width="82" height="34" rx="6" />
+        <rect class="light" x="-30" y="184" width="10" height="10" rx="3" /><rect class="light" x="-12" y="184" width="10" height="10" rx="3" /><rect class="light" x="6" y="184" width="10" height="10" rx="3" /><rect class="light" x="24" y="184" width="10" height="10" rx="3" />
+    </g>;
+
+    private static readonly RenderFragment ArchiveArt = @<g>
+        <path class="wall" d="M-44 140 L0 112 L44 140 Z" />
+        <rect class="wall" x="-40" y="146" width="80" height="60" rx="4" />
+        <rect class="light" x="-28" y="158" width="10" height="36" rx="5" /><rect class="light" x="-5" y="158" width="10" height="36" rx="5" /><rect class="light" x="18" y="158" width="10" height="36" rx="5" />
+    </g>;
+
+    private static readonly RenderFragment StationArt = @<g>
+        <path class="wall" d="M-44 206 V154 Q0 112 44 154 V206 Z" />
+        <rect class="light" x="-26" y="176" width="22" height="18" rx="5" /><rect class="light" x="4" y="176" width="22" height="18" rx="5" />
+        <circle class="light" cx="0" cy="146" r="6" />
+    </g>;
+
+    private static readonly RenderFragment NetworkArt = @<g>
+        <rect class="wall" x="-34" y="126" width="30" height="80" rx="5" />
+        <rect class="wall" x="0" y="100" width="34" height="106" rx="5" />
+        <rect class="light" x="-26" y="140" width="14" height="10" rx="3" /><rect class="light" x="-26" y="162" width="14" height="10" rx="3" />
+        <rect class="light" x="9" y="116" width="16" height="10" rx="3" /><rect class="light" x="9" y="140" width="16" height="10" rx="3" /><rect class="light" x="9" y="164" width="16" height="10" rx="3" />
+    </g>;
+
+    private static readonly RenderFragment SecurityArt = @<g>
+        <rect class="wall" x="-28" y="110" width="56" height="96" rx="8" />
+        <rect class="light" x="-18" y="124" width="36" height="12" rx="4" /><rect class="light" x="-18" y="146" width="36" height="12" rx="4" /><rect class="light" x="-18" y="168" width="36" height="12" rx="4" />
+        <path class="light" d="M0 70 L16 76 V88 Q16 99 0 104 Q-16 99 -16 88 V76 Z" />
+    </g>;
 }

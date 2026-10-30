@@ -1,4 +1,4 @@
-using Synapse.Blocks.Graph;
+﻿using Synapse.Blocks.Graph;
 using Synapse.Blocks.Graph.Nodes;
 
 namespace Synapse.Blocks.Models;
@@ -45,6 +45,9 @@ public sealed class LevelDefinition
     public string InputDescription { get; set; } = "";
     public string OutputDescription { get; set; } = "";
     public string Hint { get; set; } = "";
+
+    /// <summary>Обучающий уровень: пока все такие уровни не пройдены, игры города закрыты.</summary>
+    public bool Training { get; set; }
 
     /// <summary>
     /// Блоки, доступные игроку: TypeId (<c>"math"</c>) или целая категория (<c>"category:logic"</c>).

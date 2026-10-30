@@ -56,7 +56,7 @@ else
                         <label><span>Направление</span><input @bind="level.Direction" list="directions" /><datalist id="directions"><option>Программирование</option><option>Кибербезопасность</option><option>Заказ клиента</option></datalist></label>
                     </div>
                     <div class="field-grid two">
-                        <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label>
+                        <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label><label class="training-toggle"><span>Обучение</span><span class="training-toggle-row"><input type="checkbox" @bind="level.Training" /><small>Обучающий уровень: пока такие уровни не пройдены, игры города закрыты.</small></span></label>
                     </div>
                     <label class="wide-field"><span>Что нужно сделать</span><textarea @bind="level.Objective" rows="2"></textarea></label>
                     <div class="admin-markdown-editor">
@@ -216,13 +216,29 @@ else
                                     </div>
                                     <label class="wide-field"><span>Текст пояснения</span><textarea @bind="intro.Body" rows="3"></textarea></label>
 
+                                    <label class="wide-field intro-clip-select"><span>Обучающий ролик из чипов игры</span>
+                                        <select value="@(TutorialClips.IsClip(intro.MediaUrl) ? intro.MediaUrl : "")" @onchange="args => SetIntroClip(intro, args.Value)">
+                                            <option value="">— без ролика —</option>
+                                            @foreach (var (clipName, clipTitle) in TutorialClips.All)
+                                            {
+                                                <option value="@(TutorialClips.Prefix + clipName)">@clipTitle</option>
+                                            }
+                                        </select>
+                                    </label>
                                     <div class="field-grid two intro-media-settings">
-                                        <label><span>Ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
+                                        <label><span>Или ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
                                         <label><span>Или загрузить файл</span><InputFile OnChange="args => UploadIntroMedia(introIndex, args)" accept="image/gif,image/png,image/jpeg,image/webp" /></label>
                                     </div>
                                     <p class="intro-media-note">GIF лучше добавлять по ссылке. Загруженные изображения сохраняются вместе с кампанией; файл ограничен 4 МБ.</p>
 
-                                    @if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
+                                    @if (TutorialClips.IsClip(intro.MediaUrl))
+                                    {
+                                        <div class="intro-media-preview intro-clip-preview">
+                                            <TutorialClipView @key="intro.MediaUrl" Name="@intro.MediaUrl" />
+                                            <button type="button" @onclick="() => ClearIntroMedia(introIndex)">Убрать ролик</button>
+                                        </div>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
                                     {
                                         <div class="intro-media-preview">
                                             <img src="@intro.MediaUrl" alt="Предпросмотр анимации для пояснения" loading="lazy" decoding="async" />
@@ -471,6 +487,16 @@ else
         {
             ShowError("Не удалось загрузить изображение. Выберите файл до 4 МБ.");
         }
+    }
+
+    /// <summary>Выбор ролика: пустой выбор убирает ролик, но не трогает ссылку на GIF.</summary>
+    private static void SetIntroClip(LevelIntroStep intro, object? value)
+    {
+        var clip = value?.ToString() ?? "";
+        if (clip.Length > 0)
+            intro.MediaUrl = clip;
+        else if (TutorialClips.IsClip(intro.MediaUrl))
+            intro.MediaUrl = "";
     }
 
     private void ClearIntroMedia(int index)

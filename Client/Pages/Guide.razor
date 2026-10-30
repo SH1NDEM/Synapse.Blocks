@@ -4,61 +4,82 @@
 
 <PageTitle>Справка — Синапс</PageTitle>
 
-<section class="guide-page">
-    <header class="guide-hero">
-        <div>
-            <small>БАЗА ЗНАНИЙ / 01</small>
-            <h1>Соберите логику.<br /><em>Город проверит её.</em></h1>
-            <p>Блоки универсальны и не привязаны к конкретному заданию. Уровень сообщает входные данные и ожидаемый результат, а способ решения всегда выбирает игрок.</p>
-            <a href="game">Перейти к первой операции <span>→</span></a>
+@* Справка в общем виде главных страниц: зелёная полоса сверху, ниже светлые карточки. *@
+<div class="home-top">
+    <i class="home-blob one"></i><i class="home-blob two"></i>
+    <section class="home-hero guide-top">
+        <div class="home-hero-text">
+            <span class="home-tag">Справка</span>
+            <h1>Как устроены блоки — <em>коротко и понятно</em></h1>
+            <p>Блоки не привязаны к заданию. Уровень говорит, что приходит на вход и что нужно вернуть, а как собрать схему — решаешь ты.</p>
+            <div class="home-actions">
+                <a class="home-button" href="game">К уровням</a>
+            </div>
         </div>
-        <div class="guide-flow" aria-label="Короткая схема работы">
-            <article><span>01</span><div><b>Прочитайте задачу</b><small>Узнайте, что поступает на вход и что нужно вернуть.</small></div></article>
-            <article><span>02</span><div><b>Соберите ноды</b><small>Протяните белый провод порядка и цветные провода данных.</small></div></article>
-            <article><span>03</span><div><b>Запустите тесты</b><small>Проследите путь данных и исправьте место ошибки.</small></div></article>
-        </div>
-    </header>
+        <ol class="guide-steps" aria-label="Как решать задание">
+            <li><span>1</span><div><b>Прочитай задание</b><small>Что приходит на вход и что вернуть.</small></div></li>
+            <li><span>2</span><div><b>Собери схему</b><small>Белый провод — порядок, цветные — данные.</small></div></li>
+            <li><span>3</span><div><b>Запусти тесты</b><small>Посмотри, где ответ разошёлся, и поправь.</small></div></li>
+        </ol>
+    </section>
+</div>
 
-    <div class="guide-section-title">
-        <div><small>// КОНСТРУКТОР ПРОГРАММЫ</small><h2>Два вида проводов</h2></div>
-        <p>Белый провод задаёт <b>порядок действий</b>: от «Входа» по цепочке блоков к «Выходу». Цветные провода передают <b>данные</b> от выхода одного блока ко входу другого; цвет показывает тип значения.</p>
-    </div>
-    <div class="guide-wires">
-        <article><i class="guide-wire wire-exec-sample"></i><div><b>Порядок</b><small>Соединяет треугольные порты. Блок выполняется, когда до него доходит белый провод.</small></div></article>
-        <article><i class="guide-wire dt-number"></i><div><b>Число</b><small>5, −2, 3.14</small></div></article>
-        <article><i class="guide-wire dt-text"></i><div><b>Текст</b><small>«привет», «ERROR»</small></div></article>
-        <article><i class="guide-wire dt-bool"></i><div><b>Логическое</b><small>истина или ложь — для условий и циклов «пока»</small></div></article>
-        <article><i class="guide-wire dt-list"></i><div><b>Список</b><small>[1, 2, 3] — для перебора</small></div></article>
-        <article><i class="guide-wire dt-any"></i><div><b>Любое</b><small>порт принимает значение любого типа</small></div></article>
-    </div>
-    <p class="guide-note">Неподключённый вход данных можно заполнить прямо в блоке: например, у «Арифметики» вход <code>a</code> приходит по проводу, а в <code>b</code> вписано число 2. Блоки данных (без белых проводов) вычисляются сами в тот момент, когда их значение понадобилось.</p>
+<div class="home guide-home">
+    <section class="home-section">
+        <header class="home-head">
+            <h2><i class="home-icon blue">@Icon("wire")</i>Два вида проводов</h2>
+            <p>Белый — порядок действий, цветные — данные.</p>
+        </header>
+        <div class="guide-wire-grid">
+            <article><i class="guide-wire wire-exec-sample"></i><b>Порядок</b><small>Блок выполняется, когда до него доходит белый провод.</small></article>
+            <article class="dt-number"><i class="guide-wire"></i><b>Число</b><small>5, −2, 3.14</small></article>
+            <article class="dt-text"><i class="guide-wire"></i><b>Текст</b><small>«привет», «ERROR»</small></article>
+            <article class="dt-bool"><i class="guide-wire"></i><b>Да / нет</b><small>Для условий и циклов «пока».</small></article>
+            <article class="dt-list"><i class="guide-wire"></i><b>Список</b><small>[1, 2, 3] — для перебора.</small></article>
+            <article class="dt-any"><i class="guide-wire"></i><b>Любое</b><small>Разъём примет значение любого типа.</small></article>
+        </div>
+        <p class="guide-tip"><b>Совет.</b> Пустой вход можно заполнить прямо в блоке: у «Арифметики» <code>a</code> приходит по проводу, а в <code>b</code> вписано число 2.</p>
+    </section>
 
     @foreach (var group in Registry.All.GroupBy(definition => definition.Category))
     {
-        <div class="guide-section-title guide-category-title">
-            <div><small>// @NodeCategories.Label(group.Key).ToUpperInvariant()</small><h2>@NodeCategories.Label(group.Key)</h2></div>
-        </div>
-        <div class="guide-grid">
-            @foreach (var definition in group)
-            {
-                <article class="guide-card @GraphStyle.AccentClass(definition)">
-                    <div class="guide-card-head"><span class="guide-node-icon"><i></i><i></i></span><small>@(definition.IsPure ? "ДАННЫЕ" : "ДЕЙСТВИЕ")</small></div>
-                    <h2>@definition.Label</h2>
-                    <p>@definition.Description</p>
-                    <div class="command-list">
-                        @foreach (var port in definition.Ports)
-                        {
-                            <code class="guide-port @(port.IsExec ? "" : GraphStyle.TypeClass(port.Type))">@(port.IsInput ? "→ " : "")@(port.IsExec ? (port.Label.Length > 0 ? port.Label : "порядок") : port.DisplayName)@(port.IsOutput ? " →" : "")</code>
-                            <span>@(port.IsExec ? (port.OpensScope ? "повторяемая ветка" : "провод порядка") : DataTypes.Label(port.Type))</span>
-                        }
-                    </div>
-                </article>
-            }
-        </div>
+        <section class="home-section">
+            <header class="home-head">
+                <h2><i class="@($"guide-cat-dot cat-{group.Key}")"></i>@NodeCategories.Label(group.Key)</h2>
+            </header>
+            <div class="guide-blocks">
+                @foreach (var definition in group)
+                {
+                    <article class="@($"guide-block {GraphStyle.AccentClass(definition)}")">
+                        <header><b>@definition.Label</b><small>@(definition.IsPure ? "данные" : "действие")</small></header>
+                        <p>@definition.Description</p>
+                        <div class="guide-block-ports">
+                            @foreach (var port in definition.Ports)
+                            {
+                                <span class="@($"guide-chip-port {(port.IsExec ? "exec" : GraphStyle.TypeClass(port.Type))}")">@(port.IsInput ? "→ " : "")@(port.IsExec ? (port.Label.Length > 0 ? port.Label : "порядок") : port.DisplayName)@(port.IsOutput ? " →" : "")</span>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
     }
-    <section class="engine-note">
-        <div><span>КАК РАБОТАЕТ ПРОВЕРКА</span><h2>Одна схема — разные данные</h2></div>
-        <p>Движок запускает собранную программу отдельно на каждом тесте. В блок «Вход» поступает новое значение, а блок «Выход» возвращает фактический результат. Заранее заданной правильной цепочки нет: важен только верный ответ на всех проверках.</p>
-        <div class="engine-route" aria-hidden="true"><span>ВХОД</span><i></i><span>ВАША СХЕМА</span><i></i><span>РЕЗУЛЬТАТ</span></div>
+
+    <section class="home-section">
+        <div class="guide-check">
+            <div>
+                <h2><i class="home-icon purple">@Icon("check")</i>Как работает проверка</h2>
+                <p>Схема запускается отдельно на каждом тесте: «Вход» получает новое значение, «Выход» возвращает ответ. Правильной цепочки заранее нет — важно, чтобы ответ был верным на всех проверках.</p>
+            </div>
+            <div class="guide-route" aria-hidden="true"><span>Вход</span><i></i><span>Твоя схема</span><i></i><span>Ответ</span></div>
+        </div>
     </section>
-</section>
+</div>
+
+@code {
+    private static RenderFragment Icon(string name) => name switch
+    {
+        "wire" => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h4c4 0 4 10 8 10h4" /><circle cx="4" cy="7" r="1.6" /><circle cx="20" cy="17" r="1.6" /></svg>,
+        _ => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7" /></svg>
+    };
+}

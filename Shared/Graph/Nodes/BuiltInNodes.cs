@@ -76,7 +76,7 @@ public sealed class OutputNode : NodeDefinition
     public override IReadOnlyList<PortDef> Ports { get; } =
     [
         Port.ExecIn(),
-        Port.DataIn("value", "результат"),
+        Port.DataIn("value", "ответ"),
     ];
 
     public override ExecResult Execute(NodeContext context)
@@ -163,15 +163,15 @@ public sealed class RepeatNode : NodeDefinition
     public override string TypeId => "repeat";
     public override string Label => "Повторить";
     public override string Category => NodeCategories.Flow;
-    public override string Description => "Выполняет ветку «тело» заданное число раз, затем продолжает по «после цикла».";
+    public override string Description => "Выполняет ветку «тело» заданное число раз, затем продолжает по «потом».";
 
     public override IReadOnlyList<PortDef> Ports { get; } =
     [
         Port.ExecIn(),
         Port.Inline("count", "раз", DataType.Number, "3"),
         Port.Scope("body", "тело"),
-        Port.ExecOut("done", "после цикла"),
-        Port.DataOut("index", "номер повтора", DataType.Number),
+        Port.ExecOut("done", "потом"),
+        Port.DataOut("index", "номер", DataType.Number),
     ];
 
     private sealed class State
@@ -221,7 +221,7 @@ public sealed class WhileNode : NodeDefinition
         Port.ExecIn(),
         Port.DataIn("condition", "условие", DataType.Bool),
         Port.Scope("body", "тело"),
-        Port.ExecOut("done", "после цикла"),
+        Port.ExecOut("done", "потом"),
     ];
 
     public override ExecResult Execute(NodeContext context)
@@ -243,7 +243,7 @@ public sealed class ForEachNode : NodeDefinition
         Port.ExecIn(),
         Port.DataIn("list", "список", DataType.List),
         Port.Scope("body", "тело"),
-        Port.ExecOut("done", "после цикла"),
+        Port.ExecOut("done", "потом"),
         Port.DataOut("item", "элемент"),
         Port.DataOut("index", "номер", DataType.Number),
     ];
@@ -331,9 +331,9 @@ public sealed class ChangeVariableNode : NodeDefinition
     [
         ParamDef.Variable(),
         ParamDef.Choice("op", "Действие",
-            new ParamChoice("add", "увеличить на"),
-            new ParamChoice("sub", "уменьшить на"),
-            new ParamChoice("mul", "умножить на"),
+            new ParamChoice("add", "+"),
+            new ParamChoice("sub", "−"),
+            new ParamChoice("mul", "×"),
             new ParamChoice("append", "дописать")),
     ];
 
@@ -403,14 +403,14 @@ public sealed class MathNode : NodeDefinition
             new ParamChoice("-", "−"),
             new ParamChoice("*", "×"),
             new ParamChoice("/", "÷"),
-            new ParamChoice("%", "остаток")),
+            new ParamChoice("%", "ост")),
     ];
 
     public override IReadOnlyList<PortDef> Ports { get; } =
     [
         Port.Inline("a", "a", DataType.Number, "0"),
         Port.Inline("b", "b", DataType.Number, "1"),
-        Port.DataOut("result", "результат", DataType.Number),
+        Port.DataOut("result", "итог", DataType.Number),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort)
@@ -453,7 +453,7 @@ public sealed class CompareNode : NodeDefinition
     [
         Port.Inline("a", "a", DataType.Any, "0"),
         Port.Inline("b", "b", DataType.Any, "0"),
-        Port.DataOut("result", "результат", DataType.Bool),
+        Port.DataOut("result", "итог", DataType.Bool),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort)
@@ -491,7 +491,7 @@ public sealed class LogicNode : NodeDefinition
     [
         Port.Inline("a", "a", DataType.Bool, "false"),
         Port.Inline("b", "b", DataType.Bool, "false"),
-        Port.DataOut("result", "результат", DataType.Bool),
+        Port.DataOut("result", "итог", DataType.Bool),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort)
@@ -512,7 +512,7 @@ public sealed class NotNode : NodeDefinition
     public override IReadOnlyList<PortDef> Ports { get; } =
     [
         Port.DataIn("value", "значение", DataType.Bool),
-        Port.DataOut("result", "результат", DataType.Bool),
+        Port.DataOut("result", "итог", DataType.Bool),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort) => Value.FromBool(!context.Bool("value"));
@@ -530,14 +530,14 @@ public sealed class IsTypeNode : NodeDefinition
         ParamDef.Choice("type", "Тип",
             new ParamChoice("number", "число"),
             new ParamChoice("text", "текст"),
-            new ParamChoice("bool", "логическое"),
+            new ParamChoice("bool", "да/нет"),
             new ParamChoice("list", "список")),
     ];
 
     public override IReadOnlyList<PortDef> Ports { get; } =
     [
         Port.DataIn("value", "значение"),
-        Port.DataOut("result", "результат", DataType.Bool),
+        Port.DataOut("result", "итог", DataType.Bool),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort)
@@ -564,15 +564,15 @@ public sealed class TextCheckNode : NodeDefinition
     [
         ParamDef.Choice("op", "Проверка",
             new ParamChoice("contains", "содержит"),
-            new ParamChoice("starts", "начинается с"),
-            new ParamChoice("ends", "заканчивается на")),
+            new ParamChoice("starts", "начало"),
+            new ParamChoice("ends", "конец")),
     ];
 
     public override IReadOnlyList<PortDef> Ports { get; } =
     [
         Port.Inline("text", "текст", DataType.Text, ""),
-        Port.Inline("fragment", "фрагмент", DataType.Text, ""),
-        Port.DataOut("result", "результат", DataType.Bool),
+        Port.Inline("fragment", "часть", DataType.Text, ""),
+        Port.DataOut("result", "итог", DataType.Bool),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort)
@@ -599,7 +599,7 @@ public sealed class JoinNode : NodeDefinition
     [
         Port.Inline("a", "a", DataType.Text, ""),
         Port.Inline("b", "b", DataType.Text, ""),
-        Port.DataOut("result", "результат", DataType.Text),
+        Port.DataOut("result", "итог", DataType.Text),
     ];
 
     public override Value Evaluate(NodeContext context, string outputPort)

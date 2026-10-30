@@ -10,6 +10,8 @@
 
 <PageTitle>Защита серверов — Синапс</PageTitle>
 
+<TrainingLock Title="Защита серверов">
+
 <SectionContent SectionName="header-tools">
     <select class="level-picker" value="@Level.Id" @onchange="SelectLevel" aria-label="Задание защиты">
         @foreach (var item in SecurityLevels.All)
@@ -149,6 +151,8 @@
 {
     <NodeHelpDialog Definition="help" OnClose="() => _help = null" />
 }
+
+</TrainingLock>
 
 @code {
     [Inject] private NavigationManager Navigation { get; set; } = default!;

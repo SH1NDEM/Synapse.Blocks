@@ -10,6 +10,8 @@
 
 <PageTitle>Станция — Синапс</PageTitle>
 
+<TrainingLock Title="Станция Синапс">
+
 <SectionContent SectionName="header-tools">
     <select class="level-picker" value="@Level.Id" @onchange="SelectLevel" aria-label="Задание станции">
         @foreach (var item in StationLevels.All)
@@ -144,6 +146,8 @@
 {
     <NodeHelpDialog Definition="help" OnClose="() => _help = null" />
 }
+
+</TrainingLock>
 
 @code {
     [Inject] private NavigationManager Navigation { get; set; } = default!;

@@ -1,0 +1,475 @@
+/* ═══════════════════════════════════════════════════════════════
+   Логотип, главное меню, главная страница «Город Синапс»
+   и замки обучения. Файл подключается последним и переопределяет
+   старые правила шапки и главной.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ───────────── Логотип ───────────── */
+.brand { gap: 0; }
+.brand > span.brand-logo { flex-direction: row; gap: 12px; }
+.brand-logo { display: inline-flex; align-items: center; gap: 12px; }
+.brand-symbol { width: 40px; height: 40px; flex: none; overflow: visible; }
+.brand-logo.compact .brand-symbol { width: 32px; height: 32px; }
+.brand-tile { fill: #0e1511; stroke: rgba(183,237,99,.32); stroke-width: 1.5; }
+.brand-wire { fill: none; stroke-width: 5; stroke-linecap: round; }
+.brand-wire.exec { stroke: #f2f6ee; }
+.brand-wire.data { stroke: #3d8bff; }
+.brand-chip { fill: #0d1310; stroke: var(--green); stroke-width: 5; }
+.brand-core { fill: var(--green); transform-origin: 32px 32px; animation: brand-core 2.8s ease-in-out infinite; }
+.brand-spark { fill: #fff; opacity: 0; }
+.brand:hover .brand-spark, .boot-brand .brand-spark { animation: brand-spark 1.1s ease-in-out infinite; }
+.brand-word { display: flex; flex-direction: column; gap: 4px; line-height: 1; }
+.brand-word b { color: var(--text); font-size: 17px; font-weight: 800; letter-spacing: .2em; }
+.brand-word small { color: #6f7b74; font: 600 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .22em; }
+.brand:hover .brand-word small { color: var(--green); }
+@keyframes brand-core { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(.72); opacity: .75; } }
+@keyframes brand-spark {
+    0% { opacity: 0; transform: translateX(0); }
+    15% { opacity: 1; }
+    55% { opacity: 1; transform: translateX(25px); }
+    56% { opacity: 0; }
+    100% { opacity: 0; transform: translateX(25px); }
+}
+
+.boot-brand .brand-logo { gap: 12px; }
+
+/* ───────────── Главное меню ───────────── */
+.app-header { height: 76px; grid-template-columns: minmax(200px, 1fr) auto minmax(200px, 1fr); }
+.app-main { min-height: calc(100dvh - 76px); }
+.main-nav {
+    height: 48px;
+    padding: 4px;
+    gap: 2px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+}
+.main-nav a {
+    position: relative;
+    min-width: 0;
+    padding: 0 16px 0 13px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border-radius: 10px;
+    color: #87928c;
+}
+.main-nav a > b { font-size: 13.5px; font-weight: 650; }
+.nav-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.main-nav a:hover { color: #dfe7e2; background: rgba(255,255,255,.04); transform: none; }
+.main-nav a.active { color: #f4f8f5; border-color: rgba(183,237,99,.22); background: linear-gradient(135deg, rgba(183,237,99,.16), rgba(183,237,99,.05)); }
+.main-nav a.active .nav-icon { color: var(--green); }
+.nav-count { padding: 3px 6px; border-radius: 6px; background: rgba(183,237,99,.12); color: var(--green); font: 700 10px/1 ui-monospace, monospace; }
+.nav-lock { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; background: rgba(240,189,99,.13); color: var(--amber); }
+.main-nav a.nav-locked > b { color: #6c7771; }
+.main-nav a.nav-locked.active > b { color: #c9d1cc; }
+
+@media (max-width: 1100px) {
+    .main-nav a { padding-inline: 11px; }
+    .brand-word small { display: none; }
+}
+@media (max-width: 960px) {
+    .app-header { grid-template-columns: auto 1fr; gap: 16px; }
+    .main-nav { justify-self: end; }
+}
+@media (max-width: 720px) {
+    .app-header { height: auto; padding: 10px 16px; grid-template-columns: 1fr; justify-items: center; gap: 10px; }
+    .main-nav { width: 100%; height: 50px; justify-self: stretch; }
+    .main-nav a { flex: 1; padding: 0 4px; flex-direction: column; justify-content: center; gap: 3px; }
+    .main-nav a > b { font-size: 11px; }
+    .nav-icon { width: 17px; height: 17px; }
+    .nav-count { display: none; }
+    .main-nav a > .nav-lock { position: absolute; top: 3px; right: 6px; width: 16px; height: 16px; display: grid; }
+    .brand-symbol { width: 34px; height: 34px; }
+}
+
+/* ───────────── Замки игр ───────────── */
+.game-card { position: relative; }
+.game-card.locked { border-style: dashed; }
+.game-card.locked .game-art, .game-card.locked .game-copy, .game-card.locked footer { filter: grayscale(.85); opacity: .4; }
+a.game-card.locked:hover { transform: none; border-color: rgba(240,189,99,.45); }
+.game-lock { position: absolute; z-index: 2; top: 50%; left: 50%; padding: 14px 20px; display: grid; justify-items: center; gap: 6px; border: 1px solid rgba(240,189,99,.32); border-radius: 14px; background: rgba(13,17,15,.92); color: var(--amber); text-align: center; transform: translate(-50%, -50%); box-shadow: 0 12px 30px rgba(0,0,0,.4); }
+.game-lock b { color: #f4e2bd; font-size: 13.5px; white-space: nowrap; }
+.game-lock span { color: #a6987c; font-size: 11.5px; }
+.lock-icon { display: block; }
+
+.training-lock-page { min-height: calc(100dvh - 76px); padding: 40px 20px; display: grid; place-items: center; }
+.training-lock-card { width: min(520px, 100%); padding: 38px 32px 32px; display: grid; justify-items: center; gap: 10px; border: 1px solid rgba(240,189,99,.25); border-radius: 22px; background: radial-gradient(circle at 50% 0%, rgba(240,189,99,.09), transparent 16rem), var(--panel); text-align: center; }
+.training-lock-card > .lock-icon { margin-bottom: 8px; padding: 14px; box-sizing: content-box; border-radius: 18px; background: rgba(240,189,99,.1); color: var(--amber); }
+.training-lock-card small { color: var(--amber); font: 700 10.5px/1 ui-monospace, monospace; letter-spacing: .14em; }
+.training-lock-card h1 { margin: 6px 0 0; font-size: 30px; letter-spacing: -.02em; }
+.training-lock-card p { max-width: 400px; margin: 4px 0 8px; color: var(--muted); line-height: 1.6; }
+.training-lock-progress { width: 100%; display: grid; gap: 8px; color: #b9c3bd; font-size: 13px; }
+.training-lock-progress b { color: var(--green); }
+.training-lock-progress progress { width: 100%; height: 8px; border: 0; border-radius: 8px; overflow: hidden; background: #1a201c; accent-color: var(--green); }
+.training-lock-progress progress::-webkit-progress-bar { background: #1a201c; }
+.training-lock-progress progress::-webkit-progress-value { background: var(--green); }
+.training-lock-progress progress::-moz-progress-bar { background: var(--green); }
+.training-lock-actions { margin-top: 12px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.training-lock-actions a { min-height: 46px; padding: 0 18px; display: inline-flex; align-items: center; gap: 18px; border-radius: 11px; text-decoration: none; font-weight: 700; }
+
+@media (max-width: 640px) {
+    .game-lock b { white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .brand-core { animation: none !important; }
+}
+
+/* Редактор уровня: переключатель «Обучение» */
+.training-toggle-row { min-height: 42px; display: flex; align-items: center; gap: 10px; }
+.training-toggle-row input { width: 18px; height: 18px; flex: none; accent-color: var(--green); }
+.training-toggle-row small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Светлая тема: главная и список игр.
+   Спокойный «бумажный» фон, белые карточки, один акцент на экран.
+   Рабочие экраны с полем остаются тёмными.
+   ═══════════════════════════════════════════════════════════════ */
+.theme-light {
+    --bg: #f6f4ef;
+    --panel: #ffffff;
+    --panel-2: #fbfaf7;
+    --panel-3: #efece5;
+    --line: #e6e1d7;
+    --line-strong: #d8d2c5;
+    --text: #1f2523;
+    --muted: #616b66;
+    --dim: #8b938f;
+    --ink-green: #2e8a4c;
+    --soft-green: #e4f3e7;
+    --ink-blue: #2f6bd8;
+    --soft-blue: #e6eefc;
+    --ink-amber: #b7790f;
+    --soft-amber: #fbf1dc;
+    --shadow: 0 1px 2px rgba(31,37,35,.05), 0 8px 24px rgba(31,37,35,.06);
+    --cat-game: #8a6a1f;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+}
+.theme-light ::selection { background: transparent; }
+.theme-light .page-loading { color: var(--muted); }
+.theme-light .page-loading span { border-color: var(--line); border-top-color: var(--ink-green); }
+
+/* Шапка */
+.theme-light .app-header { background: rgba(246,244,239,.92); border-bottom-color: var(--line); box-shadow: none; backdrop-filter: blur(10px); }
+.theme-light .brand-word b { color: var(--text); }
+.theme-light .brand-word small { color: var(--dim); }
+.theme-light .brand:hover .brand-word small { color: var(--ink-green); }
+.theme-light .main-nav { border-color: var(--line); background: #ece8df; box-shadow: none; }
+.theme-light .main-nav a { color: #5b6560; }
+.theme-light .main-nav a:hover { color: var(--text); background: rgba(255,255,255,.6); }
+.theme-light .main-nav a.active { border-color: transparent; background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(31,37,35,.12); }
+.theme-light .main-nav a.active .nav-icon { color: var(--ink-green); }
+.theme-light .nav-count { background: var(--soft-green); color: var(--ink-green); }
+.theme-light .nav-lock { background: var(--soft-amber); color: var(--ink-amber); }
+.theme-light .main-nav a.nav-locked > b { color: #8b938f; }
+
+/* Главная */
+.home { max-width: 1160px; margin: 0 auto; padding: 0 28px 88px; }
+.home-hero { padding: 64px 0 48px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); align-items: center; gap: 56px; }
+.home-tag { display: inline-block; padding: 6px 12px; border-radius: 999px; background: var(--soft-green); color: var(--ink-green); font-size: 13px; font-weight: 650; }
+.home-hero h1 { margin: 18px 0 16px; font-size: clamp(34px, 3.6vw, 48px); line-height: 1.1; letter-spacing: -.03em; font-weight: 750; }
+.home-hero h1 em { color: var(--ink-green); font-style: normal; }
+.home-hero-text > p { max-width: 500px; margin: 0; color: var(--muted); font-size: 17px; line-height: 1.6; }
+.home-actions { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
+.home-button { min-height: 52px; padding: 0 26px; display: inline-flex; align-items: center; border-radius: 14px; background: var(--ink-green); color: #fff; font-size: 16px; font-weight: 700; text-decoration: none; box-shadow: 0 6px 18px rgba(46,138,76,.25); transition: transform .15s, box-shadow .15s, background .15s; }
+.home-button:hover { background: #267a42; transform: translateY(-1px); box-shadow: 0 10px 22px rgba(46,138,76,.3); }
+.home-link { color: var(--text); font-weight: 650; text-decoration: none; }
+.home-link:hover { color: var(--ink-green); }
+.home-hero-text > .home-next { margin: 18px 0 0; color: var(--dim); font-size: 14px; }
+.home-next b { color: var(--text); font-weight: 650; }
+
+.home-city { margin: 0; padding: 22px 22px 20px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(180deg, #eef5fb 0%, #fff 70%); box-shadow: var(--shadow); }
+.home-city svg { width: 100%; height: auto; display: block; }
+.home-city-ground { stroke: #dcd6ca; stroke-width: 2; stroke-linecap: round; }
+.home-building .wall { fill: #e3ded4; }
+.home-building .line { fill: none; stroke: #cfc8bb; stroke-width: 2; }
+.home-building .light { fill: #cfc8bb; }
+.home-building { transition: opacity .3s; }
+.home-building.on .light { fill: #fff6c8; }
+.home-building.on.comms .wall { fill: #6f9fe8; }
+.home-building.on.power .wall { fill: #f0b54a; }
+.home-building.on.archive .wall { fill: #a98be0; }
+.home-building.on.station .wall { fill: #5cb87a; }
+.home-building.on.network .wall { fill: #4fbfcf; }
+.home-building.on.security .wall { fill: #ec8b6c; }
+.home-building.on .line { stroke: rgba(255,255,255,.55); }
+.home-city figcaption { margin-top: 14px; display: grid; gap: 10px; color: var(--muted); font-size: 14px; }
+.home-city figcaption b { color: var(--text); }
+.home-meter { height: 8px; display: block; overflow: hidden; border-radius: 8px; background: var(--panel-3); }
+.home-meter > i { height: 100%; display: block; border-radius: inherit; background: var(--ink-green); transition: width .4s ease; }
+
+.home-section { padding-top: 44px; }
+.home-head { margin-bottom: 18px; display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
+.home-head h2 { margin: 0; font-size: 26px; letter-spacing: -.02em; }
+.home-head p { margin: 0; color: var(--muted); font-size: 15px; }
+
+/* Обучение: простая дорожка */
+.home-steps { margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; list-style: none; }
+.home-step a { height: 100%; padding: 16px; display: grid; align-content: start; gap: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text); text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.home-step a:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.home-step-dot { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--panel-3); color: var(--muted); font-size: 14px; font-weight: 700; }
+.home-step b { font-size: 15px; font-weight: 650; line-height: 1.3; }
+.home-step small { justify-self: start; padding: 3px 8px; border-radius: 6px; background: var(--soft-blue); color: var(--ink-blue); font-size: 12px; font-weight: 650; }
+.home-step.done .home-step-dot { background: var(--soft-green); color: var(--ink-green); }
+.home-step.done b { color: var(--muted); }
+.home-step.current a { border-color: var(--ink-blue); box-shadow: 0 0 0 3px var(--soft-blue); }
+.home-step.current .home-step-dot { background: var(--ink-blue); color: #fff; }
+
+/* Усложнённые задания: список */
+.home-tasks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.home-task { padding: 16px 18px; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text); text-decoration: none; transition: box-shadow .15s, border-color .15s; }
+.home-task:hover { border-color: var(--line-strong); box-shadow: var(--shadow); }
+.home-task > span { grid-row: 1 / 3; color: var(--dim); font: 600 14px/1 ui-monospace, monospace; }
+.home-task b { font-size: 16px; font-weight: 650; }
+.home-task small { grid-column: 2; color: var(--dim); font-size: 13px; }
+.home-task i { grid-column: 3; grid-row: 1 / 3; color: var(--ink-green); font-size: 18px; font-style: normal; font-weight: 700; }
+
+/* Карточки игр на светлом фоне */
+.theme-light .game-card { border-color: var(--line); background: var(--panel); box-shadow: var(--shadow); }
+.theme-light a.game-card:hover { border-color: var(--line-strong); }
+.theme-light .game-art { background: #f1eee7; }
+.theme-light .game-copy small { color: var(--cat-game); font-family: inherit; font-weight: 700; letter-spacing: .04em; }
+.theme-light .game-copy h3 { color: var(--text); }
+.theme-light .game-copy p { color: var(--muted); }
+.theme-light .game-card footer { color: var(--dim); }
+.theme-light .game-go { color: var(--ink-green); }
+.theme-light .network-card .game-copy small, .theme-light .network-card .game-go { color: #1d8fb3; }
+.theme-light .security-card .game-copy small, .theme-light .security-card .game-go { color: #c9602a; }
+.theme-light .art-rail { stroke: #b7b0a2; }
+.theme-light .art-platform { fill: #d9d3c6; }
+.theme-light .art-link { stroke: #c9c2b4; }
+.theme-light .art-route { stroke: #1d9bc4; }
+.theme-light .art-broken { stroke: #dd8b84; }
+.theme-light .art-node { fill: #fff; stroke: #a7a092; }
+.theme-light .art-target { stroke: #d9a521; }
+.theme-light .art-packet { fill: #d8f3fb; stroke: #1d9bc4; }
+.theme-light .art-wall { fill: #fbe4d6; stroke: #e0773a; }
+.theme-light .art-server, .theme-light .art-sender { fill: #fff; stroke: #c4bdb0; }
+.theme-light .art-ok { fill: #59b46a; }
+.theme-light .art-bad { fill: #e46d64; }
+.theme-light .game-soon { background: transparent; box-shadow: none; opacity: .75; }
+.theme-light .game-copy p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Закрытая игра: картинка серая, вместо прогресса — строка с замком. */
+.theme-light .game-card.locked { border-style: solid; box-shadow: none; }
+.theme-light .game-card.locked .game-art { filter: grayscale(1); opacity: .45; }
+.theme-light .game-card.locked .game-copy, .theme-light .game-card.locked footer { filter: none; opacity: 1; }
+.theme-light .game-card.locked .game-copy h3 { color: #6f7873; }
+.theme-light .game-card.locked .game-copy p, .theme-light .game-card.locked footer { display: none; }
+.theme-light a.game-card.locked:hover { border-color: #e8cf9c; }
+.theme-light .game-lock { position: static; grid-column: 2; grid-row: 2; margin-top: 12px; padding: 8px 12px; display: flex; align-items: center; justify-self: start; gap: 8px; border: 0; border-radius: 10px; background: var(--soft-amber); color: var(--ink-amber); transform: none; box-shadow: none; }
+.theme-light .game-lock .lock-icon { width: 16px; height: 16px; }
+.theme-light .game-lock b { color: #6b5420; font-size: 13px; }
+.theme-light .game-lock span { color: #9a8457; font-size: 12.5px; white-space: nowrap; }
+.theme-light .game-lock { flex-wrap: wrap; }
+@media (max-width: 1000px) { .theme-light .game-lock { grid-column: 1; grid-row: auto; order: 5; margin-top: 4px; } }
+
+/* Страница «Игры» */
+.theme-light .mission-feed small { color: var(--ink-green); }
+.theme-light .mission-feed h2 { color: var(--text); }
+.theme-light .mission-feed header p { color: var(--muted); }
+
+@media (max-width: 900px) {
+    .home { padding-inline: 20px; }
+    .home-hero { grid-template-columns: 1fr; gap: 32px; padding-top: 40px; }
+    .home-head { flex-direction: column; gap: 6px; }
+    .home-tasks { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+    .home-hero h1 { font-size: 32px; }
+    .home-hero-text > p { font-size: 16px; }
+    .home-button { width: 100%; justify-content: center; }
+    .home-steps { grid-template-columns: 1fr 1fr; }
+    .home-city { padding: 16px; border-radius: 18px; }
+}
+
+/* ───────────── Зелёная верхняя часть и акценты ───────────── */
+.theme-light {
+    --brand-green: #23864a;
+    --brand-green-deep: #186b3a;
+    --sun: #ffd65a;
+}
+.theme-light .app-header { background: var(--brand-green); border-bottom-color: transparent; backdrop-filter: none; }
+.theme-light .brand-tile { fill: #0f2a1a; stroke: rgba(255,255,255,.35); }
+.theme-light .brand-word b { color: #fff; }
+.theme-light .brand-word small { color: rgba(255,255,255,.65); }
+.theme-light .brand:hover .brand-word small { color: var(--sun); }
+.theme-light .main-nav { border-color: rgba(255,255,255,.14); background: rgba(0,0,0,.14); }
+.theme-light .main-nav a { color: rgba(255,255,255,.82); }
+.theme-light .main-nav a:hover { color: #fff; background: rgba(255,255,255,.12); }
+.theme-light .main-nav a.active { background: #fff; color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+.theme-light .main-nav a.active .nav-icon { color: var(--brand-green); }
+.theme-light .nav-count { background: rgba(255,255,255,.18); color: #fff; }
+.theme-light .main-nav a.active .nav-count { background: var(--soft-green); color: var(--ink-green); }
+.theme-light .nav-lock { background: var(--sun); color: #5c4508; }
+.theme-light .main-nav a.nav-locked > b { color: rgba(255,255,255,.6); }
+.theme-light .main-nav a.nav-locked.active > b { color: var(--text); }
+
+.home-top { position: relative; overflow: hidden; background: linear-gradient(170deg, var(--brand-green) 0%, var(--brand-green-deep) 100%); color: #fff; }
+.home-top::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.09) 1.5px, transparent 1.5px); background-size: 26px 26px; pointer-events: none; }
+.home-top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 40px; background: var(--bg); border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+.home-blob { position: absolute; border-radius: 50%; pointer-events: none; }
+.home-blob.one { width: 420px; height: 420px; top: -180px; right: -80px; background: radial-gradient(circle, rgba(255,214,90,.28), transparent 65%); }
+.home-blob.two { width: 360px; height: 360px; bottom: -160px; left: -120px; background: radial-gradient(circle, rgba(111,207,151,.35), transparent 65%); }
+.home-top .home-hero { position: relative; z-index: 1; max-width: 1160px; margin: 0 auto; padding: 56px 28px 92px; }
+.home-top .home-tag { background: rgba(255,255,255,.16); color: #fff; }
+.home-top .home-hero h1 { color: #fff; }
+.home-top .home-hero h1 em { color: var(--sun); }
+.home-top .home-hero-text > p { color: rgba(255,255,255,.86); }
+.home-top .home-button { background: #fff; color: var(--brand-green-deep); box-shadow: 0 8px 22px rgba(0,0,0,.18); }
+.home-top .home-button:hover { background: #fffbea; }
+.home-top .home-link { color: #fff; }
+.home-top .home-link:hover { color: var(--sun); }
+.home-top .home-hero-text > .home-next { color: rgba(255,255,255,.7); }
+.home-top .home-next b { color: #fff; }
+.home-top .home-city { position: relative; border: 0; background: linear-gradient(180deg, #e8f4ff 0%, #fff 72%); box-shadow: 0 24px 50px rgba(0,0,0,.22); }
+.home-top .home-meter > i { background: var(--brand-green); }
+.home-float { position: absolute; z-index: 2; padding: 8px 12px 8px 10px; display: inline-flex; align-items: center; gap: 8px; border-radius: 10px; background: #fff; color: var(--text); font-size: 13px; font-weight: 700; box-shadow: 0 10px 24px rgba(0,0,0,.18); }
+.home-float i { width: 10px; height: 10px; border-radius: 3px; }
+.home-float.f1 { top: -16px; left: 28px; transform: rotate(-4deg); }
+.home-float.f1 i { background: #f2b51d; }
+.home-float.f2 { right: -14px; bottom: 62px; transform: rotate(3deg); }
+.home-float.f2 i { background: #8b6cf0; }
+.home-top + .home .home-section:first-child { padding-top: 12px; }
+
+/* Значки разделов */
+.home-head h2 { display: flex; align-items: center; gap: 12px; }
+.home-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; }
+.home-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.home-icon.blue { background: var(--soft-blue); color: var(--ink-blue); }
+.home-icon.orange { background: #fdeadf; color: #d0612a; }
+.home-icon.purple { background: #efe9fd; color: #7a55e0; }
+
+/* Цветные номера заданий */
+.home-task > span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; font-size: 13px; }
+.home-task.tone-0 > span { background: var(--soft-blue); color: var(--ink-blue); }
+.home-task.tone-1 > span { background: #efe9fd; color: #7a55e0; }
+.home-task.tone-2 > span { background: #fdeadf; color: #d0612a; }
+.home-task.tone-3 > span { background: #dff4f6; color: #1a8a99; }
+.home-task { grid-template-columns: 46px minmax(0, 1fr) auto; }
+.home-task.done i { color: var(--ink-green); }
+
+/* Текущий шаг обучения — жёлтая звёздочка-акцент */
+.home-step.current small { background: #fff2c2; color: #8a6200; }
+.home-step.current a { border-color: var(--brand-green); box-shadow: 0 0 0 3px var(--soft-green); }
+.home-step.current .home-step-dot { background: var(--brand-green); }
+
+@media (max-width: 900px) {
+    .home-top .home-hero { padding: 40px 20px 80px; }
+    .home-float.f2 { right: 10px; }
+    .home-top::after { height: 22px; }
+}
+
+/* ───────────── Справка в общем виде главных страниц ───────────── */
+.guide-top { align-items: center; }
+.guide-steps { margin: 0; padding: 0; display: grid; gap: 10px; list-style: none; }
+.guide-steps li { padding: 16px 18px; display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 14px; border-radius: 16px; background: #fff; color: var(--text); box-shadow: 0 14px 30px rgba(0,0,0,.16); }
+.guide-steps li:nth-child(2) { margin-left: 28px; }
+.guide-steps li:nth-child(3) { margin-left: 56px; }
+.guide-steps span { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--soft-green); color: var(--ink-green); font-size: 18px; font-weight: 800; }
+.guide-steps li:nth-child(2) span { background: var(--soft-blue); color: var(--ink-blue); }
+.guide-steps li:nth-child(3) span { background: #fff2c2; color: #8a6200; }
+.guide-steps b { display: block; font-size: 16px; }
+.guide-steps small { color: var(--muted); font-size: 14px; }
+.guide-home .home-section:first-child { padding-top: 12px; }
+
+.guide-wire-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.guide-wire-grid article { padding: 16px 18px; display: grid; grid-template-columns: 52px 1fr; grid-template-rows: auto auto; column-gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.guide-wire-grid .guide-wire { grid-row: 1 / 3; width: 52px; height: 6px; border-radius: 3px; background: var(--dt); }
+.guide-wire-grid .guide-wire.wire-exec-sample { height: 8px; background: #c9c3b6; box-shadow: inset 0 0 0 1px #b3ac9e; }
+.guide-wire-grid b { font-size: 15px; }
+.guide-wire-grid small { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.guide-tip { margin: 14px 0 0; padding: 14px 18px; border-radius: 14px; background: var(--soft-green); color: #2c4a35; font-size: 15px; line-height: 1.55; }
+.guide-tip code { padding: 1px 6px; border-radius: 5px; background: #fff; color: var(--ink-green); font-weight: 700; }
+
+.guide-cat-dot { width: 14px; height: 14px; border-radius: 4px; background: var(--accent, #a3aca8); transform: rotate(45deg); }
+.theme-light .guide-cat-dot.cat-io { background: #5fc35b; }
+.guide-blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.guide-block { position: relative; overflow: hidden; padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); transition: transform .15s, box-shadow .15s; }
+.guide-block::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--chip-panel, var(--accent)); }
+.guide-block:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.guide-block header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.guide-block header b { font-size: 18px; }
+.guide-block header small { color: var(--dim); font-size: 12px; }
+.guide-block p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.guide-block-ports { margin-top: auto; padding-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.guide-chip-port { padding: 3px 8px; border-radius: 7px; background: color-mix(in srgb, var(--dt, #8b938f) 14%, #fff); color: color-mix(in srgb, var(--dt, #5b6560) 75%, #1f2523); font: 600 12px/1.3 ui-monospace, monospace; }
+.guide-chip-port.exec { background: #efece5; color: #5b6560; }
+
+.guide-check { padding: 24px 26px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); }
+.guide-check h2 { margin: 0 0 10px; display: flex; align-items: center; gap: 12px; font-size: 22px; }
+.guide-check p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.guide-route { display: grid; grid-template-columns: max-content 1fr max-content 1fr max-content; align-items: center; gap: 10px; }
+.guide-route span { padding: 10px 14px; border-radius: 12px; background: var(--soft-green); color: var(--ink-green); font-weight: 700; white-space: nowrap; }
+.guide-route span:nth-of-type(2) { background: var(--soft-blue); color: var(--ink-blue); }
+.guide-route span:nth-of-type(3) { background: #fff2c2; color: #8a6200; }
+.guide-route i { height: 3px; border-radius: 2px; background: repeating-linear-gradient(90deg, #cfc8bb 0 6px, transparent 6px 10px); }
+
+@media (max-width: 900px) {
+    .guide-wire-grid, .guide-blocks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .guide-check { grid-template-columns: 1fr; }
+    .guide-steps li:nth-child(n) { margin-left: 0; }
+}
+@media (max-width: 560px) {
+    .guide-wire-grid, .guide-blocks { grid-template-columns: 1fr; }
+    .guide-route { grid-template-columns: 1fr; justify-items: center; }
+    .guide-route i { width: 3px; height: 16px; background: #cfc8bb; }
+}
+
+/* ───────────── Игры по направлениям ───────────── */
+.directions-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.direction-card { --dc: #2e8a4c; --dc-soft: #e4f3e7; position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--text); text-decoration: none; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s, border-color .15s; }
+a.direction-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--dc) 40%, var(--line)); }
+.direction-card.dir-transport { --dc: #b7791f; --dc-soft: #fbf0db; }
+.direction-card.dir-network { --dc: #1d8fb3; --dc-soft: #def2f8; }
+.direction-card.dir-security { --dc: #c9602a; --dc-soft: #fbe6da; }
+.direction-card.dir-gamedev { --dc: #7a55e0; --dc-soft: #efe9fd; }
+.direction-card.dir-data { --dc: #2f6bd8; --dc-soft: #e6eefc; }
+.direction-card.dir-robots { --dc: #1a8a7a; --dc-soft: #def4f0; }
+.direction-card.dir-web { --dc: #d0457a; --dc-soft: #fce6ee; }
+.direction-art { height: 112px; display: grid; place-items: center; background: var(--dc-soft); }
+.direction-art svg { width: 160px; height: 90px; }
+.direction-copy { padding: 16px 18px 0; display: grid; gap: 6px; }
+.direction-copy small { color: var(--dc); font-size: 12px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.direction-copy h3 { margin: 0; font-size: 19px; letter-spacing: -.01em; }
+.direction-copy p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.direction-card footer { margin-top: auto; padding: 14px 18px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; }
+.direction-card footer > * { white-space: nowrap; }
+.direction-game { padding: 4px 9px; border-radius: 8px; background: var(--dc-soft); color: var(--dc); font-weight: 700; }
+.direction-progress { color: var(--dim); }
+.direction-progress b { color: var(--text); }
+.direction-go { margin-left: auto; color: var(--dc); font-weight: 750; }
+.direction-soon { padding: 4px 10px; border-radius: 999px; border: 1px dashed #cfc8bb; color: var(--dim); font-weight: 650; }
+.direction-lock { display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 9px; background: var(--soft-amber); color: #7a5a14; font-weight: 650; }
+.direction-card.soon { box-shadow: none; background: #fbfaf7; cursor: default; pointer-events: none; }
+.direction-card.soon .direction-art { background: #f0ede6; }
+.direction-card.soon .direction-art svg { opacity: .7; }
+.direction-card.locked .direction-art svg { filter: grayscale(.8); opacity: .55; }
+
+/* Рисунки будущих направлений: простые формы в цвете направления */
+.d-main { fill: var(--dc); }
+.d-soft { fill: color-mix(in srgb, var(--dc) 25%, #fff); }
+.d-accent { fill: #ffc94a; }
+.d-light { fill: #fff; }
+.d-light2 { fill: color-mix(in srgb, var(--dc) 45%, #fff); }
+.d-frame { fill: #fff; stroke: color-mix(in srgb, var(--dc) 35%, #fff); stroke-width: 2; }
+.d-line { fill: none; stroke: var(--dc); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 6; }
+.direction-card.soon .d-main { fill: color-mix(in srgb, var(--dc) 70%, #c9c3b6); }
+
+/* Строки карточек направлений выровнены между соседями: заголовки, описания и низ на одной линии. */
+.direction-copy h3 { min-height: 2.5em; line-height: 1.25; }
+.direction-copy p { min-height: 4.5em; }
+@supports (grid-template-rows: subgrid) {
+    .direction-card { display: grid; grid-row: span 5; grid-template-rows: subgrid; row-gap: 0; }
+    .direction-copy { display: contents; }
+    .direction-copy small { padding: 16px 18px 6px; }
+    .direction-copy h3 { min-height: 0; padding: 0 18px 6px; align-self: start; }
+    .direction-copy p { min-height: 0; padding: 0 18px; }
+    .direction-card footer { align-self: end; }
+}
+/* Низ карточки всегда одинаковый: название игры отдельной строкой, ниже прогресс и «Играть». */
+.direction-card footer { display: grid; grid-template-columns: 1fr auto; align-items: center; }
+.direction-game { grid-column: 1 / -1; justify-self: start; }
+.direction-go { margin-left: 0; }
+.direction-soon, .direction-lock { grid-column: 1 / -1; justify-self: start; }

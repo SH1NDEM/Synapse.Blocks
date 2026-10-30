@@ -1,6 +1,67 @@
+@implements IDisposable
+@inject TrainingGate Gate
+@inject NavigationManager Navigation
+@inject ProgressStore Progress
+
 <nav class="main-nav" aria-label="Основная навигация">
-    <NavLink href="" Match="NavLinkMatch.All"><b>Главная</b></NavLink>
-    <NavLink href="game"><b>Уровни</b></NavLink>
-    <NavLink href="games"><b>Игры</b></NavLink>
-    <NavLink href="guide"><b>Справка</b></NavLink>
+    <NavLink href="" Match="NavLinkMatch.All">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-5H9v5H5a1 1 0 0 1-1-1z" /></svg>
+        <b>Главная</b>
+    </NavLink>
+    <NavLink href="game">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="6" rx="1.5" /><rect x="14" y="14" width="7" height="6" rx="1.5" /><path d="M10 7h3a2 2 0 0 1 2 2v5" /></svg>
+        <b>Уровни</b>
+        @if (_training is { Unlocked: false } training)
+        {
+            <span class="nav-count" title="Пройдено обучающих уровней">@training.Done/@training.Total</span>
+        }
+    </NavLink>
+    <NavLink href="games" class="@(_training is { Unlocked: false } ? "nav-locked" : null)">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8h10a4 4 0 0 1 4 4v1a4 4 0 0 1-7.2 2.4L13 14h-2l-.8 1.4A4 4 0 0 1 3 13v-1a4 4 0 0 1 4-4z" /><path d="M7.5 10.5v3M6 12h3" /></svg>
+        <b>Игры</b>
+        @if (_training is { Unlocked: false })
+        {
+            <span class="nav-lock" title="Откроется после обучения"><LockIcon Size="12" /></span>
+        }
+    </NavLink>
+    <NavLink href="guide">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z" /><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3" /><path d="M9 8h6M9 11.5h4" /></svg>
+        <b>Справка</b>
+    </NavLink>
 </nav>
+
+@code {
+    private TrainingStatus? _training;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        Progress.Changed += OnProgressChanged;
+        _training = await Gate.LoadAsync();
+    }
+
+    // Уровень мог быть пройден на прошлой странице — при каждом переходе обновляем замок.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => Refresh();
+    private void OnProgressChanged() => Refresh();
+
+    private async void Refresh()
+    {
+        try
+        {
+            var status = await Gate.LoadAsync();
+            if (_training is { } current && current.Done == status.Done && current.Total == status.Total) return;
+            _training = status;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch
+        {
+            // Навигация не должна падать из-за меню.
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Progress.Changed -= OnProgressChanged;
+    }
+}
