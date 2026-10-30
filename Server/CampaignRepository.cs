@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Synapse.Blocks.Graph;
 using Synapse.Blocks.Models;
 
 namespace Synapse.Blocks.Server;
@@ -100,12 +101,16 @@ public sealed class CampaignRepository(IWebHostEnvironment environment, IConfigu
                 throw new ArgumentException("У каждого уровня должно быть от 1 до 200 заполненных проверок.");
             if (level.Tests.Any(test => test.Id == Guid.Empty) || level.Tests.Select(test => test.Id).Distinct().Count() != level.Tests.Count)
                 throw new ArgumentException("Проверкам нужны уникальные непустые идентификаторы.");
-            if (level.AllowedBlocks is null || level.AllowedBlocks.Any(kind => !Enum.IsDefined(kind)) ||
-                !level.AllowedBlocks.Contains(BlockKind.Input) || !level.AllowedBlocks.Contains(BlockKind.Output) ||
-                level.RequiredBlocks is null || level.RequiredBlocks.Any(kind => !level.AllowedBlocks.Contains(kind)))
-                throw new ArgumentException("Проверьте доступные и обязательные блоки; «Вход» и «Выход» обязательны.");
-            if (level.Chapter < 1 || level.RequiredLoopCount < 0 || level.RequiredLoopBodyOperationCount < 0 || level.MaxOperationBlocks < 0)
-                throw new ArgumentException("Номер главы и ограничения блоков содержат недопустимые значения.");
+            if (level.AllowedNodes is null || level.AllowedNodes.Count > 200 ||
+                level.AllowedNodes.Any(target => target is null || !LevelNodes.IsKnownTarget(target, NodeRegistry.Default)) ||
+                LevelNodes.Mandatory.Any(typeId => !level.AllowedNodes.Contains(typeId, StringComparer.OrdinalIgnoreCase)))
+                throw new ArgumentException("Проверьте доступные блоки: все должны быть известны, «Вход» и «Выход» обязательны.");
+            if (level.Rules is null || level.Rules.Count > 50 || level.Rules.Any(rule => rule is null ||
+                    !Enum.IsDefined(rule.Kind) || rule.Count is < 0 or > 99 || rule.Target is null ||
+                    !LevelNodes.IsKnownTarget(rule.Target, NodeRegistry.Default)))
+                throw new ArgumentException("Проверьте условия решения: блок или раздел должен существовать, количество — от 0 до 99.");
+            if (level.Chapter < 1)
+                throw new ArgumentException("Номер главы должен быть положительным.");
             if (level.IntroSteps is null || level.IntroSteps.Count > 100 || level.IntroSteps.Any(step => step is null ||
                     step.Title is null || step.Body is null || step.FieldValue is null || step.MediaUrl is null ||
                     !Enum.IsDefined(step.FieldKind) || !Enum.IsDefined(step.HighlightTarget)))

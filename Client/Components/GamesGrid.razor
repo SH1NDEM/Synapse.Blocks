@@ -1,0 +1,122 @@
+@using Synapse.Blocks.Games.Station
+@using Synapse.Blocks.Games.Network
+@using Synapse.Blocks.Games.Security
+@using Synapse.Blocks.Games.Robots
+@using Synapse.Blocks.Games.WebDev
+@* Игры по направлениям: каждая карточка — сфера программирования и профессия.
+   Где игры ещё нет, стоит плашка «Скоро». *@
+
+<div class="games-grid directions-grid">
+    @foreach (var direction in Directions)
+    {
+        var done = direction.Levels.Count(Completed.Contains);
+        var ready = direction.Url is not null;
+        var locked = ready && Locked;
+        <a class="@($"direction-card dir-{direction.Key} {(ready ? "" : "soon")} {(locked ? "locked" : "")}")" href="@(direction.Url ?? "games")" aria-disabled="@(!ready)">
+            <div class="direction-art" aria-hidden="true">@direction.Art</div>
+            <div class="direction-copy">
+                <small>@direction.Name</small>
+                <h3>@direction.Profession</h3>
+                <p>@direction.About</p>
+            </div>
+            <footer>
+                @if (!ready)
+                {
+                    <span class="direction-soon">Игра скоро</span>
+                }
+                else if (locked)
+                {
+                    <span class="direction-lock"><LockIcon Size="14" />После обучения · @(Training?.Done ?? 0) из @(Training?.Total ?? 0)</span>
+                }
+                else
+                {
+                    <span class="direction-game">@direction.Game</span>
+                    <span class="direction-progress"><b>@done</b> / @direction.Levels.Count</span>
+                    <b class="direction-go">Играть →</b>
+                }
+            </footer>
+        </a>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlySet<Guid> Completed { get; set; } = new HashSet<Guid>();
+
+    /// <summary>Статус обучения. Пока оно не пройдено, готовые игры закрыты.</summary>
+    [Parameter] public TrainingStatus? Training { get; set; }
+
+    private bool Locked => Training is { Unlocked: false };
+
+    private sealed record Direction(string Key, string Name, string Profession, string About, string? Game, string? Url, IReadOnlyList<Guid> Levels, RenderFragment Art);
+
+    private static readonly IReadOnlyList<Direction> Directions =
+    [
+        new("transport", "Транспорт и автоматизация", "Инженер систем управления",
+            "Пишет программы, которые ведут поезда, переключают стрелки и управляют заводами.",
+            "Станция Синапс", "games/station", StationLevels.All.Select(level => level.Id).ToList(), StationArt),
+        new("network", "Сети", "Сетевой инженер",
+            "Строит сети между районами и следит, чтобы данные доходили, куда нужно.",
+            "Связь Синапса", "games/network", NetworkLevels.All.Select(level => level.Id).ToList(), NetworkArt),
+        new("security", "Кибербезопасность", "Специалист по защите",
+            "Защищает серверы и данные: пропускает жителей и отбивает взломщиков.",
+            "Защита серверов", "games/security", SecurityLevels.All.Select(level => level.Id).ToList(), SecurityArt),
+        new("gamedev", "Геймдев", "Разработчик игр",
+            "Придумывает правила игры: как двигается герой, когда даются очки и как победить.",
+            null, null, [], GamedevArt),
+        new("data", "Данные и аналитика", "Аналитик данных",
+            "Ищет ответы в числах: сколько жителей, когда пробки, что изменилось за неделю.",
+            null, null, [], DataArt),
+        new("robots", "Роботы и устройства", "Инженер-робототехник",
+            "Программирует роботов, датчики и умные устройства — от светофора до курьера.",
+            "Робот-курьер", "games/robots", RobotLevels.All.Select(level => level.Id).ToList(), RobotsArt),
+        new("web", "Веб и приложения", "Веб-разработчик",
+            "Делает сайты и приложения: кнопки, формы и проверку того, что ввёл человек.",
+            "Форма регистрации", "games/web", WebLevels.All.Select(level => level.Id).ToList(), WebArt),
+    ];
+
+    private static RenderFragment StationArt => @<svg viewBox="0 0 160 90">
+        <path class="art-rail" d="M0 45 H30 L50 25 H110 L130 45 H160" /><path class="art-rail" d="M0 45 H160" /><path class="art-rail" d="M30 45 L50 65 H110 L130 45" />
+        <g class="art-train"><rect x="58" y="19" width="14" height="10" rx="3" /><rect x="74" y="19" width="14" height="10" rx="2" /><rect x="90" y="19" width="14" height="10" rx="2" /></g>
+        <g class="art-train art-freight"><rect x="66" y="60" width="14" height="10" rx="3" /><rect x="82" y="60" width="14" height="10" rx="2" /></g>
+    </svg>;
+
+    private static RenderFragment NetworkArt => @<svg viewBox="0 0 160 90">
+        <line class="art-link art-route" x1="30" y1="25" x2="60" y2="68" /><line class="art-link art-route" x1="60" y1="68" x2="112" y2="70" /><line class="art-link art-route" x1="112" y1="70" x2="134" y2="30" />
+        <line class="art-link" x1="30" y1="25" x2="84" y2="18" /><line class="art-link art-broken" x1="84" y1="18" x2="134" y2="30" />
+        <circle class="art-node" cx="30" cy="25" r="7" /><circle class="art-node" cx="84" cy="18" r="7" /><circle class="art-node" cx="60" cy="68" r="7" /><circle class="art-node" cx="112" cy="70" r="7" /><circle class="art-node art-target" cx="134" cy="30" r="7" />
+    </svg>;
+
+    private static RenderFragment SecurityArt => @<svg viewBox="0 0 160 90">
+        <rect class="art-sender" x="14" y="16" width="16" height="11" rx="2" /><rect class="art-sender" x="14" y="40" width="16" height="11" rx="2" /><rect class="art-sender" x="14" y="64" width="16" height="11" rx="2" />
+        <rect class="art-wall" x="72" y="10" width="14" height="28" rx="3" /><rect class="art-wall" x="72" y="54" width="14" height="28" rx="3" />
+        <rect class="art-server" x="114" y="18" width="34" height="14" rx="3" /><rect class="art-server" x="114" y="38" width="34" height="14" rx="3" /><rect class="art-server" x="114" y="58" width="34" height="14" rx="3" />
+        <rect class="art-ok" x="94" y="40" width="12" height="9" rx="2" /><rect class="art-bad" x="52" y="62" width="12" height="9" rx="2" />
+    </svg>;
+
+    private static RenderFragment GamedevArt => @<svg viewBox="0 0 160 90">
+        <rect class="d-soft" x="10" y="66" width="140" height="10" rx="5" /><rect class="d-soft" x="96" y="44" width="40" height="8" rx="4" />
+        <rect class="d-main" x="40" y="42" width="20" height="24" rx="6" /><circle class="d-light" cx="54" cy="50" r="2.5" />
+        <circle class="d-accent" cx="106" cy="30" r="5" /><circle class="d-accent" cx="122" cy="30" r="5" />
+        <path class="d-line" d="M62 40 Q80 18 100 34" />
+    </svg>;
+
+    private static RenderFragment DataArt => @<svg viewBox="0 0 160 90">
+        <rect class="d-soft" x="22" y="56" width="16" height="22" rx="3" /><rect class="d-main" x="46" y="40" width="16" height="38" rx="3" />
+        <rect class="d-soft" x="70" y="48" width="16" height="30" rx="3" /><rect class="d-main" x="94" y="24" width="16" height="54" rx="3" />
+        <rect class="d-accent" x="118" y="14" width="16" height="64" rx="3" />
+        <path class="d-line" d="M22 50 L54 34 L78 42 L102 18 L126 8" />
+    </svg>;
+
+    private static RenderFragment RobotsArt => @<svg viewBox="0 0 160 90">
+        <rect class="d-main" x="54" y="26" width="52" height="38" rx="10" /><circle class="d-light" cx="70" cy="44" r="5" /><circle class="d-light" cx="90" cy="44" r="5" />
+        <path class="d-line" d="M80 26 V14" /><circle class="d-accent" cx="80" cy="11" r="4" />
+        <circle class="d-soft" cx="64" cy="72" r="7" /><circle class="d-soft" cx="96" cy="72" r="7" />
+    </svg>;
+
+    private static RenderFragment WebArt => @<svg viewBox="0 0 160 90">
+        <rect class="d-frame" x="24" y="10" width="112" height="70" rx="8" /><rect class="d-soft" x="24" y="10" width="112" height="14" rx="8" />
+        <circle class="d-accent" cx="34" cy="17" r="2.5" /><circle class="d-light2" cx="42" cy="17" r="2.5" />
+        <rect class="d-soft" x="36" y="34" width="60" height="9" rx="4" /><rect class="d-soft" x="36" y="49" width="88" height="9" rx="4" />
+        <rect class="d-main" x="36" y="64" width="38" height="10" rx="5" />
+    </svg>;
+}

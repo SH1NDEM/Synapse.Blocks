@@ -2,5 +2,6 @@
   <Project Path="Client/Synapse.Blocks.csproj" />
   <Project Path="Server/Synapse.Blocks.Server.csproj" />
   <Project Path="Shared/Synapse.Blocks.Shared.csproj" />
+  <Project Path="tests/GraphChecks/GraphChecks.csproj" />
   <Project Path="tests/MarkdownChecks/MarkdownChecks.csproj" />
 </Solution>

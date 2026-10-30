@@ -1,0 +1,101 @@
+@using Synapse.Blocks.Components.Tutorial
+@* Пошаговое вступление к уровню с подсветкой частей интерфейса.
+   Картинка шага — GIF по ссылке или обучающий ролик из чипов игры (clip:имя). *@
+
+<div class="level-intro-backdrop" role="presentation"></div>
+<section class="level-intro-modal intro-field-@Step.FieldKind.ToString().ToLowerInvariant() intro-target-@Step.HighlightTarget.ToString().ToLowerInvariant() @(TutorialClips.IsClip(Step.MediaUrl) ? "has-clip" : "")" role="dialog" aria-modal="true" aria-labelledby="level-intro-title">
+    <div class="intro-progress" aria-label="Шаг пояснения">
+        @for (var index = 0; index < Level.IntroSteps.Count; index++)
+        {
+            <i class="@(index == StepIndex ? "active" : index < StepIndex ? "complete" : "")"></i>
+        }
+    </div>
+    <small>ПЕРЕД НАЧАЛОМ · @(StepIndex + 1) / @Level.IntroSteps.Count</small>
+    <h2 id="level-intro-title">@Step.Title</h2>
+    <p>@Step.Body</p>
+
+    @if (TutorialClips.IsClip(Step.MediaUrl))
+    {
+        <TutorialClipView @key="Step.MediaUrl" Name="@Step.MediaUrl" />
+    }
+    else if (!string.IsNullOrWhiteSpace(Step.MediaUrl))
+    {
+        <figure class="intro-media">
+            <img src="@Step.MediaUrl" alt="Анимация к пояснению: @Step.Title" loading="lazy" decoding="async" />
+        </figure>
+    }
+
+    @if (Step.FieldKind != IntroFieldKind.None)
+    {
+        <div class="intro-demo-field field-@Step.FieldKind.ToString().ToLowerInvariant()">
+            <span>@FieldKicker(Step.FieldKind)</span>
+            <code>@FieldDisplay(Step)</code>
+        </div>
+
+        @if (Step.FieldKind == IntroFieldKind.Condition)
+        {
+            <div class="intro-block-visual condition-usage" aria-label="Пример использования блока условия">
+                <span class="intro-value-chip">вход: −3</span>
+                <i class="intro-flow-arrow"></i>
+                <div class="intro-visual-node"><small>СРАВНЕНИЕ</small><b>&lt; 0</b></div>
+                <div class="intro-branch true"><b>ДА</b><span>одна ветка</span></div>
+                <div class="intro-branch false"><b>НЕТ</b><span>другая ветка</span></div>
+            </div>
+        }
+        else if (Step.FieldKind == IntroFieldKind.Loop)
+        {
+            <div class="intro-block-visual loop-usage" aria-label="Пример использования блока цикла">
+                <span class="intro-value-chip">раз: 3</span>
+                <i class="intro-flow-arrow"></i>
+                <div class="intro-visual-node"><small>ПОВТОРИТЬ</small><b>3</b></div>
+                <div class="intro-loop-path"><b>ТЕЛО</b><span>действия</span><i></i><strong>ВОЗВРАТ</strong></div>
+                <div class="intro-loop-done"><b>ПОСЛЕ ЦИКЛА</b><span>после 3 повторов</span></div>
+            </div>
+        }
+    }
+
+    <div class="level-intro-actions">
+        <button type="button" class="intro-skip" @onclick="() => OnClose.InvokeAsync()">Пропустить</button>
+        <div>
+            @if (StepIndex > 0)
+            {
+                <button type="button" class="intro-back" @onclick="() => OnPrevious.InvokeAsync()">← Назад</button>
+            }
+            <button type="button" class="intro-next" @onclick="() => OnNext.InvokeAsync()">@(StepIndex == Level.IntroSteps.Count - 1 ? "Начать уровень" : "Далее →")</button>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public LevelDefinition Level { get; set; } = default!;
+    [Parameter] public int StepIndex { get; set; }
+    [Parameter] public EventCallback OnPrevious { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private LevelIntroStep Step => Level.IntroSteps[Math.Clamp(StepIndex, 0, Level.IntroSteps.Count - 1)];
+
+    private static string FieldKicker(IntroFieldKind kind) => kind switch
+    {
+        IntroFieldKind.Input => "ВХОДНЫЕ ДАННЫЕ",
+        IntroFieldKind.Output => "ОЖИДАЕМЫЙ ВЫХОД",
+        IntroFieldKind.Operation => "ДЕЙСТВИЕ",
+        IntroFieldKind.Condition => "ПРОВЕРКА",
+        IntroFieldKind.Loop => "ПОВТОРЫ",
+        _ => "ПРИМЕР"
+    };
+
+    private static string FieldDisplay(LevelIntroStep step)
+    {
+        if (!string.IsNullOrWhiteSpace(step.FieldValue)) return step.FieldValue;
+        return step.FieldKind switch
+        {
+            IntroFieldKind.Input => "данные теста",
+            IntroFieldKind.Output => "результат",
+            IntroFieldKind.Operation => "a + b",
+            IntroFieldKind.Condition => "a > 20",
+            IntroFieldKind.Loop => "3 раза",
+            _ => ""
+        };
+    }
+}

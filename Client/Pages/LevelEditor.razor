@@ -1,7 +1,9 @@
 @page "/editor"
 @page "/admin/editor"
 @layout AdminLayout
+@using Synapse.Blocks.Graph
 @inject LevelStore LevelStore
+@inject NodeRegistry Registry
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
@@ -54,7 +56,7 @@ else
                         <label><span>Направление</span><input @bind="level.Direction" list="directions" /><datalist id="directions"><option>Программирование</option><option>Кибербезопасность</option><option>Заказ клиента</option></datalist></label>
                     </div>
                     <div class="field-grid two">
-                        <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label>
+                        <label><span>Глава</span><input type="number" min="1" @bind="level.Chapter" /></label><label class="training-toggle"><span>Обучение</span><span class="training-toggle-row"><input type="checkbox" @bind="level.Training" /><small>Обучающий уровень: пока такие уровни не пройдены, игры города закрыты.</small></span></label>
                     </div>
                     <label class="wide-field"><span>Что нужно сделать</span><textarea @bind="level.Objective" rows="2"></textarea></label>
                     <div class="admin-markdown-editor">
@@ -75,31 +77,65 @@ else
                 @if (_activeTab == "blocks")
                 {
                 <section role="tabpanel" id="panel-blocks" aria-labelledby="tab-blocks" class="form-section">
-                    <div class="section-heading"><span>02</span><div><h2>Доступные блоки</h2><p>«Вход» и «Выход» обязательны. Остальные типы можно включать для конкретного уровня.</p></div></div>
-                    <div class="block-toggle-grid">
-                        @foreach (var kind in Enum.GetValues<BlockKind>())
-                        {
-                            var required = kind is BlockKind.Input or BlockKind.Output;
-                            <label class="block-toggle kind-@kind.ToString().ToLowerInvariant()">
-                                <input type="checkbox" checked="@level.AllowedBlocks.Contains(kind)" disabled="@required" @onchange="e => ToggleBlock(kind, e.Value is true)" />
-                                <span><small>@BlockCatalog.Kicker(kind)</small><strong>@BlockCatalog.Label(kind)</strong><b>@(required ? "обязательный" : "доступен игроку")</b></span>
-                            </label>
-                        }
-                    </div>
-                    <details class="admin-editor-details">
-                        <summary>Требования к решению <span>Дополнительно</span></summary>
-                        <p>Выберите блоки, которые ученик должен использовать. Числовые ограничения можно оставить пустыми.</p>
-                        <div class="admin-required-blocks">
-                            @foreach (var kind in level.AllowedBlocks.Where(kind => kind is not BlockKind.Input and not BlockKind.Output))
+                    <div class="section-heading"><span>02</span><div><h2>Доступные блоки</h2><p>«Вход» и «Выход» доступны всегда. Включите блоки, которыми ученик может пользоваться в этом уровне.</p></div></div>
+                    @foreach (var group in Registry.All.GroupBy(definition => definition.Category))
+                    {
+                        var category = group.Key;
+                        var optional = group.Where(definition => !LevelNodes.IsMandatory(definition.TypeId)).ToList();
+                        var allOn = optional.All(definition => LevelNodes.Allows(level, definition));
+                        <div class="block-group-head">
+                            <h3>@NodeCategories.Label(category)</h3>
+                            @if (optional.Count > 1)
                             {
-                                <label><input type="checkbox" checked="@level.RequiredBlocks.Contains(kind)" @onchange="e => ToggleRequired(kind, e.Value is true)" />@BlockCatalog.Label(kind)</label>
+                                <button type="button" @onclick="() => ToggleCategory(level, category, !allOn)">@(allOn ? "Снять все" : "Включить все")</button>
                             }
                         </div>
-                        <div class="field-grid two">
-                            <label><span>Число повторений цикла</span><input type="number" min="0" @bind="level.RequiredLoopCount" placeholder="Без ограничения" /></label>
-                            <label><span>Операций в теле цикла</span><input type="number" min="0" @bind="level.RequiredLoopBodyOperationCount" placeholder="Без ограничения" /></label>
-                            <label><span>Максимум блоков «Операция»</span><input type="number" min="0" @bind="level.MaxOperationBlocks" placeholder="Без ограничения" /></label>
+                        <div class="block-toggle-grid">
+                            @foreach (var definition in group)
+                            {
+                                var item = definition;
+                                var mandatory = LevelNodes.IsMandatory(item.TypeId);
+                                <label class="block-toggle @GraphStyle.AccentClass(item)">
+                                    <input type="checkbox" checked="@LevelNodes.Allows(level, item)" disabled="@mandatory" @onchange="e => ToggleNode(level, item.TypeId, e.Value is true)" />
+                                    <span><small>@GraphStyle.Kicker(item)</small><strong>@item.Label</strong><b>@(mandatory ? "всегда доступен" : item.Description)</b></span>
+                                </label>
+                            }
                         </div>
+                    }
+                    <details class="admin-editor-details" open="@(level.Rules.Count > 0)">
+                        <summary>Условия решения <span>Дополнительно</span></summary>
+                        <p>Условия проверяют способ решения, а не только ответ: например, «нужен хотя бы один блок «Повторить»» или «не больше двух блоков «Арифметика»». Блок можно выбрать по названию или целым разделом.</p>
+                        <div class="rule-editor-list">
+                            @foreach (var rule in level.Rules)
+                            {
+                                var item = rule;
+                                <div class="rule-editor-row">
+                                    <select value="@item.Kind" @onchange="e => SetRuleKind(item, e.Value)" aria-label="Вид условия">
+                                        <option value="@GraphRuleKind.MinNodes">Не меньше</option>
+                                        <option value="@GraphRuleKind.MaxNodes">Не больше</option>
+                                        <option value="@GraphRuleKind.MinNodesInScope">В теле цикла не меньше</option>
+                                    </select>
+                                    <input type="number" min="0" max="99" value="@item.Count" @onchange="e => SetRuleCount(item, e.Value)" aria-label="Количество" />
+                                    <select value="@item.Target" @onchange="e => item.Target = e.Value?.ToString() ?? string.Empty" aria-label="Какие блоки считать">
+                                        <optgroup label="Блоки">
+                                            @foreach (var definition in Registry.All)
+                                            {
+                                                <option value="@definition.TypeId">@definition.Label</option>
+                                            }
+                                        </optgroup>
+                                        <optgroup label="Разделы целиком">
+                                            @foreach (var category in Registry.All.Select(definition => definition.Category).Distinct())
+                                            {
+                                                <option value="@(GraphRules.CategoryPrefix + category)">Раздел «@NodeCategories.Label(category)»</option>
+                                            }
+                                        </optgroup>
+                                    </select>
+                                    <button type="button" class="row-delete" @onclick="() => RemoveRule(level, item)" aria-label="Удалить условие">×</button>
+                                    <small>@GraphRules.Describe(item, Registry)</small>
+                                </div>
+                            }
+                        </div>
+                        <button type="button" class="admin-btn secondary rule-add" @onclick="() => AddRule(level)">+ Добавить условие</button>
                     </details>
                 </section>
                 }
@@ -180,13 +216,29 @@ else
                                     </div>
                                     <label class="wide-field"><span>Текст пояснения</span><textarea @bind="intro.Body" rows="3"></textarea></label>
 
+                                    <label class="wide-field intro-clip-select"><span>Обучающий ролик из чипов игры</span>
+                                        <select value="@(TutorialClips.IsClip(intro.MediaUrl) ? intro.MediaUrl : "")" @onchange="args => SetIntroClip(intro, args.Value)">
+                                            <option value="">— без ролика —</option>
+                                            @foreach (var (clipName, clipTitle) in TutorialClips.All)
+                                            {
+                                                <option value="@(TutorialClips.Prefix + clipName)">@clipTitle</option>
+                                            }
+                                        </select>
+                                    </label>
                                     <div class="field-grid two intro-media-settings">
-                                        <label><span>Ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
+                                        <label><span>Или ссылка на GIF или картинку</span><input type="url" @bind="intro.MediaUrl" placeholder="https://…/nodes-demo.gif" /></label>
                                         <label><span>Или загрузить файл</span><InputFile OnChange="args => UploadIntroMedia(introIndex, args)" accept="image/gif,image/png,image/jpeg,image/webp" /></label>
                                     </div>
                                     <p class="intro-media-note">GIF лучше добавлять по ссылке. Загруженные изображения сохраняются вместе с кампанией; файл ограничен 4 МБ.</p>
 
-                                    @if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
+                                    @if (TutorialClips.IsClip(intro.MediaUrl))
+                                    {
+                                        <div class="intro-media-preview intro-clip-preview">
+                                            <TutorialClipView @key="intro.MediaUrl" Name="@intro.MediaUrl" />
+                                            <button type="button" @onclick="() => ClearIntroMedia(introIndex)">Убрать ролик</button>
+                                        </div>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(intro.MediaUrl))
                                     {
                                         <div class="intro-media-preview">
                                             <img src="@intro.MediaUrl" alt="Предпросмотр анимации для пояснения" loading="lazy" decoding="async" />
@@ -343,24 +395,45 @@ else
         Renumber();
     }
 
-    private void ToggleBlock(BlockKind kind, bool enabled)
+    private void ToggleNode(LevelDefinition level, string typeId, bool enabled)
     {
         MarkDirty();
-        if (Selected is not LevelDefinition level || kind is BlockKind.Input or BlockKind.Output) return;
-        if (enabled && !level.AllowedBlocks.Contains(kind)) level.AllowedBlocks.Add(kind);
-        if (!enabled)
-        {
-            level.AllowedBlocks.Remove(kind);
-            level.RequiredBlocks.Remove(kind);
-        }
+        // Разделы в списке разворачиваем в отдельные блоки, чтобы можно было снять один блок из раздела.
+        var allowed = LevelNodes.Available(level, Registry).Select(definition => definition.TypeId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (enabled) allowed.Add(typeId);
+        else allowed.Remove(typeId);
+        level.AllowedNodes = Registry.All.Where(definition => allowed.Contains(definition.TypeId) || LevelNodes.IsMandatory(definition.TypeId))
+            .Select(definition => definition.TypeId)
+            .ToList();
     }
 
-    private void ToggleRequired(BlockKind kind, bool enabled)
+    private void ToggleCategory(LevelDefinition level, string category, bool enabled)
     {
-        if (Selected is null) return;
+        foreach (var definition in Registry.InCategory(category).Where(definition => !LevelNodes.IsMandatory(definition.TypeId)))
+            ToggleNode(level, definition.TypeId, enabled);
+    }
+
+    private void AddRule(LevelDefinition level)
+    {
         MarkDirty();
-        if (enabled && !Selected.RequiredBlocks.Contains(kind)) Selected.RequiredBlocks.Add(kind);
-        if (!enabled) Selected.RequiredBlocks.Remove(kind);
+        var target = LevelNodes.Available(level, Registry).FirstOrDefault(definition => !LevelNodes.IsMandatory(definition.TypeId))?.TypeId ?? "if";
+        level.Rules.Add(GraphRule.Min(target));
+    }
+
+    private void RemoveRule(LevelDefinition level, GraphRule rule)
+    {
+        MarkDirty();
+        level.Rules.Remove(rule);
+    }
+
+    private void SetRuleKind(GraphRule rule, object? value)
+    {
+        if (Enum.TryParse<GraphRuleKind>(value?.ToString(), out var kind)) rule.Kind = kind;
+    }
+
+    private void SetRuleCount(GraphRule rule, object? value)
+    {
+        if (int.TryParse(value?.ToString(), out var count)) rule.Count = Math.Clamp(count, 0, 99);
     }
 
     private void AddTest()
@@ -414,6 +487,16 @@ else
         {
             ShowError("Не удалось загрузить изображение. Выберите файл до 4 МБ.");
         }
+    }
+
+    /// <summary>Выбор ролика: пустой выбор убирает ролик, но не трогает ссылку на GIF.</summary>
+    private static void SetIntroClip(LevelIntroStep intro, object? value)
+    {
+        var clip = value?.ToString() ?? "";
+        if (clip.Length > 0)
+            intro.MediaUrl = clip;
+        else if (TutorialClips.IsClip(intro.MediaUrl))
+            intro.MediaUrl = "";
     }
 
     private void ClearIntroMedia(int index)

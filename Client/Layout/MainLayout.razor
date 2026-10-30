@@ -1,21 +1,16 @@
 @inherits LayoutComponentBase
-@inject ProgressStore ProgressStore
-@inject SolutionStore SolutionStore
+@implements IDisposable
 @inject NavigationManager Navigation
 
-<div class="app-shell">
+@* Главная, список игр и справка — светлые и спокойные; рабочие экраны с полем остаются тёмными. *@
+<div class="@($"app-shell {(IsLight ? "theme-light" : "")}")">
     <header class="app-header">
-        <a class="brand" href="">
-            <span class="brand-mark" aria-hidden="true"></span>
-            <span><b>СИНАПС</b></span>
+        <a class="brand" href="" aria-label="Синапс — на главную">
+            <BrandLogo />
         </a>
         <NavMenu />
-        <button type="button"
-                class="runtime-badge player-reset"
-                disabled="@_resetting"
-                @onclick="ResetPlayerAsync">
-            <i></i> @(_resetting ? "Сброс…" : "Сбросить прогресс")
-        </button>
+        @* Сюда страница игры выводит выбор задания и свои кнопки — так под рабочее поле остаётся больше места. *@
+        <div class="header-tools"><SectionOutlet SectionName="header-tools" /></div>
     </header>
     <main class="app-main">
         @Body
@@ -23,21 +18,20 @@
 </div>
 
 @code {
-    private bool _resetting;
+    private static readonly string[] LightPages = ["", "games", "guide"];
 
-    private async Task ResetPlayerAsync()
+    private bool IsLight
     {
-        if (_resetting) return;
-        _resetting = true;
-
-        // Новый ребёнок не должен получить ни отметки о прохождении,
-        // ни готовые схемы предыдущего игрока на этом компьютере.
-        try { await ProgressStore.ResetAsync(); }
-        catch { }
-        try { await SolutionStore.ResetAllAsync(); }
-        catch { }
-
-        // BaseUri возвращает на главную текущего приложения.
-        Navigation.NavigateTo(Navigation.BaseUri, forceLoad: true);
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+            return LightPages.Contains(path, StringComparer.OrdinalIgnoreCase);
+        }
     }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args) => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }

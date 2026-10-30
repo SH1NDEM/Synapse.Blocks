@@ -1,0 +1,26 @@
+@page "/games"
+@inject ProgressStore ProgressStore
+@inject TrainingGate Gate
+
+<PageTitle>Игры — Синапс</PageTitle>
+
+<div class="signal-home">
+    <section class="mission-feed games-feed games-page">
+        <header>
+            <div><small>НАПРАВЛЕНИЯ</small><h2>Игры по профессиям</h2></div>
+            <p>Каждая игра показывает одну сферу программирования: чем занимается специалист и какие задачи он решает. Новые направления скоро.</p>
+        </header>
+        <GamesGrid Completed="_completed" Training="_training" />
+    </section>
+</div>
+
+@code {
+    private HashSet<Guid> _completed = [];
+    private TrainingStatus? _training;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _completed = await ProgressStore.LoadAsync();
+        _training = await Gate.LoadAsync();
+    }
+}

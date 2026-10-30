@@ -1,0 +1,291 @@
+@using Synapse.Blocks.Games.Station
+@* Схема станции. Проходная: пути с платформами между двумя горловинами, поезд уезжает в другую сторону.
+   Тупиковый вокзал: пути упираются в концевые упоры у здания вокзала, поезд уезжает обратно.
+   Положение поездов считается по времени Time из результатов прогона Run. *@
+
+<div class="station-view">
+    <svg viewBox="0 0 @ViewWidth @ViewHeight" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Схема станции">
+        <defs>
+            <pattern id="station-sleepers" width="9" height="10" patternUnits="userSpaceOnUse">
+                <rect x="0" y="0" width="3" height="10" fill="#2b302d" />
+            </pattern>
+        </defs>
+
+        @if (Terminus)
+        {
+            @* Здание вокзала, перроны у пассажирских путей и склады грузового двора. *@
+            var top = TrackY(0) - 34;
+            var bottom = TrackY(Level.Tracks.Count - 1) + 16;
+            <rect class="station-building" x="22" y="@N(top)" width="@N(BufferX - 52)" height="@N(bottom - top)" rx="6" />
+            @:@SvgText("station-building-label", 22 + (BufferX - 52) / 2, top + 18, "ВОКЗАЛ", "middle")
+            var firstFreight = true;
+            for (var index = 0; index < Level.Tracks.Count; index++)
+            {
+                var track = Level.Tracks[index];
+                var y = TrackY(index);
+                if (track.IsFreight)
+                {
+                    <rect class="station-warehouse" x="@N(BufferX + 30)" y="@N(y - 30)" width="160" height="15" rx="2" />
+                    <rect class="station-warehouse" x="@N(BufferX + 200)" y="@N(y - 30)" width="100" height="15" rx="2" />
+                    if (firstFreight)
+                    {
+                        @:@SvgText("station-yard-label", BufferX + 165, y - 34, "ГРУЗОВОЙ ДВОР", "middle")
+                        firstFreight = false;
+                    }
+                }
+                else
+                {
+                    <rect class="station-platform" x="@N(BufferX - 30)" y="@N(y - 21)" width="@N(TerminusPlatform(track) + 30)" height="9" rx="2" />
+                }
+            }
+        }
+        else
+        {
+            @* Платформы между путями. *@
+            for (var index = 0; index < Level.Tracks.Count; index++)
+            {
+                var track = Level.Tracks[index];
+                var y = TrackY(index);
+                var half = PlatformHalf(track);
+                <rect class="station-platform" x="@N(Center - half)" y="@N(y - 21)" width="@N(half * 2)" height="9" rx="2" />
+            }
+        }
+
+        @* Пути: горловина запада → платформа → горловина востока. *@
+        @for (var index = 0; index < Level.Tracks.Count; index++)
+        {
+            var track = Level.Tracks[index];
+            var path = TrackPath(index);
+            var busy = IsBusy(track.Number);
+            var failed = FailedTrack == track.Number;
+            <g class="station-track @(busy ? "busy" : "") @(failed ? "failed" : "") @(track.IsFreight ? "freight" : "")">
+                <path class="station-bed" d="@path" />
+                <path class="station-rail" d="@path" />
+            </g>
+            if (Terminus)
+            {
+                <rect class="station-buffer" x="@N(BufferX - 6)" y="@N(TrackY(index) - 7)" width="6" height="14" rx="1" />
+                @:@SvgText("station-track-label", BufferX + TerminusPlatform(track) + 12, TrackY(index) - 11, track.Number.ToString())
+                @:@SvgText("station-track-size", BufferX + TerminusPlatform(track) + 26, TrackY(index) - 12, track.IsFreight ? $"груз · до {track.Length} ваг." : $"до {track.Length} ваг.")
+            }
+            else
+            {
+                @:@SvgText("station-track-label", Center - PlatformHalf(track) - 8, TrackY(index) - 11, track.Number.ToString(), "end")
+                @:@SvgText("station-track-size", Center + PlatformHalf(track) + 8, TrackY(index) - 12, $"до {track.Length} ваг.")
+            }
+        }
+
+        @if (!Terminus)
+        {
+            @:@SvgText("station-side", 14, Mid - 18, "ЗАПАД")
+            <circle class="station-signal @(SignalClass(StationSide.West))" cx="70" cy="@N(Mid - 14)" r="5" />
+        }
+        @SvgText("station-side", ViewWidth - 14, Mid - 18, "ВОСТОК", "end")
+        <circle class="station-signal @(SignalClass(StationSide.East))" cx="@N(ViewWidth - 70)" cy="@N(Mid - 14)" r="5" />
+
+        @* Поезда. *@
+        @foreach (var result in VisibleTrains())
+        {
+            var cars = CarPlacements(result);
+            var css = TrainCss(result);
+            <g class="station-train @css">
+                @foreach (var car in cars)
+                {
+                    <rect class="@(car.Head ? "train-head" : "train-car")" x="@N(-CarLength / 2)" y="-6" width="@N(CarLength)" height="12" rx="@(car.Head ? "5" : "2")"
+                          transform="translate(@N(car.X) @N(car.Y)) rotate(@N(car.Angle))" />
+                }
+                @if (cars.Count > 0)
+                {
+                    var label = cars[0];
+                    @:@SvgText("train-number", label.X, label.Y - 11, TrainLabel(result), "middle")
+                }
+            </g>
+        }
+    </svg>
+    <div class="station-clock"><span>@Clock</span>@if (Status.Length > 0) { <b>@Status</b> }</div>
+</div>
+
+@code {
+    private const double ViewWidth = 1000;
+    private const double Center = ViewWidth / 2;
+    private const double ThroatOuter = 70;
+    private const double ThroatInner = 230;
+    private const double TrackGap = 46;
+    private const double CarLength = 22;
+    private const double CarGap = 3;
+    private const double CarPitch = CarLength + CarGap;
+    /// <summary>Где у тупикового вокзала стоят концевые упоры.</summary>
+    private const double BufferX = 150;
+
+    [Parameter, EditorRequired] public StationLevel Level { get; set; } = default!;
+    [Parameter] public StationRun? Run { get; set; }
+    /// <summary>Время на станции в секундах.</summary>
+    [Parameter] public double Time { get; set; }
+    [Parameter] public string Status { get; set; } = "";
+
+    private double ViewHeight => Math.Max(220, 90 + Level.Tracks.Count * TrackGap);
+    private double Mid => ViewHeight / 2 + 6;
+    private double TrackY(int index) => Mid + (index - (Level.Tracks.Count - 1) / 2.0) * TrackGap;
+    private bool Terminus => Level.Layout == StationLayout.Terminus;
+
+    /// <summary>Длина перрона (или пути грузового двора) от упора у тупикового вокзала.</summary>
+    private static double TerminusPlatform(StationTrack track) => track.Length * CarPitch + 24;
+
+    private double PlatformHalf(StationTrack track) => Math.Min(ThroatInner - 30, track.Length * CarPitch / 2 + 16);
+    private static string N(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    private string Clock => $"{(int)Time / 60:00}:{(int)Time % 60:00}";
+
+    private int? FailedTrack => Run is { Success: false } run && run.Trains.Count > 0 && Time >= run.Trains[^1].Start
+        ? int.TryParse(run.Trains[^1].Answer, out var number) ? number : null
+        : null;
+
+    private (double X, double Y)[] Points(int index)
+    {
+        var y = TrackY(index);
+        return Terminus
+            ? [(BufferX, y), (ViewWidth - ThroatInner, y), (ViewWidth - ThroatOuter, Mid), (ViewWidth, Mid)]
+            : [(0, Mid), (ThroatOuter, Mid), (ThroatInner, y), (ViewWidth - ThroatInner, y), (ViewWidth - ThroatOuter, Mid), (ViewWidth, Mid)];
+    }
+
+    private string TrackPath(int index)
+        => "M " + string.Join(" L ", Points(index).Select(point => $"{N(point.X)} {N(point.Y)}"));
+
+    private bool IsBusy(int track)
+        => Run?.Trains.Any(result => result.Track == track && Time >= result.Start && Time < result.End) == true;
+
+    private string SignalClass(StationSide side)
+    {
+        if (Run is null) return "";
+        if (Run.Trains.Any(result => !result.Passed && result.Train.From == side && Time >= result.Start)) return "red";
+        return Run.Trains.Any(result => result.Train.From == side && Time >= result.Start - 1 && Time < result.Stop) ? "green" : "";
+    }
+
+    private IEnumerable<StationTrainResult> VisibleTrains()
+        => Run?.Trains.Where(result => Time >= result.Start && (result.Passed ? Time < result.End : true)) ?? [];
+
+    private string TrainCss(StationTrainResult result)
+    {
+        var kind = result.Train.Kind switch
+        {
+            StationTrain.Express => "train-express",
+            StationTrain.Freight => "train-freight",
+            StationTrain.Suburban => "train-suburban",
+            StationTrain.LongDistance => "train-long",
+            _ => "train-passenger"
+        };
+        return result.Passed ? kind : $"{kind} train-failed";
+    }
+
+    /// <summary>
+    /// Подпись SVG. Razor считает тег text своим служебным и не даёт задать ему атрибуты,
+    /// поэтому подпись выводится готовой разметкой (текст экранируется).
+    /// </summary>
+    private static MarkupString SvgText(string css, double x, double y, string content, string anchor = "start")
+        => new($"<text class=\"{css}\" x=\"{N(x)}\" y=\"{N(y)}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(content)}</text>");
+
+    private string TrainLabel(StationTrainResult result)
+        => result.Track is int number && Time >= result.Stop - .5 ? $"№{result.Train.Number} → путь {number}" : $"№{result.Train.Number}";
+
+    private sealed record Car(double X, double Y, double Angle, bool Head);
+
+    /// <summary>Вагоны поезда вдоль его пути. Голова — первый элемент списка.</summary>
+    private List<Car> CarPlacements(StationTrainResult result)
+    {
+        var index = result.Track is int track ? Level.Tracks.ToList().FindIndex(item => item.Number == track) : -1;
+        var points = Points(Math.Max(0, index));
+        if (result.Train.From == StationSide.East)
+            Array.Reverse(points);
+
+        var length = PathLength(points);
+        var trainLength = result.Train.Cars * CarPitch;
+        // Голова останавливается так, чтобы состав встал по центру платформы,
+        // а у тупикового вокзала — у самого упора.
+        var stopAt = Terminus ? length - 10 : DistanceTo(points, Center) + trainLength / 2;
+
+        double head;
+        if (!result.Passed || index < 0)
+        {
+            // Поезд, которому не дали путь, стоит у входного светофора.
+            head = Math.Min(ThroatOuter - 8, ThroatOuter * Ease(Math.Clamp((Time - result.Start) / 2, 0, 1)));
+        }
+        else if (Time < result.Stop)
+        {
+            head = stopAt * EaseOut(Math.Clamp((Time - result.Start) / (result.Stop - result.Start), 0, 1));
+        }
+        else if (Time < result.Leave)
+        {
+            head = stopAt;
+        }
+        else
+        {
+            var t = Math.Clamp((Time - result.Leave) / StationSimulator.TravelOut, 0, 1);
+            // Из тупика поезд уезжает задним ходом — туда же, откуда пришёл.
+            head = Terminus
+                ? stopAt - (stopAt + trainLength + 20) * EaseIn(t)
+                : stopAt + (length + trainLength - stopAt) * EaseIn(t);
+        }
+
+        var cars = new List<Car>();
+        for (var car = 0; car < result.Train.Cars; car++)
+        {
+            var distance = head - CarLength / 2 - car * CarPitch;
+            if (distance < -CarLength || distance > length + CarLength) continue;
+            var (x, y, angle) = PointAt(points, distance);
+            cars.Add(new Car(x, y, angle, car == 0));
+        }
+        return cars;
+    }
+
+    private static double Ease(double t) => t * t * (3 - 2 * t);
+    private static double EaseOut(double t) => 1 - (1 - t) * (1 - t);
+    private static double EaseIn(double t) => t * t;
+
+    private static double PathLength((double X, double Y)[] points)
+    {
+        var total = 0.0;
+        for (var index = 1; index < points.Length; index++)
+            total += Distance(points[index - 1], points[index]);
+        return total;
+    }
+
+    /// <summary>Расстояние вдоль пути до точки платформы с координатой x.</summary>
+    private static double DistanceTo((double X, double Y)[] points, double x)
+    {
+        var total = 0.0;
+        for (var index = 1; index < points.Length; index++)
+        {
+            var (a, b) = (points[index - 1], points[index]);
+            if ((x - a.X) * (x - b.X) <= 0 && Math.Abs(a.Y - b.Y) < .01)
+                return total + Math.Abs(x - a.X);
+            total += Distance(a, b);
+        }
+        return total / 2;
+    }
+
+    private static (double X, double Y, double Angle) PointAt((double X, double Y)[] points, double distance)
+    {
+        // До начала и после конца пути поезд продолжает движение по прямой.
+        if (distance <= 0)
+        {
+            var (a, b) = (points[0], points[1]);
+            var d = Distance(a, b);
+            return (a.X + (b.X - a.X) / d * distance, a.Y + (b.Y - a.Y) / d * distance, Angle(a, b));
+        }
+        for (var index = 1; index < points.Length; index++)
+        {
+            var (a, b) = (points[index - 1], points[index]);
+            var d = Distance(a, b);
+            if (distance <= d || index == points.Length - 1)
+            {
+                var t = distance / d;
+                return (a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t, Angle(a, b));
+            }
+            distance -= d;
+        }
+        return (points[^1].X, points[^1].Y, 0);
+    }
+
+    private static double Angle((double X, double Y) a, (double X, double Y) b) => Math.Atan2(b.Y - a.Y, b.X - a.X) * 180 / Math.PI;
+    private static double Distance((double X, double Y) a, (double X, double Y) b) => Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y));
+}

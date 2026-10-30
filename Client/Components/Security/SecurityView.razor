@@ -1,0 +1,194 @@
+@using Synapse.Blocks.Games.Security
+@* Серверная. Слева очередь запросов, в середине межсетевой экран, справа сервер города.
+   Текущий запрос — крупная карточка: едет к экрану, затем в сервер (пропущен)
+   или падает в лоток «Отбито». После решения на карточке видно, кто это был: житель или взломщик. *@
+
+<div class="security-view sec2">
+    <svg viewBox="0 0 1000 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Защита сервера">
+        @* ───── Очередь ───── *@
+        @SvgText("sec2-zone", 40, 30, "ОЧЕРЕДЬ ЗАПРОСОВ", "start")
+        @{ var waiting = Waiting(); }
+        @for (var index = 0; index < waiting.Count && index < 5; index++)
+        {
+            var request = waiting[index];
+            var listed = Level.Blacklist.Contains(request.From);
+            <g class="@($"sec2-queue {(index == 0 ? "next" : "")}")" transform="@($"translate(40 {46 + index * 48})")">
+                <rect class="sec2-plate" width="210" height="40" rx="10" />
+                <rect class="sec2-port" x="10" y="9" width="48" height="22" rx="6" />
+                @SvgText("sec2-port-text", 34, 24, ":" + request.Port)
+                @SvgText(listed ? "sec2-addr listed" : "sec2-addr", 70, 18, request.From, "start")
+                @SvgText("sec2-action", 70, 32, Short(request.Action), "start")
+            </g>
+        }
+        @if (waiting.Count > 5)
+        {
+            @:@SvgText("sec2-more", 145, 296, $"и ещё {waiting.Count - 5}")
+        }
+
+        @* ───── Межсетевой экран ───── *@
+        @SvgText("sec2-zone", GateX, 30, "МЕЖСЕТЕВОЙ ЭКРАН")
+        <g class="@($"sec2-gate {GateState}")">
+            <rect class="sec2-pillar" x="@N(GateX - 16)" y="46" width="32" height="66" rx="8" />
+            <rect class="sec2-pillar" x="@N(GateX - 16)" y="188" width="32" height="38" rx="8" />
+            <circle class="sec2-ring" cx="@N(GateX)" cy="150" r="34" />
+            <path class="sec2-shield" d="@($"M {N(GateX)} 126 l 20 8 v 14 q 0 17 -20 26 q -20 -9 -20 -26 v -14 Z")" />
+            @if (GateState is "open" or "breach")
+            {
+                <path class="sec2-mark" d="@($"M {N(GateX - 9)} 150 l 6 7 l 12 -14")" />
+            }
+            else if (GateState is "blocking" or "wrong")
+            {
+                <path class="sec2-mark" d="@($"M {N(GateX - 7)} 143 l 14 14 M {N(GateX + 7)} 143 l -14 14")" />
+            }
+        </g>
+        <g class="@($"sec2-tray {(TrayAlert ? "alert" : "")}")">
+            <rect x="@N(GateX - 90)" y="262" width="180" height="28" rx="9" />
+            @SvgText("sec2-count bad", GateX, 281, $"✕ отбито: {Blocked}")
+        </g>
+
+        @* ───── Сервер ───── *@
+        @SvgText("sec2-zone", ServerX, 30, "СЕРВЕР ГОРОДА")
+        <g class="@($"sec2-server {ServerState}")" transform="@($"translate({N(ServerX - 70)} 46)")">
+            <rect class="sec2-case" width="140" height="176" rx="14" />
+            @for (var rack = 0; rack < 4; rack++)
+            {
+                <rect class="sec2-rack" x="14" y="@(16 + rack * 39)" width="112" height="30" rx="7" />
+                <circle class="sec2-led" cx="32" cy="@(31 + rack * 39)" r="5" />
+                <rect class="sec2-slot" x="46" y="@(27 + rack * 39)" width="66" height="8" rx="4" />
+            }
+        </g>
+        <g class="sec2-tray ok">
+            <rect x="@N(ServerX - 90)" y="234" width="180" height="28" rx="9" />
+            @SvgText("sec2-count ok", ServerX, 253, $"✓ пропущено: {Allowed}")
+        </g>
+
+        @* ───── Текущий запрос ───── *@
+        @if (ActiveRequest() is { } active)
+        {
+            var (x, y, scale, opacity) = CardPosition(active);
+            var decided = Time >= active.Decided;
+            var css = decided ? RequestCss(active) : "";
+            <g class="@($"sec2-card {css}")" transform="@($"translate({N(x)} {N(y)}) scale({N(scale)})")" opacity="@N(opacity)">
+                <rect class="sec2-plate" x="-100" y="-27" width="200" height="54" rx="13" />
+                <rect class="sec2-port" x="-88" y="-14" width="52" height="28" rx="7" />
+                @SvgText("sec2-card-port", -62, 5, ":" + active.Request.Port)
+                @SvgText("sec2-card-addr", -26, -3, active.Request.From, "start")
+                @SvgText("sec2-card-action", -26, 14, Short(active.Request.Action), "start")
+                @if (decided)
+                {
+                    <rect class="@($"sec2-who-plate {(active.Request.Attack ? "attacker" : "citizen")}")" x="-46" y="-48" width="92" height="22" rx="11" />
+                    @:@SvgText("sec2-who", 0, -33, active.Request.Attack ? "взломщик" : "житель")
+                }
+            </g>
+            @if (decided)
+            {
+                @:@SvgText($"sec2-verdict {css}", GateX, 250, Verdict(active))
+            }
+        }
+    </svg>
+    <div class="station-clock"><span>@($"{(int)Time / 60:00}:{(int)Time % 60:00}")</span>@if (Status.Length > 0) { <b>@Status</b> }</div>
+</div>
+
+@code {
+    private const double GateX = 540;
+    private const double ServerX = 860;
+
+    [Parameter, EditorRequired] public SecurityLevel Level { get; set; } = default!;
+    [Parameter] public SecurityRun? Run { get; set; }
+    [Parameter] public double Time { get; set; }
+    [Parameter] public string Status { get; set; } = "";
+
+    private static string N(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Подпись SVG готовой разметкой: Razor не даёт задать атрибуты тегу text.</summary>
+    private static MarkupString SvgText(string css, double x, double y, string content, string anchor = "middle")
+        => new($"<text class=\"{css}\" x=\"{N(x)}\" y=\"{N(y)}\" text-anchor=\"{anchor}\">{System.Net.WebUtility.HtmlEncode(content)}</text>");
+
+    private static string Short(string action) => action.Length > 20 ? action[..19] + "…" : action;
+
+    /// <summary>Запросы, которые ещё не начали путь к экрану.</summary>
+    private List<SecRequest> Waiting()
+    {
+        if (Run is null) return [.. Level.Requests];
+        var started = Run.Requests.Where(result => Time >= result.Start).Select(result => result.Request).ToHashSet();
+        return Level.Requests.Where(request => !started.Contains(request)).ToList();
+    }
+
+    private SecurityRequestResult? ActiveRequest()
+    {
+        if (Run is null) return null;
+        var current = Run.Requests.LastOrDefault(result => Time >= result.Start);
+        if (current is null) return null;
+        return Time < current.End || !current.Passed ? current : null;
+    }
+
+    private int Allowed => Run?.Requests.Count(result => result.Allowed == true && result.Passed && Time >= result.End) ?? 0;
+    private int Blocked => Run?.Requests.Count(result => result.Allowed == false && result.Passed && Time >= result.End) ?? 0;
+
+    private static double Ease(double t) => t * t * (3 - 2 * t);
+
+    /// <summary>Карточка выезжает из очереди к экрану, ждёт решения и уезжает в сервер или в лоток.</summary>
+    private (double X, double Y, double Scale, double Opacity) CardPosition(SecurityRequestResult result)
+    {
+        var from = (X: 145.0, Y: 66.0);
+        var gate = (X: GateX - 150, Y: 150.0);
+        if (Time < result.Decided)
+        {
+            var t = Ease(Math.Clamp((Time - result.Start) / SecuritySimulator.ToWall, 0, 1));
+            return (from.X + (gate.X - from.X) * t, from.Y + (gate.Y - from.Y) * t, 1, 1);
+        }
+        // Короткая пауза у экрана, чтобы успеть прочитать «житель» или «взломщик».
+        var after = Math.Clamp((Time - result.Decided) / SecuritySimulator.AfterWall, 0, 1);
+        var move = Ease(Math.Clamp((after - .35) / .65, 0, 1));
+        if (!result.Passed) move = Math.Min(move, .5);
+        (double X, double Y) target = result.Allowed switch
+        {
+            true => (ServerX, 134),
+            false => (GateX, 276),
+            _ => gate
+        };
+        var fade = result.Passed ? 1 - .8 * move : 1;
+        return (gate.X + (target.X - gate.X) * move, gate.Y + (target.Y - gate.Y) * move, 1 - .5 * move, fade);
+    }
+
+    private static string RequestCss(SecurityRequestResult result) => result switch
+    {
+        { Allowed: null } => "sec-none",
+        { Passed: false, Allowed: true } => "sec-breach",
+        { Passed: false } => "sec-wrong-block",
+        { Allowed: true } => "sec-allowed",
+        _ => "sec-blocked"
+    };
+
+    private static string Verdict(SecurityRequestResult result) => result switch
+    {
+        { Allowed: null } => "схема не ответила",
+        { Passed: false, Allowed: true } => "ВЗЛОМ! Атака пропущена",
+        { Passed: false } => "Житель не смог войти",
+        { Allowed: true } => "ПРОПУЩЕН",
+        _ => "ОТБИТ"
+    };
+
+    private string GateState
+    {
+        get
+        {
+            var active = ActiveRequest();
+            if (active is null) return "";
+            if (Time < active.Decided) return "checking";
+            return active.Allowed switch { true => active.Passed ? "open" : "breach", false => active.Passed ? "blocking" : "wrong", _ => "wrong" };
+        }
+    }
+
+    private bool TrayAlert => ActiveRequest() is { Passed: false, Allowed: false } active && Time >= active.Decided;
+
+    private string ServerState
+    {
+        get
+        {
+            var active = ActiveRequest();
+            if (active is null || active.Allowed != true || Time < active.Decided + SecuritySimulator.AfterWall * .6) return "";
+            return active.Passed ? "served" : "breached";
+        }
+    }
+}

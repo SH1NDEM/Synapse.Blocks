@@ -1,0 +1,502 @@
+@page "/games/station"
+@using Synapse.Blocks.Graph
+@using Synapse.Blocks.Graph.Nodes
+@using Synapse.Blocks.Games.Station
+@implements IDisposable
+@inject SolutionStore SolutionStore
+@inject ProgressStore ProgressStore
+@inject BlockLibraryStore Library
+@inject GameTextStore Texts
+
+<PageTitle>Станция — Синапс</PageTitle>
+
+<TrainingLock Title="Станция Синапс">
+
+<SectionContent SectionName="header-tools">
+    <select class="level-picker" value="@Level.Id" @onchange="SelectLevel" aria-label="Задание станции">
+        @foreach (var item in StationLevels.All)
+        {
+            <option value="@item.Id">@(_completed.Contains(item.Id) ? "✓" : "○") @item.Order.ToString("00") · @item.Title</option>
+        }
+    </select>
+    <button type="button" class="header-tool" @onclick="ClearProgram">Очистить поле</button>
+</SectionContent>
+
+<div class="game-layout child-game-layout station-layout">
+    <aside class="mission-pane">
+        <div class="mission-scroll">
+            @if (EditingBlock is { } editing)
+            {
+                <CustomBlockEditor Block="editing"
+                                   Root="_program"
+                                   OnChanged="BlockStructureChanged"
+                                   OnClose="CloseBlock"
+                                   OnDelete="() => DeleteBlock(editing)"
+                                   OnSaveToLibrary="() => SaveToLibrary(editing)" />
+            }
+            else
+            {
+                <span class="direction-pill station-pill">@Level.StationName.ToUpperInvariant()</span>
+                <p class="operation-number">ДИСПЕТЧЕР @Level.Order.ToString("00")</p>
+                <h1>@Level.Title</h1>
+                <div class="objective-card"><small>ЦЕЛЬ</small><strong>@Level.Objective</strong></div>
+                <button type="button" class="mission-description-button" @onclick="() => _showDescription = true"><AdminIcon Name="levels" /><span>Описание задачи</span><AdminIcon Name="arrow" /></button>
+
+                <section class="station-schedule">
+                    <header><small>РАСПИСАНИЕ</small><span>@Level.Trains.Count поездов</span></header>
+                    @foreach (var train in Level.Trains)
+                    {
+                        var result = _run?.Trains.FirstOrDefault(item => item.Train == train);
+                        var shown = result is not null && _time >= result.Start;
+                        <div class="schedule-row @(shown ? result!.Passed ? "done" : "failed" : "")">
+                            <code>@($"{(int)train.Arrive / 60:00}:{(int)train.Arrive % 60:00}")</code>
+                            <b>№@train.Number</b>
+                            <span>@(train.From == StationSide.West ? "→ с запада" : "← с востока") · @train.Cars ваг.@(train.Kind == StationTrain.Passenger ? "" : $" · {train.Kind}")</span>
+                            <i>@(shown ? result!.Passed ? $"путь {result.Track}" : "×" : "")</i>
+                        </div>
+                    }
+                </section>
+
+                <details class="station-hint"><summary>Подсказка</summary><p>@Level.Hint</p></details>
+            }
+        </div>
+
+        <div class="run-panel">
+            @if (_issues.Count > 0)
+            {
+                <div class="graph-issues"><strong>Схема не готова</strong>@foreach (var issue in _issues.Take(4)) { <span>@issue</span> }</div>
+            }
+            else if (_run is { Success: false } failed && _time >= failed.Duration - 3)
+            {
+                <div class="graph-issues"><strong>Диспетчер ошибся</strong><span>@failed.Error</span></div>
+            }
+            else if (_warnings.Count > 0)
+            {
+                <div class="graph-issues graph-warnings"><strong>Обратите внимание</strong>@foreach (var warning in _warnings.Take(3)) { <span>@warning</span> }</div>
+            }
+            <div class="run-actions">
+                <button type="button" class="run-button" @onclick="Start" disabled="@_playing">
+                    <span>@(_playing ? "Поезда в пути…" : "Запустить поезда")</span><b>@(_playing ? "●" : "▶")</b>
+                </button>
+                @if (_playing)
+                {
+                    <button type="button" class="stop-button" @onclick="Stop"><span>Стоп</span><b>■</b></button>
+                }
+            </div>
+            <div class="station-speed">
+                <span>Скорость</span>
+                @foreach (var speed in Speeds)
+                {
+                    var value = speed;
+                    <button type="button" class="@(_speed == value ? "active" : "")" @onclick="() => _speed = value">×@value</button>
+                }
+            </div>
+        </div>
+    </aside>
+
+    <section class="workspace-pane">
+        <StationView Level="Level" Run="_run" Time="_time" Status="@StatusText" />
+        <GraphCanvas @ref="_canvas"
+                     Program="EditedProgram"
+                     Registry="EditRegistry"
+                     Revision="_revision"
+                     DraggedType="@_dragType"
+                     HeadStart="@(EditingBlock is not null ? BlockCrumbs : null)"
+                     OnChanged="ProgramChanged"
+                     OnInteract="Stop"
+                     OnHelp="definition => _help = definition"
+                     OnOpenBlock="OpenBlock"
+                     OnDropped="() => _dragType = null" />
+    </section>
+
+    <aside class="library-pane">
+        <div class="library-head"><span>БЛОКИ</span><small>Перетащите на поле или нажмите</small></div>
+        <NodePalette Nodes="AvailableNodes"
+                     Variables="@(ShowVariables ? VariablesTab : null)"
+                     VariableCount="EditedProgram.Variables.Count"
+                     CustomHeader="CustomBlocksHeader"
+                     OnAdd="definition => _canvas?.AddNode(definition.TypeId) ?? Task.CompletedTask"
+                     OnDragStart="definition => _dragType = definition.TypeId"
+                     OnHelp="definition => _help = definition" />
+    </aside>
+</div>
+
+@if (_showSuccess)
+{
+    <div class="level-complete-backdrop" role="presentation">
+        <section class="level-complete-modal" role="dialog" aria-modal="true" aria-labelledby="station-complete-title">
+            <div class="complete-signal"><i></i><i></i><i></i></div>
+            <small>@Level.Title</small>
+            <h2 id="station-complete-title">Все поезда приняты</h2>
+            <div class="complete-stats"><span><b>@Level.Trains.Count</b> поездов без задержек</span><span><b>@_program.Nodes.Count</b> блоков в схеме</span></div>
+            <div class="complete-actions">
+                <button type="button" class="secondary" @onclick="() => _showSuccess = false">Посмотреть схему</button>
+                <button type="button" class="primary" @onclick="GoNext">@(NextLevel is not null ? "Следующее задание →" : "К списку игр →")</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_showDescription)
+{
+    <LevelDescriptionDialog Title="@Level.Title" Markdown="@_descriptionText" OnClose="() => _showDescription = false" />
+}
+
+@if (_help is { } help)
+{
+    <NodeHelpDialog Definition="help" OnClose="() => _help = null" />
+}
+
+</TrainingLock>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+
+    private static readonly int[] Speeds = [1, 2, 4];
+    private static readonly GraphRunner Runner = new(StationNodes.Registry);
+
+    private readonly GraphProgram _program = new();
+    private NodeRegistry _registry = StationNodes.Registry;
+    private string? _editingBlockId;
+    private List<GraphCustomBlock> _library = [];
+    private HashSet<Guid> _completed = [];
+    private Guid _levelId = StationLevels.All[0].Id;
+    private GraphCanvas? _canvas;
+    private string? _dragType;
+    private NodeDefinition? _help;
+    private List<string> _issues = [];
+    private List<string> _warnings = [];
+    private bool _loaded;
+    // Растёт при каждом изменении программы — по нему поле понимает, что пора перерисоваться.
+    private int _revision;
+    private (int Revision, IReadOnlyList<NodeDefinition> Nodes)? _availableCache;
+
+    // Подробное описание задания (Markdown-файл). При первом заходе на непройденное задание открывается само.
+    private string _descriptionText = "";
+    private bool _showDescription;
+    private readonly HashSet<Guid> _introduced = [];
+    private int _saveGeneration;
+
+    // Прогон и анимация.
+    private StationRun? _run;
+    private double _time;
+    private int _speed = 2;
+    private bool _playing;
+    private bool _showSuccess;
+    private int _playGeneration;
+
+    private StationLevel Level => StationLevels.All.FirstOrDefault(level => level.Id == _levelId) ?? StationLevels.All[0];
+    private StationLevel? NextLevel => StationLevels.All.FirstOrDefault(level => level.Order == Level.Order + 1);
+
+    private GraphCustomBlock? EditingBlock => _program.FindBlock(_editingBlockId);
+    private GraphProgram EditedProgram => EditingBlock?.Body ?? _program;
+    private NodeRegistry EditRegistry => EditingBlock is { } block && _registry.CustomScope is { } scope ? scope.BodyRegistry(block) : _registry;
+
+    private IReadOnlyList<NodeDefinition> AvailableNodes
+    {
+        get
+        {
+            if (_availableCache is { } cache && cache.Revision == _revision)
+                return cache.Nodes;
+            var registry = EditRegistry;
+            var level = Level.AsLevel();
+            var nodes = LevelNodes.Available(level, registry);
+            if (EditingBlock is { } block && registry.CustomScope is { } scope)
+                nodes = nodes.Where(definition => definition is not CustomNodeDefinition custom || !scope.DependsOn(custom.Block, block));
+            var list = nodes.ToList();
+            _availableCache = (_revision, list);
+            return list;
+        }
+    }
+
+    private bool ShowVariables => EditedProgram.Variables.Count > 0 || AvailableNodes.Any(node => node.Category == NodeCategories.Memory);
+
+    private RenderFragment VariablesTab => @<VariablesPanel Program="EditedProgram" Registry="EditRegistry" OnChanged="ProgramChanged" />;
+
+    private string StatusText => _run switch
+    {
+        null => "Нажмите «Запустить поезда»",
+        { Success: true } when _time >= _run.Duration => "Все поезда приняты",
+        { Success: false } when _time >= _run.Duration - 3 => "Остановка: ошибка диспетчера",
+        _ => $"Поездов прошло: {_run.Trains.Count(result => result.Passed && _time >= result.End)} из {Level.Trains.Count}"
+    };
+
+    private RenderFragment BlockCrumbs => @<nav class="canvas-crumbs" aria-label="Открытая схема">
+        <button type="button" @onclick="CloseBlock">← Программа</button><span class="crumb-sep" aria-hidden="true">›</span><b><em aria-hidden="true"></em>@EditingBlock?.Name</b>
+    </nav>;
+
+    private RenderFragment CustomBlocksHeader => @<div class="custom-blocks-head">
+        <button type="button" class="custom-create" @onclick="CreateBlock">+ Новый блок</button>
+        <p>Соберите схему один раз и ставьте её как обычный чип. Чтобы изменить блок, дважды щёлкните по его названию на поле.</p>
+        @if (_library.Count > 0)
+        {
+            <details class="block-library-list">
+                <summary>Библиотека · @_library.Count</summary>
+                @foreach (var item in _library)
+                {
+                    var saved = item;
+                    var inProgram = _program.FindBlock(saved.Id) is not null;
+                    <div class="library-item">
+                        <span><b>@saved.Name</b><small>@saved.Inputs.Count → @saved.Outputs.Count</small></span>
+                        <button type="button" disabled="@inProgram" @onclick="() => ImportBlock(saved)">@(inProgram ? "в схеме" : "добавить")</button>
+                        <button type="button" class="library-remove" @onclick="async () => _library = await Library.RemoveAsync(saved.Id)" aria-label="Убрать из библиотеки">×</button>
+                    </div>
+                }
+            </details>
+        }
+    </div>;
+
+    // ───────────── Загрузка и сохранение ─────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        _completed = await ProgressStore.LoadAsync();
+        _library = await Library.LoadAsync();
+        _levelId = StationLevels.All.FirstOrDefault(level => !_completed.Contains(level.Id))?.Id ?? StationLevels.All[0].Id;
+        await LoadSolutionAsync();
+        _loaded = true;
+    }
+
+    private async Task SelectLevel(ChangeEventArgs args)
+    {
+        if (!Guid.TryParse(args.Value?.ToString(), out var id)) return;
+        _levelId = id;
+        await LoadSolutionAsync();
+    }
+
+    private async Task LoadSolutionAsync()
+    {
+        Stop();
+        _run = null;
+        _time = 0;
+        _showSuccess = false;
+        var saved = await SolutionStore.LoadAsync(Level.Id);
+        ReplaceProgram(saved, keepBlocks: false);
+        Validate();
+        _canvas?.Refresh();
+
+        var text = await Texts.LoadAsync("station", Level.Order);
+        _descriptionText = text.Length > 0 ? text : Level.Description;
+        _showDescription = _introduced.Add(Level.Id) && !_completed.Contains(Level.Id);
+    }
+
+    /// <summary>Сохранённая схема или стартовая: «Вход → Выход» и блок «Поезд» рядом.</summary>
+    private void ReplaceProgram(GraphProgram? source, bool keepBlocks)
+    {
+        _editingBlockId = null;
+        _program.Nodes.Clear();
+        _program.Links.Clear();
+        _program.Variables.Clear();
+        if (!keepBlocks) _program.CustomBlocks.Clear();
+        if (source is not null && source.Nodes.Count > 0)
+        {
+            _program.CustomBlocks.Clear();
+            _program.CustomBlocks.AddRange(source.CustomBlocks);
+            _program.Nodes.AddRange(source.Nodes);
+            _program.Links.AddRange(source.Links);
+            _program.Variables.AddRange(source.Variables);
+        }
+        else
+        {
+            var start = new GraphNode { Type = StartNode.Id, X = NodeLayout.Snap(GraphCanvas.OriginX + 40), Y = NodeLayout.Snap(GraphCanvas.OriginY + 40) };
+            var train = new GraphNode { Type = TrainNode.Id, X = NodeLayout.Snap(GraphCanvas.OriginX + 40), Y = NodeLayout.Snap(GraphCanvas.OriginY + 180) };
+            var output = new GraphNode { Type = OutputNode.Id, X = NodeLayout.Snap(GraphCanvas.OriginX + 560), Y = NodeLayout.Snap(GraphCanvas.OriginY + 40) };
+            _program.Nodes.AddRange([start, train, output]);
+            _program.Links.Add(new GraphLink { FromNode = start.Id, FromPort = "next", ToNode = output.Id, ToPort = "in" });
+        }
+        _registry = CustomBlocks.Build(_program, StationNodes.Registry);
+    }
+
+    private async Task PersistAsync(int generation)
+    {
+        await Task.Delay(250);
+        if (generation != _saveGeneration || !_loaded) return;
+        await SolutionStore.SaveAsync(Level.Id, _program);
+    }
+
+    private void ProgramChanged()
+    {
+        Stop();
+        _run = null;
+        _time = 0;
+        Validate();
+        var generation = ++_saveGeneration;
+        _ = PersistAsync(generation);
+    }
+
+    private void ClearProgram()
+    {
+        if (EditingBlock is { } block)
+        {
+            var fresh = CustomBlocks.Create(block.Name, NodeLayout.Snap(GraphCanvas.OriginX + 40), NodeLayout.Snap(GraphCanvas.OriginY + 80));
+            block.Body.Nodes.Clear();
+            block.Body.Links.Clear();
+            block.Body.Variables.Clear();
+            block.Body.Nodes.AddRange(fresh.Body.Nodes);
+            block.Body.Links.AddRange(fresh.Body.Links.Where(link => link.FromPort == "next"));
+        }
+        else
+        {
+            ReplaceProgram(null, keepBlocks: true);
+        }
+        ProgramChanged();
+        _canvas?.Refresh();
+    }
+
+    private void Validate()
+    {
+        _revision++;
+        _issues = [];
+        _warnings = [];
+        foreach (var issue in GraphValidator.Validate(_program, _registry))
+            (issue.Severity == IssueSeverity.Error ? _issues : _warnings).Add(issue.Message);
+
+        var level = Level.AsLevel();
+        void CheckAllowed(GraphProgram program, NodeRegistry registry, string prefix)
+        {
+            foreach (var node in program.Nodes)
+                if (registry.TryGet(node.Type, out var definition) && !LevelNodes.Allows(level, definition))
+                    _issues.Add($"{prefix}Блок «{definition.Label}» недоступен в этом задании.");
+        }
+        CheckAllowed(_program, _registry, "");
+        if (_registry.CustomScope is { } scope)
+            foreach (var block in _program.CustomBlocks)
+                CheckAllowed(block.Body, scope.BodyRegistry(block), $"«{block.Name}»: ");
+
+        if (EditingBlock is { } editing && _registry.CustomScope is { } editScope && !editScope.UsedBy(_program).Contains(editing))
+            _warnings.AddRange(GraphValidator.ValidateBlock(editing, editScope).Select(issue => issue.Message));
+
+        _issues = _issues.Distinct().ToList();
+        _warnings = _warnings.Distinct().ToList();
+    }
+
+    // ───────────── Свои блоки ─────────────
+
+    private void RebuildBlocks()
+    {
+        _registry = CustomBlocks.Build(_program, StationNodes.Registry);
+        if (_editingBlockId is not null && EditingBlock is null)
+            _editingBlockId = null;
+    }
+
+    private void OpenBlock(string blockId)
+    {
+        if (_program.FindBlock(blockId) is null) return;
+        _editingBlockId = blockId;
+        _help = null;
+        Validate();
+    }
+
+    private void CloseBlock()
+    {
+        _editingBlockId = null;
+        Validate();
+    }
+
+    private void CreateBlock()
+    {
+        var number = 1;
+        while (_program.CustomBlocks.Any(block => block.Name == $"Блок {number}")) number++;
+        var created = CustomBlocks.Create($"Блок {number}", NodeLayout.Snap(GraphCanvas.OriginX + 40), NodeLayout.Snap(GraphCanvas.OriginY + 80));
+        _program.CustomBlocks.Add(created);
+        RebuildBlocks();
+        _editingBlockId = created.Id;
+        ProgramChanged();
+    }
+
+    private void BlockStructureChanged()
+    {
+        RebuildBlocks();
+        ProgramChanged();
+    }
+
+    private void DeleteBlock(GraphCustomBlock block)
+    {
+        CustomBlocks.RemoveBlock(_program, block);
+        _editingBlockId = null;
+        RebuildBlocks();
+        ProgramChanged();
+        _canvas?.Refresh();
+    }
+
+    private async Task SaveToLibrary(GraphCustomBlock block)
+    {
+        _library = await Library.SaveAsync(block);
+        if (_registry.CustomScope is { } scope)
+            foreach (var used in _program.CustomBlocks.Where(item => item != block && scope.DependsOn(block, item)))
+                _library = await Library.SaveAsync(used);
+    }
+
+    private void ImportBlock(GraphCustomBlock saved)
+    {
+        var queue = new Queue<GraphCustomBlock>([saved]);
+        while (queue.TryDequeue(out var item))
+        {
+            if (_program.FindBlock(item.Id) is not null) continue;
+            _program.CustomBlocks.Add(GraphJson.Clone(item));
+            foreach (var type in item.Body.Nodes.Select(node => node.Type).Where(CustomBlocks.IsCustomType))
+                if (_library.FirstOrDefault(entry => string.Equals(entry.Id, type, StringComparison.OrdinalIgnoreCase)) is { } dependency)
+                    queue.Enqueue(dependency);
+        }
+        RebuildBlocks();
+        ProgramChanged();
+    }
+
+    // ───────────── Прогон расписания ─────────────
+
+    private async Task Start()
+    {
+        _editingBlockId = null;
+        Validate();
+        if (_issues.Count > 0) return;
+
+        _run = StationSimulator.Run(Level, _program, Runner);
+        _time = 0;
+        _showSuccess = false;
+        _playing = true;
+        var generation = ++_playGeneration;
+
+        // Поезда двигаются по таймеру; при скорости ×1 одна секунда станции — полсекунды на экране.
+        const int frame = 40;
+        while (generation == _playGeneration && _time < _run.Duration)
+        {
+            await Task.Delay(frame);
+            if (generation != _playGeneration) return;
+            _time = Math.Min(_run.Duration, _time + frame / 1000.0 * 2 * _speed);
+            StateHasChanged();
+        }
+        if (generation != _playGeneration) return;
+        _playing = false;
+
+        if (_run.Success)
+        {
+            _completed.Add(Level.Id);
+            await ProgressStore.CompleteAsync(Level.Id);
+            _showSuccess = true;
+        }
+        StateHasChanged();
+    }
+
+    private void Stop()
+    {
+        if (!_playing) return;
+        _playGeneration++;
+        _playing = false;
+    }
+
+    private async Task GoNext()
+    {
+        _showSuccess = false;
+        if (NextLevel is { } next)
+        {
+            _levelId = next.Id;
+            await LoadSolutionAsync();
+        }
+        else
+        {
+            Navigation.NavigateTo("games");
+        }
+    }
+
+    public void Dispose() => _playGeneration++;
+}

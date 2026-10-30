@@ -82,13 +82,19 @@
         const canvasRect = canvas.getBoundingClientRect();
         if (event.clientX > canvasRect.left + canvas.clientWidth || event.clientY > canvasRect.top + canvas.clientHeight) return;
 
+        // Границы считаются один раз: чтение размеров на каждом движении заставляло браузер
+        // заново пересчитывать раскладку страницы.
         drag = {
             canvas,
+            bounds,
             pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
             startScrollLeft: canvas.scrollLeft,
-            startScrollTop: canvas.scrollTop
+            startScrollTop: canvas.scrollTop,
+            nextLeft: canvas.scrollLeft,
+            nextTop: canvas.scrollTop,
+            frame: 0
         };
 
         canvas.classList.add("is-panning");
@@ -98,18 +104,28 @@
 
     document.addEventListener("pointermove", event => {
         if (!drag || drag.pointerId !== event.pointerId) return;
-        const bounds = limits(drag.canvas);
-        if (!bounds) return;
-
-        const desiredLeft = drag.startScrollLeft - (event.clientX - drag.startX);
-        const desiredTop = drag.startScrollTop - (event.clientY - drag.startY);
-        drag.canvas.scrollLeft = clamp(desiredLeft, bounds.minLeft, bounds.maxLeft);
-        drag.canvas.scrollTop = clamp(desiredTop, bounds.minTop, bounds.maxTop);
+        const bounds = drag.bounds;
+        drag.nextLeft = clamp(drag.startScrollLeft - (event.clientX - drag.startX), bounds.minLeft, bounds.maxLeft);
+        drag.nextTop = clamp(drag.startScrollTop - (event.clientY - drag.startY), bounds.minTop, bounds.maxTop);
+        // Прокрутка применяется не чаще одного раза за кадр экрана.
+        if (!drag.frame) {
+            const current = drag;
+            current.frame = requestAnimationFrame(() => {
+                current.frame = 0;
+                current.canvas.scrollLeft = current.nextLeft;
+                current.canvas.scrollTop = current.nextTop;
+            });
+        }
         event.preventDefault();
-    });
+    }, { passive: false });
 
     const finish = event => {
         if (!drag || drag.pointerId !== event.pointerId) return;
+        if (drag.frame) {
+            cancelAnimationFrame(drag.frame);
+            drag.canvas.scrollLeft = drag.nextLeft;
+            drag.canvas.scrollTop = drag.nextTop;
+        }
         drag.canvas.classList.remove("is-panning");
         if (drag.canvas.hasPointerCapture?.(event.pointerId)) drag.canvas.releasePointerCapture(event.pointerId);
         constrain(drag.canvas);
@@ -118,6 +134,59 @@
 
     document.addEventListener("pointerup", finish);
     document.addEventListener("pointercancel", finish);
+
+
+    // ───── Перетаскивание блока из палитры ─────
+    // Запоминаем, за какую точку блока взялись (в долях ширины и высоты): после отпускания
+    // блок встаёт так, что эта же точка оказывается под курсором, и не «прыгает».
+    // Пока блок над полем, серая зона показывает клетки, куда он примагнитится.
+    const cell = 16;
+    let grab = { fx: .5, fy: .2 };
+
+    document.addEventListener("dragstart", event => {
+        const tile = event.target instanceof Element ? event.target.closest(".palette-chip") : null;
+        if (!tile) return;
+        const card = tile.querySelector(".node-card") || tile;
+        const rect = card.getBoundingClientRect();
+        grab = {
+            fx: clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1),
+            fy: clamp((event.clientY - rect.top) / Math.max(1, rect.height), 0, 1)
+        };
+    }, true);
+
+    function dropPlace(canvas, ghost, clientX, clientY) {
+        const zoom = Math.max(.01, readNumber(canvas, "zoom") || 1);
+        const bounds = canvas.getBoundingClientRect();
+        const worldX = (clientX - bounds.left + canvas.scrollLeft) / zoom;
+        const worldY = (clientY - bounds.top + canvas.scrollTop) / zoom;
+        const width = Number.parseFloat(ghost?.dataset.width || "192");
+        const height = Number.parseFloat(ghost?.dataset.height || "96");
+        const originX = readNumber(canvas, "originX");
+        const originY = readNumber(canvas, "originY");
+        // Логические координаты блока — те же, что потом посчитает C# (кратны клетке).
+        const x = Math.round((worldX - grab.fx * width - originX) / cell) * cell;
+        const y = Math.round((worldY - grab.fy * height - originY) / cell) * cell;
+        return { x, y, left: x + originX, top: y + originY };
+    }
+
+    const hideGhosts = () => document.querySelectorAll(".drop-ghost.visible").forEach(ghost => ghost.classList.remove("visible"));
+
+    document.addEventListener("dragover", event => {
+        const canvas = event.target instanceof Element ? event.target.closest(".node-canvas") : null;
+        const ghost = canvas?.querySelector(".drop-ghost");
+        if (!ghost) return;
+        const place = dropPlace(canvas, ghost, event.clientX, event.clientY);
+        ghost.style.transform = `translate(${place.left}px, ${place.top}px)`;
+        ghost.classList.add("visible");
+    });
+    document.addEventListener("dragleave", event => {
+        const canvas = event.target instanceof Element ? event.target.closest(".node-canvas") : null;
+        if (!canvas) return;
+        const next = event.relatedTarget instanceof Element ? event.relatedTarget.closest(".node-canvas") : null;
+        if (next !== canvas) canvas.querySelector(".drop-ghost")?.classList.remove("visible");
+    });
+    document.addEventListener("drop", hideGhosts);
+    document.addEventListener("dragend", hideGhosts);
 
     window.synapseCanvas = {
         center(canvas, left, top) {
@@ -159,6 +228,12 @@
                 canvas.scrollLeft = Math.max(0, desiredLeft);
                 canvas.scrollTop = Math.max(0, desiredTop);
             }
+        },
+        // Куда встанет блок, отпущенный в точке clientX/clientY: логические координаты [x, y].
+        dropPoint(canvas, clientX, clientY) {
+            const place = dropPlace(canvas, canvas.querySelector(".drop-ghost"), clientX, clientY);
+            hideGhosts();
+            return [place.x, place.y];
         },
         worldPoint(canvas, clientX, clientY, zoom) {
             const bounds = canvas.getBoundingClientRect();

@@ -1,31 +1,31 @@
-using System.Text.Json;
 using Microsoft.JSInterop;
-using Synapse.Blocks.Models;
-using Synapse.Blocks.Serialization;
+using Synapse.Blocks.Graph;
 
 namespace Synapse.Blocks.Services;
 
 /// <summary>Хранит черновик графа отдельно для каждого уровня на этом устройстве.</summary>
 public sealed class SolutionStore(IJSRuntime js)
 {
-    private const string StoragePrefix = "synapse-solution-v1-";
+    // v2 — программы из двух видов проводов. Черновики старого формата (v1) не читаются.
+    private const string StoragePrefix = "synapse-solution-v2-";
+    private const string LegacyPrefix = "synapse-solution-v1-";
     private static string Key(Guid levelId) => $"{StoragePrefix}{levelId:N}";
 
-    public async Task<BlockProgram?> LoadAsync(Guid levelId)
+    public async Task<GraphProgram?> LoadAsync(Guid levelId)
     {
         try
         {
             var json = await js.InvokeAsync<string?>("localStorage.getItem", Key(levelId));
-            return string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize(json, AppJsonSerializerContext.Default.BlockProgram);
+            return string.IsNullOrWhiteSpace(json) ? null : GraphJson.Deserialize(json);
         }
         catch { return null; }
     }
 
-    public async Task SaveAsync(Guid levelId, BlockProgram program)
+    public async Task SaveAsync(Guid levelId, GraphProgram program)
     {
         try
         {
-            await js.InvokeVoidAsync("localStorage.setItem", Key(levelId), JsonSerializer.Serialize(program, AppJsonSerializerContext.Default.BlockProgram));
+            await js.InvokeVoidAsync("localStorage.setItem", Key(levelId), GraphJson.Serialize(program));
         }
         catch (JSException) { }
     }
@@ -34,5 +34,8 @@ public sealed class SolutionStore(IJSRuntime js)
 
     /// <summary>Удаляет черновики всех уровней перед передачей компьютера следующему игроку.</summary>
     public async Task ResetAllAsync()
-        => await js.InvokeVoidAsync("synapseStorage.removeByPrefix", StoragePrefix);
+    {
+        await js.InvokeVoidAsync("synapseStorage.removeByPrefix", StoragePrefix);
+        await js.InvokeVoidAsync("synapseStorage.removeByPrefix", LegacyPrefix);
+    }
 }

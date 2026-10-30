@@ -1,0 +1,78 @@
+@using Synapse.Blocks.Graph
+@* Справка по блоку: миниатюра, описание и таблица портов — всё берётся из описания блока. *@
+
+<div class="block-help-backdrop" role="presentation" @onclick="Close">
+    <section class="block-help-modal graph-help @GraphStyle.AccentClass(Definition)" role="dialog" aria-modal="true" aria-labelledby="node-help-title" @onclick:stopPropagation="true">
+        <button type="button" class="help-close" @onclick="Close" aria-label="Закрыть">×</button>
+        <div class="help-preview">
+            <div class="help-node-stage board" style="width:@NodeLayout.Px(NodeLayout.Width + 2 * NodeLayout.PortReach + 2 * NodeLayout.Cell);height:@NodeLayout.Px(NodeLayout.For(Definition).Height + 2 * NodeLayout.Cell)">
+                <GraphNodeView Node="_sample" Definition="Definition" Preview="true" Style="@($"left:{NodeLayout.Px(NodeLayout.PortReach + NodeLayout.Cell)};top:{NodeLayout.Px(NodeLayout.Cell)}")" />
+            </div>
+        </div>
+        <div class="help-content">
+            <small>@GraphStyle.Kicker(Definition)</small>
+            <h2 id="node-help-title">@Definition.Label</h2>
+            <p>@Definition.Description</p>
+            <p class="help-kind">
+                @if (Definition.IsPure)
+                {
+                    <text>Это <b>блок данных</b>: у него нет дорожек порядка. Он вычисляется сам, когда его значение понадобилось другому блоку.</text>
+                }
+                else
+                {
+                    <text>Это <b>блок действия</b>: он выполняется, когда к нему приходит дорожка порядка (белая), и передаёт управление дальше.</text>
+                }
+            </p>
+            <div class="help-port-table">
+                @foreach (var port in Definition.Ports)
+                {
+                    <div class="help-port-row">
+                        <i class="@(port.IsExec ? "pp-exec" : $"pp-data {GraphStyle.TypeClass(port.Type)}")"></i>
+                        <span>@(port.IsInput ? "вход" : "выход")</span>
+                        <b>@(port.IsExec ? (port.Label.Length > 0 ? port.Label : "порядок") : port.DisplayName)</b>
+                        <small>@PortNote(port)</small>
+                    </div>
+                }
+                @foreach (var param in Definition.Params)
+                {
+                    <div class="help-port-row">
+                        <i class="pp-param"></i>
+                        <span>настройка</span>
+                        <b>@param.Label</b>
+                        <small>@(param.Choices.Count > 0 ? string.Join(", ", param.Choices.Select(choice => choice.Label)) : ParamNote(param))</small>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public NodeDefinition Definition { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private readonly GraphNode _sample = new();
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private static string PortNote(PortDef port)
+    {
+        if (port.IsExec)
+            return port.OpensScope
+                ? "ветка, которая повторяется; когда она кончается, управление возвращается в блок"
+                : port.IsInput ? "сюда приходит управление" : "отсюда управление идёт дальше";
+        var type = DataTypes.Label(port.Type);
+        if (port.IsOutput) return type;
+        return port.InlineDefault is null
+            ? $"{type}, нужно подключить провод"
+            : $"{type}, можно подключить провод или ввести значение (по умолчанию {(port.InlineDefault.Length == 0 ? "пусто" : port.InlineDefault)})";
+    }
+
+    private static string ParamNote(ParamDef param) => param.Type switch
+    {
+        ParamType.Variable => "имя переменной из панели «Переменные»",
+        ParamType.Number => "число",
+        ParamType.Value => "число, текст, true/false или список [1, 2]",
+        _ => "текст"
+    };
+}

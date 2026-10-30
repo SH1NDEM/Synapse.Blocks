@@ -1,0 +1,89 @@
+@using Synapse.Blocks.Graph
+@* Переменные программы: имя, начальное значение и текущее значение во время запуска. *@
+
+<section class="variables-panel" aria-label="Переменные программы">
+    <header>
+        <span>ПЕРЕМЕННЫЕ</span>
+        <button type="button" @onclick="Add" title="Добавить переменную">+ добавить</button>
+    </header>
+    @if (Program.Variables.Count == 0)
+    {
+        <p>Переменная — ячейка памяти. Блоки «Записать» и «Изменить» меняют её, блок «Переменная» читает.</p>
+    }
+    else
+    {
+        <div class="variables-list">
+            <div class="variables-row variables-row-head"><span>имя</span><span>в начале</span><span>сейчас</span><span></span></div>
+            @foreach (var variable in Program.Variables)
+            {
+                var item = variable;
+                var current = Run?.Variables.GetValueOrDefault(item.Name.Trim());
+                <div class="variables-row" @key="item">
+                    <input class="variables-name" value="@item.Name" maxlength="16" @onchange="e => Rename(item, e.Value)" aria-label="Имя переменной" />
+                    <input value="@item.Initial" @onchange="e => SetInitial(item, e.Value)" aria-label="Начальное значение @item.Name" />
+                    <code class="@(current is null ? "is-empty" : "")" title="@current">@(current is null ? "—" : current.Length == 0 ? "∅" : current)</code>
+                    <button type="button" @onclick="() => Remove(item)" aria-label="Удалить переменную @item.Name" title="@(IsUsed(item) ? "Переменная используется в блоках" : "Удалить")">×</button>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private static readonly string[] Names = ["A", "B", "C", "D", "E", "F", "G", "H", "X", "Y", "Z"];
+
+    [Parameter, EditorRequired] public GraphProgram Program { get; set; } = default!;
+    [Parameter] public NodeRegistry Registry { get; set; } = NodeRegistry.Default;
+    [Parameter] public GraphRunView? Run { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private async Task Add()
+    {
+        var name = Names.FirstOrDefault(candidate => !Program.Variables.Any(variable => Same(variable.Name, candidate)))
+            ?? $"V{Program.Variables.Count + 1}";
+        Program.Variables.Add(new GraphVariable { Name = name, Initial = "0" });
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task Rename(GraphVariable variable, object? value)
+    {
+        var name = (value?.ToString() ?? "").Trim();
+        if (name.Length == 0 || Program.Variables.Any(other => other != variable && Same(other.Name, name)))
+        {
+            // Пустое или повторяющееся имя не принимаем: поле вернётся к прежнему значению.
+            StateHasChanged();
+            return;
+        }
+
+        // Блоки памяти ссылаются на переменную по имени — переименовываем и их.
+        foreach (var node in Program.Nodes)
+            foreach (var param in VariableParams(node))
+                if (node.Params.TryGetValue(param, out var current) && Same(current, variable.Name))
+                    node.Params[param] = name;
+
+        variable.Name = name;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SetInitial(GraphVariable variable, object? value)
+    {
+        variable.Initial = value?.ToString() ?? "";
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task Remove(GraphVariable variable)
+    {
+        Program.Variables.Remove(variable);
+        await OnChanged.InvokeAsync();
+    }
+
+    private bool IsUsed(GraphVariable variable)
+        => Program.Nodes.Any(node => VariableParams(node).Any(param => node.Params.TryGetValue(param, out var value) && Same(value, variable.Name)));
+
+    private IEnumerable<string> VariableParams(GraphNode node)
+        => Registry.TryGet(node.Type, out var definition)
+            ? definition.Params.Where(param => param.Type == ParamType.Variable).Select(param => param.Id)
+            : Enumerable.Empty<string>();
+
+    private static bool Same(string left, string right) => string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+}

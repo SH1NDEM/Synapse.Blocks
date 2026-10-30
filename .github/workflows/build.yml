@@ -24,6 +24,8 @@ jobs:
         run: ./tests/smoke.ps1
       - name: Проверка Markdown
         run: dotnet run --project tests/MarkdownChecks --no-build
+      - name: Проверка ядра графа
+        run: dotnet run --project tests/GraphChecks --no-build
       - name: Сборка сервера и фронтенда
         run: dotnet publish Server -c Release -o artifacts/server
       - name: Проверка опубликованной сборки

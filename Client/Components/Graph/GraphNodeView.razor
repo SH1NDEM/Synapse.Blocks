@@ -1,0 +1,305 @@
+@using Synapse.Blocks.Graph
+@using System.Text
+@using System.Runtime.CompilerServices
+@* Блок в виде микросхемы: корпус в цвете своего раздела, ключ, маркировка, светодиод
+   и цветные разъёмы портов, к которым подводятся провода.
+   Тот же компонент в режиме Preview служит миниатюрой в палитре и справке. *@
+
+<article class="node-card chip @GraphStyle.AccentClass(Definition) @(Definition.IsPure ? "chip-pure" : "chip-exec") @(CanOpen && !Preview ? "chip-openable" : "") @StateClass @(Preview ? "chip-preview" : "")"
+         style="@Style;width:@NodeLayout.Px(NodeLayout.Width);height:@NodeLayout.Px(Layout.Height)">
+
+    <div class="chip-body">
+        <i class="chip-notch" aria-hidden="true"></i>
+        <i class="chip-key" aria-hidden="true"></i>
+        @if (!Definition.IsPure)
+        {
+            <i class="chip-led @LedClass" title="Индикатор: горит, пока чип выполняется" aria-hidden="true"></i>
+        }
+
+        <header class="chip-head" style="height:@NodeLayout.Px(NodeLayout.HeaderHeight)"
+                @onpointerdown="DragStart" @onpointerdown:stopPropagation="true"
+                @ondblclick="Open">
+            <strong title="@Definition.Label">@Definition.Label</strong>
+        </header>
+
+        @for (var index = 0; index < Definition.Params.Count; index++)
+        {
+            var param = Definition.Params[index];
+            <div class="gnode-param" style="top:@NodeLayout.Px(Layout.ParamsTop + index * NodeLayout.ParamHeight);height:@NodeLayout.Px(NodeLayout.ParamHeight)"
+                 @onpointerdown="Interact" @onpointerdown:stopPropagation="true">
+                <span>@param.Label</span>
+                @if (Preview)
+                {
+                    <b class="gnode-static">@ParamDisplay(param)</b>
+                }
+                else if (param.Type == ParamType.Choice)
+                {
+                    <select value="@ParamValue(param)" @onchange="e => SetParam(param.Id, e.Value)" aria-label="@param.Label">
+                        @foreach (var choice in param.Choices)
+                        {
+                            <option value="@choice.Id">@choice.Label</option>
+                        }
+                    </select>
+                }
+                else if (param.Type == ParamType.Variable)
+                {
+                    var current = ParamValue(param);
+                    <select class="gnode-variable" value="@current" @onchange="e => SetParam(param.Id, e.Value)" aria-label="@param.Label">
+                        @if (!Program.Variables.Any(variable => SameName(variable.Name, current)))
+                        {
+                            <option value="@current">@(string.IsNullOrWhiteSpace(current) ? "— выберите —" : $"{current} ?")</option>
+                        }
+                        @foreach (var variable in Program.Variables)
+                        {
+                            <option value="@variable.Name">@variable.Name</option>
+                        }
+                    </select>
+                }
+                else
+                {
+                    <input value="@ParamValue(param)" @oninput="e => SetParam(param.Id, e.Value)" aria-label="@param.Label" />
+                }
+            </div>
+        }
+
+        @for (var index = 0; index < Layout.Rows.Count; index++)
+        {
+            var row = Layout.Rows[index];
+            var top = Layout.RowsTop + index * NodeLayout.RowHeight;
+            <div class="gnode-row" style="top:@NodeLayout.Px(top);height:@NodeLayout.Px(NodeLayout.RowHeight)"
+                 @onpointerdown="Interact" @onpointerdown:stopPropagation="true">
+                <div class="gnode-row-left">
+                    @if (row.Left is { } input)
+                    {
+                        <span class="gnode-label @GraphStyle.TypeClass(input.Type)">@input.DisplayName</span>
+                        var inputValue = PortValue(input.Id);
+                        if (inputValue is not null)
+                        {
+                            <code class="gvalue" title="@inputValue">@Display(inputValue)</code>
+                        }
+                        else if (input.HasInline && !IsLinked(input.Id))
+                        {
+                            @InlineEditor(input)
+                        }
+                    }
+                </div>
+                <div class="gnode-row-right">
+                    @if (row.Right is { } output)
+                    {
+                        var outputValue = output.IsData ? PortValue(output.Id) : null;
+                        if (outputValue is not null)
+                        {
+                            <code class="gvalue" title="@outputValue">@Display(outputValue)</code>
+                        }
+                        <span class="gnode-label @(output.IsExec ? "gnode-label-exec" : GraphStyle.TypeClass(output.Type))">@output.DisplayName</span>
+                    }
+                </div>
+            </div>
+        }
+
+        <small class="chip-marking" aria-hidden="true">@GraphStyle.Marking(Definition)</small>
+
+        @if (!Preview)
+        {
+            @if (CanOpen)
+            {
+                <button type="button" class="gnode-button gnode-open" @onclick="Open" @onpointerdown:stopPropagation="true" title="Открыть схему блока (или двойной щелчок по названию)" aria-label="Открыть схему блока">⤢</button>
+            }
+            <button type="button" class="gnode-button gnode-help" @onclick="() => OnHelp.InvokeAsync()" @onpointerdown:stopPropagation="true" aria-label="Справка по блоку">?</button>
+            <button type="button" class="gnode-button gnode-delete" @onclick="() => OnDelete.InvokeAsync()" @onpointerdown:stopPropagation="true" aria-label="Удалить блок">×</button>
+        }
+    </div>
+
+    @if (Expected is not null)
+    {
+        <div class="gnode-expected" title="Ожидаемый ответ теста"><span>ОЖИДАЕТСЯ</span><b>@Display(Expected)</b></div>
+    }
+
+    @if (Layout.HeaderIn is { } headerIn)
+    {
+        @Port(headerIn, NodeLayout.HeaderPinY)
+    }
+    @if (Layout.HeaderOut is { } headerOut)
+    {
+        @Port(headerOut, NodeLayout.HeaderPinY)
+    }
+    @for (var index = 0; index < Layout.Rows.Count; index++)
+    {
+        var row = Layout.Rows[index];
+        var y = Layout.RowPinY(index);
+        if (row.Left is { } leftPort)
+        {
+            @Port(leftPort, y)
+        }
+        if (row.Right is { } rightPort)
+        {
+            @Port(rightPort, y)
+        }
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public GraphNode Node { get; set; } = default!;
+    [Parameter, EditorRequired] public NodeDefinition Definition { get; set; } = default!;
+    [Parameter] public GraphProgram Program { get; set; } = new();
+    [Parameter] public string Style { get; set; } = "";
+    [Parameter] public string StateClass { get; set; } = "";
+    [Parameter] public bool Preview { get; set; }
+    /// <summary>Id портов этого чипа, к которым подведены дорожки.</summary>
+    [Parameter] public IReadOnlySet<string>? LinkedPorts { get; set; }
+    /// <summary>Значение на порту во время запуска или null.</summary>
+    [Parameter] public Func<string, string?>? PortValueOf { get; set; }
+    /// <summary>Дополнительный класс порта: подсветка совместимых портов при протягивании дорожки.</summary>
+    [Parameter] public Func<PortDef, string>? PortClassOf { get; set; }
+    [Parameter] public string? Expected { get; set; }
+
+    [Parameter] public EventCallback<PointerEventArgs> OnDragStart { get; set; }
+    [Parameter] public EventCallback<(PortDef Port, PointerEventArgs Args)> OnPortDown { get; set; }
+    [Parameter] public EventCallback<PortDef> OnPortUp { get; set; }
+    [Parameter] public EventCallback OnEdited { get; set; }
+    [Parameter] public EventCallback OnInteract { get; set; }
+    [Parameter] public EventCallback OnHelp { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+    /// <summary>У чипа есть своя схема (свой блок), её можно открыть кнопкой или двойным щелчком.</summary>
+    [Parameter] public bool CanOpen { get; set; }
+    [Parameter] public EventCallback OnOpen { get; set; }
+
+    private NodeLayout Layout => NodeLayout.For(Definition);
+
+    // ───────────── Перерисовка только при изменениях ─────────────
+    // Поле передаёт чипам новые делегаты при каждой своей перерисовке, поэтому Blazor
+    // перерисовывал бы все чипы. Чип сравнивает «отпечаток» всего, что он показывает,
+    // и перерисовывается, только если отпечаток изменился.
+
+    private string _renderKey = "";
+    private bool _dirty = true;
+
+    protected override void OnParametersSet()
+    {
+        var key = RenderKey();
+        if (key != _renderKey)
+        {
+            _renderKey = key;
+            _dirty = true;
+        }
+    }
+
+    protected override bool ShouldRender()
+    {
+        if (!_dirty) return false;
+        _dirty = false;
+        return true;
+    }
+
+    private string RenderKey()
+    {
+        var key = new StringBuilder(128);
+        key.Append(RuntimeHelpers.GetHashCode(Definition)).Append('|').Append(Definition.Label)
+            .Append('|').Append(Style).Append('|').Append(StateClass).Append('|').Append(Expected)
+            .Append('|').Append(Preview).Append('|').Append(CanOpen).Append('|');
+        foreach (var (id, value) in Node.Params)
+            key.Append(id).Append('=').Append(value).Append(';');
+        if (Definition.Params.Any(param => param.Type == ParamType.Variable))
+            foreach (var variable in Program.Variables)
+                key.Append('$').Append(variable.Name);
+        foreach (var port in Definition.Ports)
+        {
+            key.Append('|').Append(IsLinked(port.Id) ? '1' : '0');
+            if (PortValueOf?.Invoke(port.Id) is { } value) key.Append(value);
+            if (PortClassOf?.Invoke(port) is { Length: > 0 } css) key.Append(css);
+        }
+        return key.ToString();
+    }
+
+    private string LedClass => StateClass switch
+    {
+        "node-running" => "led-on",
+        "node-error" => "led-error",
+        "node-pass" => "led-done",
+        _ => ""
+    };
+
+    /// <summary>
+    /// Разъём порта: цветной (цвет типа данных) у портов данных и стрелка у портов порядка.
+    /// «Горячий» разъём светится, когда через него проходит значение или управление во время запуска.
+    /// </summary>
+    private RenderFragment Port(PortDef port, double y) => __builder =>
+    {
+        var side = port.IsInput ? "port-in" : "port-out";
+        var kind = port.IsExec ? "port-exec" : $"port-data {GraphStyle.TypeClass(port.Type)}";
+        var linked = IsLinked(port.Id) ? "port-linked" : "";
+        var hot = PortValue(port.Id) is not null || IsExecHot(port) ? "port-hot" : "";
+        var extra = PortClassOf?.Invoke(port) ?? "";
+        var css = $"chip-port {side} {kind} {linked} {hot} {extra}";
+        var style = $"top:{NodeLayout.Px(y)}";
+        if (Preview)
+        {
+            <span class="@css" style="@style"><i class="port-socket"></i></span>
+        }
+        else
+        {
+            <button type="button" class="@css" style="@style" title="@GraphStyle.PortTitle(port)" aria-label="@GraphStyle.PortTitle(port)"
+                    @onpointerdown="e => OnPortDown.InvokeAsync((port, e))" @onpointerdown:stopPropagation="true"
+                    @onpointerup="() => OnPortUp.InvokeAsync(port)" @onpointerup:stopPropagation="true"><i class="port-socket"></i></button>
+        }
+    };
+
+    private RenderFragment InlineEditor(PortDef port) => __builder =>
+    {
+        var value = Node.Params.TryGetValue(port.Id, out var raw) ? raw : port.InlineDefault ?? "";
+        if (Preview)
+        {
+            <b class="gnode-static gnode-inline">@Display(value)</b>
+        }
+        else if (port.Type == DataType.Bool)
+        {
+            <select class="gnode-inline" value="@(Synapse.Blocks.Graph.Value.Parse(value).TryGetBool(out var flag) && flag ? "true" : "false")"
+                    @onchange="e => SetParam(port.Id, e.Value)" aria-label="@port.DisplayName">
+                <option value="true">истина</option>
+                <option value="false">ложь</option>
+            </select>
+        }
+        else
+        {
+            <input class="gnode-inline" value="@value" @oninput="e => SetParam(port.Id, e.Value)"
+                   inputmode="@(port.Type == DataType.Number ? "decimal" : "text")" aria-label="@port.DisplayName" />
+        }
+    };
+
+    /// <summary>Входной порт порядка горит, пока чип выполняется.</summary>
+    private bool IsExecHot(PortDef port) => port.IsExec && port.IsInput && StateClass == "node-running";
+
+    private bool IsLinked(string portId) => LinkedPorts?.Contains(portId) == true;
+    private string? PortValue(string portId) => PortValueOf?.Invoke(portId);
+
+    private string ParamValue(ParamDef param)
+        => Node.Params.TryGetValue(param.Id, out var value) ? value : param.Default;
+
+    private string ParamDisplay(ParamDef param)
+    {
+        var value = ParamValue(param);
+        return param.Type switch
+        {
+            ParamType.Choice => param.ChoiceLabel(value),
+            ParamType.Variable => string.IsNullOrWhiteSpace(value) ? "A" : value,
+            _ => Display(value)
+        };
+    }
+
+    private async Task SetParam(string id, object? value)
+    {
+        _dirty = true;
+        Node.Params[id] = value?.ToString() ?? "";
+        await OnEdited.InvokeAsync();
+    }
+
+    private Task Open() => CanOpen && !Preview ? OnOpen.InvokeAsync() : Task.CompletedTask;
+
+    private Task DragStart(PointerEventArgs args) => Preview ? Task.CompletedTask : OnDragStart.InvokeAsync(args);
+    private Task Interact() => Preview ? Task.CompletedTask : OnInteract.InvokeAsync();
+
+    private static bool SameName(string left, string right)
+        => string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static string Display(string value) => string.IsNullOrEmpty(value) ? "∅" : value;
+}

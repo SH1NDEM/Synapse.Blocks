@@ -49,7 +49,7 @@
                                 <td class="admin-title-cell"><a href="editor?level=@level.Id">@level.Title</a><span>@level.Direction</span></td>
                                 <td><span class="admin-tag">Глава @level.Chapter</span></td>
                                 <td><span class="admin-tests-count"><i></i>@level.Tests.Count тестов</span><small>@level.Tests.Count(test => test.Hidden) скрытых</small></td>
-                                <td><span class="admin-block-count">@level.AllowedBlocks.Count типов</span></td>
+                                <td><span class="admin-block-count">@level.AllowedNodes.Count блоков</span></td>
                                 <td><div class="admin-row-actions">
                                     <a class="admin-icon-button" href="editor?level=@level.Id" title="Редактировать" aria-label="Редактировать @level.Title"><AdminIcon Name="edit" /></a>
                                     <button class="admin-icon-button" title="Создать копию" aria-label="Копировать @level.Title" disabled="@_busy" @onclick="() => Duplicate(level)"><AdminIcon Name="copy" /></button>

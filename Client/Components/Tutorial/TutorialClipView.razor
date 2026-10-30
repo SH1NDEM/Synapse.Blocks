@@ -1,0 +1,135 @@
+@using Synapse.Blocks.Graph
+@using Synapse.Blocks.Components.Graph
+@inject NodeRegistry Registry
+@* Обучающий ролик из настоящих чипов: курсор тянет провода, по проводам бегут значения, внизу подписи.
+   Поле ролика нарисовано внутри SVG, поэтому весь ролик масштабируется под ширину окна. *@
+
+@if (_clip is { } clip && _frame is { } frame)
+{
+    <figure class="tclip" aria-label="Анимация: @clip.Title">
+        <style>@((MarkupString)frame.Css)</style>
+        <svg class="tclip-svg" viewBox="0 0 @N(clip.Width) @N(clip.Height + CaptionHeight)" role="img" aria-hidden="true">
+            <foreignObject x="0" y="0" width="@N(clip.Width)" height="@N(clip.Height + CaptionHeight)">
+                <div class="tclip-board" style="width:@Px(clip.Width);height:@Px(clip.Height)">
+                    @if (clip.Palette.Count > 0)
+                    {
+                        <div class="tclip-palette">
+                            <small>БЛОКИ</small>
+                            @foreach (var tile in clip.Palette)
+                            {
+                                if (!Registry.TryGet(tile.Type, out var tileDefinition)) continue;
+                                <div class="tclip-tile @GraphStyle.AccentClass(tileDefinition)" style="top:@Px(tile.Y)"><i></i><b></b></div>
+                            }
+                        </div>
+                    }
+
+                    <svg class="tclip-wires" width="@N(clip.Width)" height="@N(clip.Height)">
+                        @foreach (var wire in frame.Wires)
+                        {
+                            <g class="wire @wire.Css">
+                                <path class="@($"trace-casing {Prefix}-wire{wire.Index}")" d="@wire.Path" />
+                                <path class="@($"trace {Prefix}-wire{wire.Index}")" d="@wire.Path" />
+                            </g>
+                        }
+                    </svg>
+
+                    @for (var index = 0; index < clip.Chips.Count; index++)
+                    {
+                        var chip = clip.Chips[index];
+                        if (!frame.Definitions.TryGetValue(chip.Key, out var definition)) continue;
+                        var layout = NodeLayout.For(definition);
+                        <div class="@($"tclip-chip {Prefix}-chip{index}")" style="left:@Px(chip.X);top:@Px(chip.Y);width:@Px(NodeLayout.Width);height:@Px(layout.Height)">
+                            <div class="tclip-scale" style="@ScaleStyle">
+                                @* Упрощённый блок: только цвет, форма и разъёмы — без названий и полей. *@
+                                <div class="@($"tclip-shape {GraphStyle.AccentClass(definition)}")">
+                                    <div class="tclip-shape-head"></div>
+                                    @for (var row = 0; row < BarCount(layout); row++)
+                                    {
+                                        <b class="tclip-shape-bar" style="@($"top:{Px(layout.RowsTop + row * NodeLayout.RowHeight + 12)};width:{(row % 2 == 0 ? 56 : 38)}%")"></b>
+                                    }
+                                </div>
+                                @foreach (var port in definition.Ports)
+                                {
+                                    var (portX, portY) = layout.PortPosition(port.Id);
+                                    <i class="@(port.IsExec ? "tclip-port exec" : $"tclip-port data {GraphStyle.TypeClass(port.Type)}")" style="@($"left:{Px(portX)};top:{Px(portY)}")"></i>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @for (var index = 0; index < clip.Glows.Count; index++)
+                    {
+                        var glow = clip.Glows[index];
+                        var chip = clip.Chips.FirstOrDefault(item => item.Key == glow.Chip);
+                        if (chip is null || !frame.Definitions.TryGetValue(chip.Key, out var definition)) continue;
+                        var rect = ClipAnimator.ScaledRect(chip, definition);
+                        <div class="@($"tclip-glow {glow.Css} {Prefix}-glow{index}")" style="left:@Px(rect.X - 4);top:@Px(rect.Y - 4);width:@Px(rect.Width + 8);height:@Px(rect.Height + 8)"></div>
+                    }
+
+                    @for (var index = 0; index < clip.Pulses.Count; index++)
+                    {
+                        var pulse = clip.Pulses[index];
+                        <div class="@($"tclip-pulse {pulse.Css} {Prefix}-pulse{index}")">
+                            @if (pulse.Label.Length > 0)
+                            {
+                                <span>@pulse.Label</span>
+                            }
+                        </div>
+                    }
+
+                    @for (var index = 0; index < clip.Badges.Count; index++)
+                    {
+                        var badge = clip.Badges[index];
+                        var (badgeX, badgeY) = ClipAnimator.MapPoint(clip, frame.Definitions, badge.X, badge.Y, 0);
+                        <div class="@($"tclip-badge {badge.Css} {Prefix}-badge{index}")" style="left:@Px(badgeX);top:@Px(badgeY)">@badge.Text</div>
+                    }
+
+                    @for (var index = 0; index < ClipAnimator.ClickCount(clip); index++)
+                    {
+                        <div class="@($"tclip-click {Prefix}-click{index}")"></div>
+                    }
+                    @if (clip.Cursor.Count > 0)
+                    {
+                        <div class="@($"tclip-cursor {Prefix}-cursor")">
+                            <svg width="22" height="26" viewBox="0 0 22 26"><path d="M2 2 L2 21 L7 16.5 L10.5 24 L14 22.5 L10.5 15 L17.5 15 Z" /></svg>
+                        </div>
+                    }
+                </div>
+                <div class="tclip-captions" style="width:@Px(clip.Width);height:@Px(CaptionHeight)">
+                    @for (var index = 0; index < clip.Captions.Count; index++)
+                    {
+                        <span class="@($"{Prefix}-cap{index}")">@clip.Captions[index].Text</span>
+                    }
+                </div>
+            </foreignObject>
+        </svg>
+    </figure>
+}
+
+@code {
+    private const double CaptionHeight = 40;
+
+    /// <summary>Имя ролика из <see cref="TutorialClips"/>.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    // Имена анимаций уникальны для каждого показа: на странице может быть несколько роликов.
+    private readonly string Prefix = "tc" + Guid.NewGuid().ToString("N")[..6];
+    private TutorialClip? _clip;
+    private ClipFrame? _frame;
+    private string? _built;
+
+    protected override void OnParametersSet()
+    {
+        if (_built == Name) return;
+        _built = Name;
+        _clip = TutorialClips.Find(Name);
+        _frame = _clip is null ? null : ClipAnimator.Build(_clip, Prefix, Registry);
+    }
+
+    private static readonly string ScaleStyle = FormattableString.Invariant($"transform:scale({ClipAnimator.ChipScale});");
+
+    private static int BarCount(NodeLayout layout) => Math.Clamp(layout.Rows.Count, 1, 3);
+
+    private static string N(double value) => value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Px(double value) => N(value) + "px";
+}

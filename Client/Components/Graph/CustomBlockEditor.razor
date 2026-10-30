@@ -1,0 +1,116 @@
+@using Synapse.Blocks.Graph
+@* Настройки своего блока в левой панели, пока открыта его схема:
+   название, описание, входы и выходы. Сама схема блока — на поле. *@
+
+<div class="block-editor">
+    <span class="direction-pill block-pill">СВОЙ БЛОК</span>
+    <h1>@(string.IsNullOrWhiteSpace(Block.Name) ? "Без названия" : Block.Name)</h1>
+
+    <label class="block-field">
+        <span>Название</span>
+        <input value="@Block.Name" maxlength="28" @oninput="e => Change(() => Block.Name = e.Value?.ToString() ?? string.Empty)" />
+    </label>
+    <label class="block-field">
+        <span>Что делает блок</span>
+        <textarea rows="2" maxlength="200" value="@Block.Description" placeholder="Например: удваивает число и прибавляет 1" @oninput="e => Change(() => Block.Description = e.Value?.ToString() ?? string.Empty)"></textarea>
+    </label>
+
+    @PortList("ВХОДЫ", Block.Inputs, input: true)
+    @PortList("ВЫХОДЫ", Block.Outputs, input: false)
+
+    <p class="block-note">
+        Внутри блока «<b>Параметры</b>» отдают значения входов, а «<b>Вернуть</b>» принимает результат.
+        Снаружи блок работает как обычный чип данных: его можно ставить в любую схему сколько угодно раз.
+    </p>
+
+    <div class="block-actions">
+        <button type="button" class="block-back" @onclick="() => OnClose.InvokeAsync()">← К программе</button>
+        <button type="button" @onclick="SaveToLibrary">@(_saved ? "✓ В библиотеке" : "Сохранить в библиотеку")</button>
+        @if (_confirmDelete)
+        {
+            <button type="button" class="block-danger" @onclick="() => OnDelete.InvokeAsync()">Удалить блок и все его чипы</button>
+            <button type="button" @onclick="() => _confirmDelete = false">Отмена</button>
+        }
+        else
+        {
+            <button type="button" class="block-danger-soft" @onclick="() => _confirmDelete = true">Удалить блок…</button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GraphCustomBlock Block { get; set; } = default!;
+    /// <summary>Основная программа: нужна, чтобы при удалении входа убрать ведущие к нему провода.</summary>
+    [Parameter, EditorRequired] public GraphProgram Root { get; set; } = default!;
+    /// <summary>Изменились название, входы или выходы — нужно пересобрать чипы этого блока.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+    [Parameter] public EventCallback OnSaveToLibrary { get; set; }
+
+    private bool _confirmDelete;
+    private bool _saved;
+    private string? _blockId;
+
+    protected override void OnParametersSet()
+    {
+        if (_blockId == Block.Id) return;
+        _blockId = Block.Id;
+        _confirmDelete = false;
+        _saved = false;
+    }
+
+    private RenderFragment PortList(string title, List<GraphCustomPort> ports, bool input) => __builder =>
+    {
+        <section class="block-ports">
+            <header>
+                <small>@title</small>
+                <button type="button" @onclick="() => Add(input)" disabled="@(ports.Count >= 6)">+ @(input ? "вход" : "выход")</button>
+            </header>
+            @if (ports.Count == 0)
+            {
+                <p class="block-empty">@(input ? "Без входов блок всегда возвращает одно и то же." : "Нужен хотя бы один выход.")</p>
+            }
+            @foreach (var port in ports)
+            {
+                var item = port;
+                <div class="block-port @GraphStyle.TypeClass(item.Type)" @key="item.Id">
+                    <i aria-hidden="true"></i>
+                    <input value="@item.Name" maxlength="20" aria-label="Название" @oninput="e => Change(() => item.Name = e.Value?.ToString() ?? string.Empty)" />
+                    <select value="@item.Type" aria-label="Тип" @onchange="e => SetType(item, e.Value)">
+                        @foreach (var type in Enum.GetValues<DataType>())
+                        {
+                            <option value="@type">@DataTypes.Label(type)</option>
+                        }
+                    </select>
+                    <button type="button" aria-label="Удалить" title="Удалить вместе с проводами" disabled="@(!input && ports.Count <= 1)" @onclick="() => Remove(item)">×</button>
+                </div>
+            }
+        </section>
+    };
+
+    private Task Change(Action change)
+    {
+        change();
+        _saved = false;
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task Add(bool input)
+    {
+        var list = input ? Block.Inputs : Block.Outputs;
+        var name = input ? $"вход {list.Count + 1}" : $"выход {list.Count + 1}";
+        return Change(() => CustomBlocks.AddPort(Block, input, name));
+    }
+
+    private Task Remove(GraphCustomPort port) => Change(() => CustomBlocks.RemovePort(Root, Block, port.Id));
+
+    private Task SetType(GraphCustomPort port, object? value)
+        => Enum.TryParse<DataType>(value?.ToString(), out var type) ? Change(() => port.Type = type) : Task.CompletedTask;
+
+    private async Task SaveToLibrary()
+    {
+        await OnSaveToLibrary.InvokeAsync();
+        _saved = true;
+    }
+}

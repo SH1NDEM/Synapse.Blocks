@@ -1,0 +1,39 @@
+@inject TrainingGate Gate
+@* Закрывает игру города, пока не пройдено обучение. *@
+
+@if (_status is null)
+{
+    <div class="page-loading"><span></span><p>Проверяю доступ…</p></div>
+}
+else if (!_status.Unlocked)
+{
+    <section class="training-lock-page">
+        <div class="training-lock-card">
+            <LockIcon Size="46" />
+            <small>ДОСТУП ЗАКРЫТ</small>
+            <h1>@Title ждёт инженера</h1>
+            <p>Штаб восстановления пускает к системам города только после обучения. Пройди обучающие уровни — и игра откроется.</p>
+            <div class="training-lock-progress">
+                <span>Обучение: <b>@_status.Done</b> из @_status.Total</span>
+                <progress value="@_status.Done" max="@Math.Max(1, _status.Total)"></progress>
+            </div>
+            <div class="training-lock-actions">
+                <a class="signal-start" href="@_status.NextUrl">@(_status.Done > 0 ? "Продолжить обучение" : "Начать обучение") <b>→</b></a>
+                <a class="signal-guide" href="games">Все игры</a>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public string Title { get; set; } = "Игра";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private TrainingStatus? _status;
+
+    protected override async Task OnInitializedAsync() => _status = await Gate.LoadAsync();
+}

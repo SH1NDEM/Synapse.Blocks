@@ -1,35 +1,7 @@
+﻿using Synapse.Blocks.Graph;
+using Synapse.Blocks.Graph.Nodes;
+
 namespace Synapse.Blocks.Models;
-
-public enum BlockKind
-{
-    Input,
-    Operation,
-    Condition,
-    Loop,
-    Variable,
-    VariableAction,
-    Output
-}
-
-public enum VariableAction
-{
-    Read,
-    Set,
-    Add,
-    Subtract,
-    Multiply,
-    Append
-}
-
-public enum OutputPort
-{
-    // Next — обычная связь; остальные значения описывают ветки условия и цикла.
-    Next,
-    True,
-    False,
-    Repeat,
-    Done
-}
 
 /// <summary>Вид поля, которое можно показать внутри вступительного пояснения.</summary>
 public enum IntroFieldKind
@@ -73,12 +45,19 @@ public sealed class LevelDefinition
     public string InputDescription { get; set; } = "";
     public string OutputDescription { get; set; } = "";
     public string Hint { get; set; } = "";
-    public List<BlockKind> AllowedBlocks { get; set; } = Enum.GetValues<BlockKind>().ToList();
-    // Учебные ограничения проверяют не только ответ, но и требуемый приём решения.
-    public List<BlockKind> RequiredBlocks { get; set; } = [];
-    public int? RequiredLoopCount { get; set; }
-    public int? RequiredLoopBodyOperationCount { get; set; }
-    public int? MaxOperationBlocks { get; set; }
+
+    /// <summary>Обучающий уровень: пока все такие уровни не пройдены, игры города закрыты.</summary>
+    public bool Training { get; set; }
+
+    /// <summary>
+    /// Блоки, доступные игроку: TypeId (<c>"math"</c>) или целая категория (<c>"category:logic"</c>).
+    /// «Вход» и «Выход» доступны всегда.
+    /// </summary>
+    public List<string> AllowedNodes { get; set; } = [.. LevelNodes.Mandatory];
+
+    /// <summary>Учебные ограничения: проверяют не только ответ, но и способ решения.</summary>
+    public List<GraphRule> Rules { get; set; } = [];
+
     public List<LevelTestCase> Tests { get; set; } = [];
     public List<LevelIntroStep> IntroSteps { get; set; } = [];
 }
@@ -104,107 +83,31 @@ public sealed class LevelTestCase
     public bool Hidden { get; set; }
 }
 
-public sealed class BlockNode
+/// <summary>Какие блоки уровень даёт игроку.</summary>
+public static class LevelNodes
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public BlockKind Kind { get; set; }
-    public string Config { get; set; } = "";
-    public string VariableName { get; set; } = "A";
-    public string VariableInitialValue { get; set; } = "0";
-    public VariableAction VariableAction { get; set; }
-    public string VariableOperand { get; set; } = "";
-    public double X { get; set; }
-    public double Y { get; set; }
-}
+    /// <summary>Без этих блоков программу не собрать, поэтому они доступны в любом уровне.</summary>
+    public static readonly IReadOnlyList<string> Mandatory = [StartNode.Id, OutputNode.Id];
 
-public sealed class BlockConnection
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid FromNodeId { get; set; }
-    public Guid ToNodeId { get; set; }
-    public OutputPort Port { get; set; } = OutputPort.Next;
-}
+    public static bool IsMandatory(string typeId)
+        => Mandatory.Contains(typeId, StringComparer.OrdinalIgnoreCase);
 
-public sealed class BlockProgram
-{
-    // Граф намеренно состоит из простых списков, чтобы его было легко сериализовать.
-    public List<BlockNode> Nodes { get; set; } = [];
-    public List<BlockConnection> Connections { get; set; } = [];
-}
+    /// <summary>
+    /// Можно ли использовать блок в уровне. Свои блоки и их служебные чипы доступны всегда:
+    /// ограничения уровня проверяются для чипов внутри них.
+    /// </summary>
+    public static bool Allows(LevelDefinition level, NodeDefinition definition)
+        => IsMandatory(definition.TypeId)
+           || definition.Category == NodeCategories.Custom
+           || CustomBlocks.IsServiceType(definition.TypeId)
+           || level.AllowedNodes.Any(target => GraphRules.Matches(target, definition));
 
-public sealed record ProgramExecution(
-    // VisitedNodes нужен интерфейсу для подсветки реального пути выполнения.
-    bool Success,
-    string Output,
-    string Error,
-    IReadOnlyList<Guid> VisitedNodes,
-    IReadOnlyList<ExecutionStep> Steps);
+    public static IEnumerable<NodeDefinition> Available(LevelDefinition level, NodeRegistry registry)
+        => registry.All.Where(definition => Allows(level, definition));
 
-/// <summary>Снимок значения до и после выполнения одного блока.</summary>
-public sealed record ExecutionStep(
-    Guid NodeId,
-    BlockKind Kind,
-    string Input,
-    string Output,
-    string Detail,
-    string VariableName = "",
-    string VariableValue = "");
-
-public sealed record TestRunResult(
-    Guid TestId,
-    string Name,
-    bool Passed,
-    string Input,
-    string Expected,
-    string Actual,
-    string Error,
-    IReadOnlyList<Guid> VisitedNodes);
-
-public static class BlockCatalog
-{
-    public static string Label(BlockKind kind) => kind switch
-    {
-        BlockKind.Input => "Вход",
-        BlockKind.Operation => "Операция",
-        BlockKind.Condition => "Условие",
-        BlockKind.Loop => "Цикл",
-        BlockKind.Variable => "Переменная",
-        BlockKind.VariableAction => "Работа с переменной",
-        BlockKind.Output => "Выход",
-        _ => kind.ToString()
-    };
-
-    public static string Kicker(BlockKind kind) => kind switch
-    {
-        BlockKind.Input => "ДАННЫЕ",
-        BlockKind.Operation => "КОМАНДА",
-        BlockKind.Condition => "ВЕТВЛЕНИЕ",
-        BlockKind.Loop => "ПОВТОР",
-        BlockKind.Variable => "ПАМЯТЬ",
-        BlockKind.VariableAction => "ПЕРЕМЕННАЯ",
-        BlockKind.Output => "РЕЗУЛЬТАТ",
-        _ => "БЛОК"
-    };
-
-    public static string Description(BlockKind kind) => kind switch
-    {
-        BlockKind.Input => "Получает данные текущего теста",
-        BlockKind.Operation => "Изменяет значение по команде",
-        BlockKind.Condition => "Выбирает синюю или красную ветку",
-        BlockKind.Loop => "Повторяет группу блоков заданное число раз",
-        BlockKind.Variable => "Именованная ячейка памяти программы",
-        BlockKind.VariableAction => "Читает, записывает или изменяет память",
-        BlockKind.Output => "Возвращает итог для проверки",
-        _ => ""
-    };
-
-    public static string Placeholder(BlockKind kind) => kind switch
-    {
-        BlockKind.Operation => "+ 2, * 3, set готово, append !",
-        BlockKind.Condition => "> 20, == ключ, contains ошибка или проверка типа",
-        BlockKind.Loop => "input или число повторов",
-        BlockKind.Variable => "имя и начальное значение",
-        BlockKind.VariableAction => "выберите переменную и действие",
-        _ => ""
-    };
+    /// <summary>Проверяет, что элемент списка — известный блок или непустая категория.</summary>
+    public static bool IsKnownTarget(string target, NodeRegistry registry)
+        => target.StartsWith(GraphRules.CategoryPrefix, StringComparison.OrdinalIgnoreCase)
+            ? registry.All.Any(definition => GraphRules.Matches(target, definition))
+            : registry.TryGet(target, out _);
 }
